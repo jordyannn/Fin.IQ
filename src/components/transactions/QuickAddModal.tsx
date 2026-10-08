@@ -12,6 +12,7 @@ import {
   ArrowRightLeft,
   ArrowDownLeft,
   ArrowUpRight,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,7 @@ export function QuickAddModal() {
   const [accountId, setAccountId] = useState("");
   const [toAccountId, setToAccountId] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [happenedAt, setHappenedAt] = useState("");
   const [note, setNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -81,6 +83,7 @@ export function QuickAddModal() {
 
   const resetForm = () => {
     setAmount("");
+    setHappenedAt("");
     setNote("");
   };
 
@@ -101,6 +104,10 @@ export function QuickAddModal() {
     }
 
     setIsSubmitting(true);
+    const txHappenedAt = happenedAt && happenedAt.trim()
+      ? new Date(happenedAt).toISOString()
+      : new Date().toISOString();
+
     createTxMutation.mutate({
       ledgerId: defaultLedgerId,
       txType,
@@ -108,6 +115,7 @@ export function QuickAddModal() {
       accountId: selectedAcc,
       toAccountId: txType === "transfer" ? toAccountId : undefined,
       categoryId: txType !== "transfer" ? (categoryId || categoriesList?.[0]?.id) : undefined,
+      happenedAt: txHappenedAt,
       note,
     });
   };
@@ -218,6 +226,58 @@ export function QuickAddModal() {
                 autoFocus
               />
             </div>
+          </div>
+
+          {/* Tanggal & Waktu Transaksi (Opsional - Default NOW) */}
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                Tanggal & Waktu
+              </label>
+              <span className="text-[10px] text-muted-foreground/80">
+                {happenedAt ? "Waktu Kustom" : "Otomatis Saat Ini (NOW)"}
+              </span>
+            </div>
+            <div className="relative mt-1 flex gap-2">
+              <Input
+                type="datetime-local"
+                value={happenedAt}
+                onChange={(e) => setHappenedAt(e.target.value)}
+                className="h-10 text-xs flex-1"
+              />
+              {happenedAt ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setHappenedAt("")}
+                  className="h-10 px-2.5 text-xs text-muted-foreground hover:text-foreground shrink-0"
+                  title="Kembalikan ke waktu sekarang (NOW)"
+                >
+                  Reset ke NOW
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const now = new Date();
+                    const offset = now.getTimezoneOffset() * 60000;
+                    const localISOTime = new Date(now.getTime() - offset).toISOString().slice(0, 16);
+                    setHappenedAt(localISOTime);
+                  }}
+                  className="h-10 px-2.5 text-xs text-primary font-medium shrink-0 bg-primary/5 border-primary/20 hover:bg-primary/10"
+                  title="Pilih tanggal & jam spesifik"
+                >
+                  Atur Waktu
+                </Button>
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground/70 mt-1">
+              *Jika dikosongkan, transaksi otomatis menggunakan tanggal dan jam saat ini (NOW).
+            </p>
           </div>
 
           {/* Akun & Kategori */}
