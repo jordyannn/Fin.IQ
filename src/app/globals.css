@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 156 100% 35%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 156 25% 96%;
+    --secondary-foreground: 156 80% 20%;
+
+    --muted: 210 20% 96.5%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 156 35% 95%;
+    --accent-foreground: 156 80% 22%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 25% 91%;
+    --input: 214.3 25% 91%;
+    --ring: 156 100% 35%;
+
+    --radius: 0.875rem;
+  }
+
+  .dark {
+    --background: 222.2 47% 8%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 40% 11%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 40% 10%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 155 85% 45%;
+    --primary-foreground: 155 90% 10%;
+
+    --secondary: 155 25% 16%;
+    --secondary-foreground: 155 70% 88%;
+
+    --muted: 217.2 25% 15%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 155 30% 16%;
+    --accent-foreground: 155 70% 90%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 25% 18%;
+    --input: 217.2 25% 18%;
+    --ring: 155 85% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.dark .glass {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.25);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.45);
+}

@@ -1,0 +1,8 @@
+date,type,amount,account,toAccount,category,note,tags
+2026-03-01 08:30,expense,25000,cash,,Makanan & Minuman,Sarapan Nasi Uduk & Teh,kuliner;sarapan
+2026-03-01 13:10,expense,50000,blu,,Transportasi,Isi Bensin Pertamax,operasional
+2026-03-02 12:45,expense,15000,dana,,Makanan & Minuman,Kopi Susu Siang,ngopi;jajan
+2026-03-03 09:00,income,5000000,blu,,Gaji & Pendapatan,Gaji Pokok Bulanan,gaji;kantor
+2026-03-03 10:15,transfer,200000,blu,cash,,Tarik Tunai ATM,atm;cash
+2026-03-04 19:30,expense,85000,dana,,Belanja,Beli Paket Data Internet,pulsa;kuota
+2026-03-05 20:00,expense,120000,blu,,Tagihan & Utilitas,Listrik PLN Pascabayar,tagihan;rumah
