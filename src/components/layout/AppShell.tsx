@@ -26,14 +26,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           />
           <div className="relative z-10 flex w-72 flex-col bg-card p-4 shadow-2xl animate-in slide-in-from-left duration-200">
             <div className="flex items-center justify-between pb-4 border-b">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-xl bg-primary flex items-center justify-center text-white font-bold text-xs">
-                  FQ
-                </div>
-                <div>
-                  <span className="font-extrabold text-sm tracking-tight">Fin.IQ Cloud</span>
-                  <p className="text-[10px] text-muted-foreground">Navigasi Seluler</p>
-                </div>
+              <div>
+                <span className="font-extrabold text-base tracking-tight text-foreground">Fin.IQ</span>
+                <p className="text-[10px] text-muted-foreground">Navigasi Seluler</p>
               </div>
               <button
                 onClick={() => setSidebarOpen(false)}

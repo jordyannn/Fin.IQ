@@ -152,19 +152,13 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8 sm:px-6">
       <div className="w-full max-w-md">
-        {/* Brand Header — Bibit-inspired emerald badge */}
+        {/* Brand Header */}
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#00B569] text-white shadow-xl shadow-emerald-500/25 mb-3 transition-transform hover:scale-105">
-            <Sparkles className="h-7 w-7 stroke-[2.5]" />
-          </div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground flex items-center gap-1.5">
+          <h1 className="text-3xl font-black tracking-tight text-foreground">
             Fin.IQ
-            <span className="text-[11px] font-bold uppercase tracking-wider bg-emerald-50 text-[#00B569] dark:bg-emerald-950/60 dark:text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-              Cloud
-            </span>
           </h1>
-          <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-            Manajemen Keuangan Personal Modern &amp; Cerdas dengan Akses Multi-Device
+          <p className="text-xs text-muted-foreground mt-1.5 max-w-xs">
+            Manajemen Keuangan Personal Modern &amp; Cerdas
           </p>
         </div>
 

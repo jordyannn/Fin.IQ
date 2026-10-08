@@ -61,17 +61,9 @@ export async function createContext(opts?: { req?: Request }): Promise<Context> 
     }
   }
 
-  // 3. Fallback to active user or DEMO_USER_ID if unauthenticated
-  if (!authenticatedUserId) {
-    const activeUser = await db.select().from(users).limit(1);
-    authenticatedUserId =
-      activeUser[0]?.id || process.env.DEMO_USER_ID || "9728be5f-a414-42f3-a827-4504a56c1370";
-    authenticatedEmail = activeUser[0]?.email || "owner@finiq.app";
-  }
-
   return {
     db,
-    userId: authenticatedUserId,
+    userId: authenticatedUserId || "",
     userEmail: authenticatedEmail,
   };
 }

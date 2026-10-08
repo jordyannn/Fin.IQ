@@ -4,7 +4,7 @@ import { TRPCProvider } from "@/lib/trpc/Provider";
 import { ThemeProvider } from "next-themes";
 
 export const metadata: Metadata = {
-  title: "Fin.IQ — Cloud Financial Management",
+  title: "Fin.IQ — Smart Financial Management",
   description:
     "Aplikasi manajemen keuangan personal modern dengan multi-device sync, pelacak pengeluaran, anggaran, dan integrasi AI.",
   manifest: "/manifest.json",

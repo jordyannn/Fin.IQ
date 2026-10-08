@@ -69,11 +69,11 @@ export function TopBar() {
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border/60 bg-card/85 px-3.5 sm:px-6 backdrop-blur-md">
       {/* Left Area: Mobile Brand & Search Trigger */}
       <div className="flex items-center gap-2.5 sm:gap-3">
-        {/* Mobile Brand Badge */}
-        <div className="flex lg:hidden items-center gap-2 mr-1">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#00B569] text-white font-black text-xs shadow-sm shadow-emerald-500/25">
-            FQ
-          </div>
+        {/* Mobile Brand */}
+        <div className="flex lg:hidden items-center mr-1">
+          <span className="text-base font-black tracking-tight text-foreground">
+            Fin.IQ
+          </span>
         </div>
 
         {/* Command Palette Trigger */}

@@ -14,7 +14,6 @@ import {
   BookOpen,
   CalendarRange,
   Settings,
-  Sparkles,
   ShieldCheck,
   FileSpreadsheet,
   LogOut,
@@ -80,21 +79,13 @@ export function Sidebar({
       )}
     >
       <div className="flex flex-col gap-5">
-        {/* Brand / Logo */}
+        {/* Brand */}
         {!isMobile && (
-          <div className="flex items-center gap-3 px-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#00B569] text-white shadow-md shadow-emerald-500/25">
-              <Sparkles className="h-5 w-5 stroke-[2.5]" />
-            </div>
-            <div>
-              <h1 className="text-lg font-black tracking-tight text-foreground flex items-center gap-1.5">
-                Fin.IQ
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-[#00B569] dark:bg-emerald-950/60 dark:text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                  Cloud
-                </span>
-              </h1>
-              <p className="text-xs text-muted-foreground font-medium">Fintech Finance Engine</p>
-            </div>
+          <div className="px-3 py-1">
+            <h1 className="text-xl font-black tracking-tight text-foreground">
+              Fin.IQ
+            </h1>
+            <p className="text-xs text-muted-foreground font-medium mt-0.5">Fintech Finance Engine</p>
           </div>
         )}
 
