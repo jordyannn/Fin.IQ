@@ -1,0 +1,353 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { trpc } from "@/lib/trpc/client";
+import {
+  X,
+  ArrowRightLeft,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Calendar,
+  Wallet,
+  Tag,
+  FileText,
+  Save,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+
+export interface TransactionToEdit {
+  id: string;
+  amount: number;
+  currency: string;
+  txType: "expense" | "income" | "transfer" | string;
+  happenedAt: string | Date;
+  note: string | null;
+  accountId: string;
+  toAccountId?: string | null;
+  categoryId?: string | null;
+  accountName?: string | null;
+  categoryName?: string | null;
+}
+
+interface EditTransactionModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  transaction: TransactionToEdit | null;
+}
+
+export function EditTransactionModal({
+  isOpen,
+  onClose,
+  transaction,
+}: EditTransactionModalProps) {
+  const utils = trpc.useUtils();
+
+  const [txType, setTxType] = useState<"expense" | "income" | "transfer">("expense");
+  const [amount, setAmount] = useState("");
+  const [accountId, setAccountId] = useState("");
+  const [toAccountId, setToAccountId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [happenedAt, setHappenedAt] = useState("");
+  const [note, setNote] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Queries
+  const { data: accountsData } = trpc.accounts.list.useQuery();
+  const { data: categoriesList } = trpc.categories.list.useQuery();
+
+  // Populate data when transaction changes
+  useEffect(() => {
+    if (transaction) {
+      setTxType((transaction.txType as any) || "expense");
+      setAmount(String(transaction.amount || ""));
+      setAccountId(transaction.accountId || "");
+      setToAccountId(transaction.toAccountId || "");
+      setCategoryId(transaction.categoryId || "");
+      setNote(transaction.note || "");
+      setErrorMessage(null);
+
+      try {
+        const d = new Date(transaction.happenedAt);
+        // Format to YYYY-MM-DDTHH:mm
+        const offset = d.getTimezoneOffset() * 60000;
+        const localISOTime = new Date(d.getTime() - offset).toISOString().slice(0, 16);
+        setHappenedAt(localISOTime);
+      } catch {
+        setHappenedAt(new Date().toISOString().slice(0, 16));
+      }
+    }
+  }, [transaction]);
+
+  const updateMutation = trpc.transactions.update.useMutation({
+    onSuccess: () => {
+      utils.transactions.invalidate();
+      utils.accounts.invalidate();
+      utils.analytics.invalidate();
+      onClose();
+    },
+    onError: (err) => {
+      setErrorMessage(err.message || "Gagal memperbarui transaksi.");
+    },
+  });
+
+  if (!isOpen || !transaction) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+
+    const numAmount = parseFloat(amount.replace(/[^0-9.]/g, ""));
+    if (!numAmount || numAmount <= 0) {
+      setErrorMessage("Nominal transaksi harus lebih dari 0.");
+      return;
+    }
+
+    if (!accountId) {
+      setErrorMessage("Harap pilih akun transaksi.");
+      return;
+    }
+
+    if (txType === "transfer" && !toAccountId) {
+      setErrorMessage("Harap pilih akun tujuan untuk transfer.");
+      return;
+    }
+
+    if (txType === "transfer" && accountId === toAccountId) {
+      setErrorMessage("Akun asal dan akun tujuan tidak boleh sama.");
+      return;
+    }
+
+    updateMutation.mutate({
+      id: transaction.id,
+      txType,
+      amount: numAmount,
+      accountId,
+      toAccountId: txType === "transfer" ? toAccountId : null,
+      categoryId: txType !== "transfer" ? categoryId || null : null,
+      happenedAt: happenedAt ? new Date(happenedAt).toISOString() : undefined,
+      note: note.trim() || undefined,
+    });
+  };
+
+  const filteredCategories = categoriesList?.filter((c) =>
+    txType === "expense" ? c.kind === "expense" : c.kind === "income"
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="relative w-full max-w-lg rounded-2xl bg-card border border-border/80 shadow-2xl overflow-hidden p-6 text-card-foreground">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b pb-4">
+          <div>
+            <h2 className="text-base font-bold">Edit Transaksi</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Perbarui rincian, akun, atau nominal transaksi ini
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {errorMessage && (
+          <div className="mt-4 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium">
+            {errorMessage}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
+          {/* Tipe Transaksi (Tabs) */}
+          <div className="grid grid-cols-3 gap-2 rounded-xl bg-muted p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setTxType("expense")}
+              className={cn(
+                "flex items-center justify-center gap-1.5 rounded-lg py-2 font-semibold transition-all",
+                txType === "expense"
+                  ? "bg-rose-600 text-white shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <ArrowDownLeft className="h-3.5 w-3.5" />
+              Pengeluaran
+            </button>
+            <button
+              type="button"
+              onClick={() => setTxType("income")}
+              className={cn(
+                "flex items-center justify-center gap-1.5 rounded-lg py-2 font-semibold transition-all",
+                txType === "income"
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <ArrowUpRight className="h-3.5 w-3.5" />
+              Pemasukan
+            </button>
+            <button
+              type="button"
+              onClick={() => setTxType("transfer")}
+              className={cn(
+                "flex items-center justify-center gap-1.5 rounded-lg py-2 font-semibold transition-all",
+                txType === "transfer"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <ArrowRightLeft className="h-3.5 w-3.5" />
+              Transfer
+            </button>
+          </div>
+
+          {/* Nominal Input */}
+          <div>
+            <label className="text-xs font-semibold text-foreground mb-1 block">
+              Nominal ({transaction.currency || "IDR"})
+            </label>
+            <div className="relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">
+                Rp
+              </span>
+              <Input
+                type="number"
+                step="any"
+                min="0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0"
+                className="pl-11 text-base font-bold h-11"
+                required
+              />
+            </div>
+          </div>
+
+          {/* Waktu Transaksi */}
+          <div>
+            <label className="text-xs font-semibold text-foreground mb-1 flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+              Waktu Transaksi
+            </label>
+            <Input
+              type="datetime-local"
+              value={happenedAt}
+              onChange={(e) => setHappenedAt(e.target.value)}
+              className="text-xs h-9"
+              required
+            />
+          </div>
+
+          {/* Akun & Kategori Selectors */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Akun Sumber */}
+            <div>
+              <label className="text-xs font-semibold text-foreground mb-1 flex items-center gap-1.5">
+                <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
+                {txType === "transfer" ? "Dari Akun" : "Akun Keuangan"}
+              </label>
+              <select
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                required
+              >
+                <option value="">Pilih Akun...</option>
+                {accountsData?.accounts?.map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.name} ({acc.group})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Akun Tujuan (Transfer) ATAU Kategori (Expense/Income) */}
+            {txType === "transfer" ? (
+              <div>
+                <label className="text-xs font-semibold text-foreground mb-1 flex items-center gap-1.5">
+                  <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
+                  Ke Akun Tujuan
+                </label>
+                <select
+                  value={toAccountId}
+                  onChange={(e) => setToAccountId(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                  required
+                >
+                  <option value="">Pilih Akun Tujuan...</option>
+                  {accountsData?.accounts
+                    ?.filter((a) => a.id !== accountId)
+                    .map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name} ({acc.group})
+                      </option>
+                    ))}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label className="text-xs font-semibold text-foreground mb-1 flex items-center gap-1.5">
+                  <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                  Kategori
+                </label>
+                <select
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                >
+                  <option value="">Tanpa Kategori (Umum)</option>
+                  {filteredCategories?.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Catatan / Keterangan */}
+          <div>
+            <label className="text-xs font-semibold text-foreground mb-1 flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              Catatan / Keterangan
+            </label>
+            <Input
+              type="text"
+              placeholder="Contoh: Belanja bulanan, isi bensin, makan siang..."
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="text-xs h-9"
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-2 border-t pt-4 mt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              disabled={updateMutation.isPending}
+              className="text-xs"
+            >
+              Batal
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={updateMutation.isPending}
+              className="bg-[#00B569] hover:bg-[#00B569]/90 text-white text-xs gap-1.5 shadow-sm"
+            >
+              <Save className="h-3.5 w-3.5" />
+              {updateMutation.isPending ? "Menyimpan..." : "Simpan Perubahan"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

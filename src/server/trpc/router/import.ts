@@ -29,28 +29,30 @@ export const importRouter = router({
       // 1. Resolve target ledger
       let targetLedgerId = input.targetLedgerId;
       if (!targetLedgerId) {
-        const firstLedger = await ctx.db.query.ledgers.findFirst({
-          where: eq(ledgers.userId, ctx.userId),
-        });
-        if (firstLedger) {
-          targetLedgerId = firstLedger.id;
+        const existingLedgers = await ctx.db
+          .select()
+          .from(ledgers)
+          .where(eq(ledgers.userId, ctx.userId))
+          .limit(1);
+
+        if (existingLedgers.length > 0) {
+          targetLedgerId = existingLedgers[0].id;
         } else {
-          const [newLedger] = await ctx.db
-            .insert(ledgers)
-            .values({
-              userId: ctx.userId,
-              name: "Buku Kas Utama",
-              currency: "IDR",
-              monthStartDay: 1,
-            })
-            .returning();
-          targetLedgerId = newLedger.id;
+          const newLedgerId = crypto.randomUUID();
+          await ctx.db.insert(ledgers).values({
+            id: newLedgerId,
+            userId: ctx.userId,
+            name: "Buku Kas Utama",
+            currency: "IDR",
+            monthStartDay: 1,
+          });
+          targetLedgerId = newLedgerId;
         }
       }
 
       // 2. Cache user accounts
       const userAccounts = await ctx.db.select().from(accounts).where(eq(accounts.userId, ctx.userId));
-      const accountMap = new Map<string, (typeof userAccounts)[0]>();
+      const accountMap = new Map<string, any>();
       for (const a of userAccounts) {
         accountMap.set(a.name.toLowerCase().trim(), a);
       }
@@ -61,9 +63,26 @@ export const importRouter = router({
         if (found) defaultAccount = found;
       }
 
+      if (!defaultAccount) {
+        const newAccId = crypto.randomUUID();
+        const initialAcc = {
+          id: newAccId,
+          userId: ctx.userId,
+          name: "Kas Tunai",
+          group: "Cash",
+          currency: "IDR",
+          initialBalance: 0,
+          balance: 0,
+        };
+        await ctx.db.insert(accounts).values(initialAcc);
+        defaultAccount = initialAcc as any;
+        accountMap.set("kas tunai", initialAcc);
+        accountMap.set("cash", initialAcc);
+      }
+
       // 3. Cache user categories
       const userCategories = await ctx.db.select().from(categories).where(eq(categories.userId, ctx.userId));
-      const categoryMap = new Map<string, (typeof userCategories)[0]>();
+      const categoryMap = new Map<string, any>();
       for (const c of userCategories) {
         categoryMap.set(c.name.toLowerCase().trim(), c);
       }
@@ -100,15 +119,15 @@ export const importRouter = router({
         const catName = item.categoryName ? item.categoryName.trim() : "Umum";
         let matchedCat = categoryMap.get(catName.toLowerCase());
         if (!matchedCat) {
-          const [newCat] = await ctx.db
-            .insert(categories)
-            .values({
-              userId: ctx.userId,
-              name: catName,
-              kind: item.txType === "income" ? "income" : "expense",
-              icon: "Receipt",
-            })
-            .returning();
+          const newCatId = crypto.randomUUID();
+          const newCat = {
+            id: newCatId,
+            userId: ctx.userId,
+            name: catName,
+            kind: item.txType === "income" ? "income" : "expense",
+            icon: "Receipt",
+          };
+          await ctx.db.insert(categories).values(newCat);
           matchedCat = newCat;
           categoryMap.set(catName.toLowerCase(), newCat);
           categoriesCreated.push(catName);
@@ -120,17 +139,17 @@ export const importRouter = router({
 
         if (!matchedAccount) {
           const groupName = accName.toLowerCase().includes("bank") ? "Bank card" : "Cash";
-          const [newAcc] = await ctx.db
-            .insert(accounts)
-            .values({
-              userId: ctx.userId,
-              name: accName,
-              group: groupName,
-              currency: "IDR",
-              initialBalance: 0,
-              balance: 0,
-            })
-            .returning();
+          const newAccId = crypto.randomUUID();
+          const newAcc = {
+            id: newAccId,
+            userId: ctx.userId,
+            name: accName,
+            group: groupName,
+            currency: "IDR",
+            initialBalance: 0,
+            balance: 0,
+          };
+          await ctx.db.insert(accounts).values(newAcc);
           matchedAccount = newAcc;
           accountMap.set(accName.toLowerCase(), newAcc);
           accountsCreated.push(accName);
@@ -142,17 +161,17 @@ export const importRouter = router({
           const toName = item.toAccountName.trim();
           matchedToAccount = accountMap.get(toName.toLowerCase());
           if (!matchedToAccount) {
-            const [newToAcc] = await ctx.db
-              .insert(accounts)
-              .values({
-                userId: ctx.userId,
-                name: toName,
-                group: "Bank card",
-                currency: "IDR",
-                initialBalance: 0,
-                balance: 0,
-              })
-              .returning();
+            const newToAccId = crypto.randomUUID();
+            const newToAcc = {
+              id: newToAccId,
+              userId: ctx.userId,
+              name: toName,
+              group: "Bank card",
+              currency: "IDR",
+              initialBalance: 0,
+              balance: 0,
+            };
+            await ctx.db.insert(accounts).values(newToAcc);
             matchedToAccount = newToAcc;
             accountMap.set(toName.toLowerCase(), newToAcc);
             accountsCreated.push(toName);

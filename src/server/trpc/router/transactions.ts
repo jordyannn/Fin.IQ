@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
+import { TRPCError } from "@trpc/server";
 import { transactions, accounts, categories, ledgers } from "../../db/schema";
 import { eq, and, desc, sql, gte, lte, ilike, inArray } from "drizzle-orm";
 
@@ -137,6 +138,103 @@ export const transactionsRouter = router({
       }
 
       return newTx;
+    }),
+
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        ledgerId: z.string().optional(),
+        txType: z.enum(["expense", "income", "transfer"]),
+        amount: z.number().positive("Nominal harus lebih dari 0"),
+        currency: z.string().default("IDR"),
+        happenedAt: z.string().optional(),
+        note: z.string().optional(),
+        accountId: z.string(),
+        toAccountId: z.string().nullable().optional(),
+        categoryId: z.string().nullable().optional(),
+        tags: z.array(z.string()).default([]),
+        excludeFromStats: z.boolean().default(false),
+        excludeFromBudget: z.boolean().default(false),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // 1. Find existing transaction
+      const existingTx = await ctx.db.query.transactions.findFirst({
+        where: and(eq(transactions.id, input.id), eq(transactions.userId, ctx.userId)),
+      });
+
+      if (!existingTx) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Transaksi tidak ditemukan." });
+      }
+
+      // 2. Revert previous account balance effects
+      if (existingTx.txType === "expense" && existingTx.accountId) {
+        await ctx.db
+          .update(accounts)
+          .set({ balance: sql`${accounts.balance} + ${existingTx.amount}` })
+          .where(eq(accounts.id, existingTx.accountId));
+      } else if (existingTx.txType === "income" && existingTx.accountId) {
+        await ctx.db
+          .update(accounts)
+          .set({ balance: sql`${accounts.balance} - ${existingTx.amount}` })
+          .where(eq(accounts.id, existingTx.accountId));
+      } else if (existingTx.txType === "transfer" && existingTx.accountId && existingTx.toAccountId) {
+        await ctx.db
+          .update(accounts)
+          .set({ balance: sql`${accounts.balance} + ${existingTx.amount}` })
+          .where(eq(accounts.id, existingTx.accountId));
+        await ctx.db
+          .update(accounts)
+          .set({ balance: sql`${accounts.balance} - ${existingTx.amount}` })
+          .where(eq(accounts.id, existingTx.toAccountId));
+      }
+
+      // 3. Apply new account balance effects
+      if (input.txType === "expense") {
+        await ctx.db
+          .update(accounts)
+          .set({ balance: sql`${accounts.balance} - ${input.amount}` })
+          .where(eq(accounts.id, input.accountId));
+      } else if (input.txType === "income") {
+        await ctx.db
+          .update(accounts)
+          .set({ balance: sql`${accounts.balance} + ${input.amount}` })
+          .where(eq(accounts.id, input.accountId));
+      } else if (input.txType === "transfer" && input.toAccountId) {
+        await ctx.db
+          .update(accounts)
+          .set({ balance: sql`${accounts.balance} - ${input.amount}` })
+          .where(eq(accounts.id, input.accountId));
+        await ctx.db
+          .update(accounts)
+          .set({ balance: sql`${accounts.balance} + ${input.amount}` })
+          .where(eq(accounts.id, input.toAccountId));
+      }
+
+      const date = input.happenedAt ? new Date(input.happenedAt) : new Date();
+
+      // 4. Update transaction row
+      await ctx.db
+        .update(transactions)
+        .set({
+          ledgerId: input.ledgerId || existingTx.ledgerId,
+          txType: input.txType,
+          amount: input.amount,
+          currency: input.currency,
+          nativeAmount: input.amount,
+          happenedAt: date,
+          note: input.note || null,
+          accountId: input.accountId,
+          toAccountId: input.txType === "transfer" ? (input.toAccountId || null) : null,
+          categoryId: input.txType !== "transfer" ? (input.categoryId || null) : null,
+          tagsJson: input.tags,
+          excludeFromStats: input.excludeFromStats,
+          excludeFromBudget: input.excludeFromBudget,
+        })
+        .where(and(eq(transactions.id, input.id), eq(transactions.userId, ctx.userId)));
+
+      return { success: true, id: input.id };
     }),
 
   delete: protectedProcedure

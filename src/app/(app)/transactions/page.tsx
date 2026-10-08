@@ -16,11 +16,13 @@ import {
   RefreshCw,
   TrendingUp,
   TrendingDown,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { EditTransactionModal, type TransactionToEdit } from "@/components/transactions/EditTransactionModal";
 
 export default function TransactionsPage() {
   const { openQuickAdd } = useUIStore();
@@ -30,6 +32,7 @@ export default function TransactionsPage() {
   const [selectedType, setSelectedType] = useState<"expense" | "income" | "transfer" | undefined>(undefined);
   const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(undefined);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [editingTx, setEditingTx] = useState<TransactionToEdit | null>(null);
 
   // Queries
   const { data: accountsData } = trpc.accounts.list.useQuery();
@@ -320,13 +323,22 @@ export default function TransactionsPage() {
                     {isIncome && "+ "}
                     {formatCurrency(tx.amount, tx.currency)}
                   </span>
-                  <button
-                    onClick={() => handleDelete(tx.id)}
-                    className="p-1 rounded-lg text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors"
-                    title="Hapus Transaksi"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setEditingTx(tx as any)}
+                      className="p-1 rounded-lg text-muted-foreground hover:text-[#00B569] hover:bg-emerald-50 dark:hover:bg-emerald-950 transition-colors"
+                      title="Edit Transaksi"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(tx.id)}
+                      className="p-1 rounded-lg text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors"
+                      title="Hapus Transaksi"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </Card>
@@ -419,13 +431,22 @@ export default function TransactionsPage() {
                       </Badge>
                     </td>
                     <td className="p-3 text-center">
-                      <button
-                        onClick={() => handleDelete(tx.id)}
-                        className="p-1 rounded text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors"
-                        title="Hapus Transaksi"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => setEditingTx(tx as any)}
+                          className="p-1 rounded text-muted-foreground hover:text-[#00B569] hover:bg-emerald-50 dark:hover:bg-emerald-950 transition-colors"
+                          title="Edit Transaksi"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(tx.id)}
+                          className="p-1 rounded text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors"
+                          title="Hapus Transaksi"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -442,6 +463,12 @@ export default function TransactionsPage() {
           </table>
         </div>
       </Card>
+      {/* Edit Transaction Modal */}
+      <EditTransactionModal
+        isOpen={!!editingTx}
+        onClose={() => setEditingTx(null)}
+        transaction={editingTx}
+      />
     </div>
   );
 }
