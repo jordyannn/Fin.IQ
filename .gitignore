@@ -12,6 +12,7 @@ dist/
 
 # Local databases
 *.db
+!finiq.db
 *.db-journal
 *.sqlite
 *.sqlite-journal

@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Receipt,
@@ -17,8 +17,10 @@ import {
   Sparkles,
   ShieldCheck,
   FileSpreadsheet,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { trpc } from "@/lib/trpc/client";
 
 const navigationItems = [
   { label: "Overview", href: "/overview", icon: LayoutDashboard },
@@ -34,7 +36,7 @@ const navigationItems = [
 ];
 
 const secondaryItems = [
-  { label: "Pengaturan & 2FA", href: "/settings", icon: Settings },
+  { label: "Pengaturan & Profil", href: "/settings", icon: Settings },
   { label: "Integritas Data", href: "/integrity", icon: ShieldCheck },
 ];
 
@@ -45,7 +47,28 @@ export function Sidebar({
   isMobile?: boolean;
   onItemClick?: () => void;
 }) {
+  const router = useRouter();
   const pathname = usePathname();
+  const { data: profile } = trpc.user.getProfile.useQuery();
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      router.push("/login");
+      router.refresh();
+    } catch {
+      router.push("/login");
+    }
+  };
+
+  const userInitials = profile?.displayName
+    ? profile.displayName
+        .split(" ")
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "FQ";
 
   return (
     <aside
@@ -57,20 +80,20 @@ export function Sidebar({
       )}
     >
       <div className="flex flex-col gap-5">
-        {/* Brand / Logo (Hidden on mobile if drawer already has header) */}
+        {/* Brand / Logo */}
         {!isMobile && (
           <div className="flex items-center gap-3 px-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-primary to-emerald-400 text-white shadow-md shadow-primary/20">
-              <Sparkles className="h-5 w-5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#00B569] text-white shadow-md shadow-emerald-500/25">
+              <Sparkles className="h-5 w-5 stroke-[2.5]" />
             </div>
             <div>
-              <h1 className="text-lg font-extrabold tracking-tight text-foreground flex items-center gap-1.5">
+              <h1 className="text-lg font-black tracking-tight text-foreground flex items-center gap-1.5">
                 Fin.IQ
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-[#00B569] dark:bg-emerald-950/60 dark:text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
                   Cloud
                 </span>
               </h1>
-              <p className="text-xs text-muted-foreground font-medium">Smart Financial Engine</p>
+              <p className="text-xs text-muted-foreground font-medium">Fintech Finance Engine</p>
             </div>
           </div>
         )}
@@ -94,16 +117,16 @@ export function Sidebar({
                 className={cn(
                   "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all group",
                   isActive
-                    ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20 font-semibold"
-                    : "text-muted-foreground hover:bg-primary/10 hover:text-primary active:scale-[0.98]"
+                    ? "bg-[#00B569] text-white shadow-sm shadow-emerald-500/20 font-bold"
+                    : "text-muted-foreground hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30 hover:text-[#00B569] active:scale-[0.98]"
                 )}
               >
                 <Icon
                   className={cn(
                     "h-4 w-4 transition-colors shrink-0",
                     isActive
-                      ? "text-primary-foreground"
-                      : "text-muted-foreground group-hover:text-primary"
+                      ? "text-white"
+                      : "text-muted-foreground group-hover:text-[#00B569]"
                   )}
                 />
                 <span className="truncate">{item.label}</span>
@@ -114,7 +137,7 @@ export function Sidebar({
       </div>
 
       {/* Bottom Group */}
-      <div className="flex flex-col gap-1 border-t pt-4 mt-4">
+      <div className="flex flex-col gap-2 border-t pt-4 mt-4">
         {secondaryItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
@@ -125,9 +148,9 @@ export function Sidebar({
               href={item.href}
               onClick={onItemClick}
               className={cn(
-                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium transition-colors",
                 isActive
-                  ? "bg-primary/15 text-primary font-semibold"
+                  ? "bg-emerald-50 dark:bg-emerald-950/50 text-[#00B569] font-bold"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.98]"
               )}
             >
@@ -136,6 +159,36 @@ export function Sidebar({
             </Link>
           );
         })}
+
+        {/* User Profile Card & Quick Logout */}
+        <div className="flex items-center justify-between p-2.5 rounded-2xl bg-muted/40 border border-border/60 mt-1">
+          <Link
+            href="/settings"
+            onClick={onItemClick}
+            className="flex items-center gap-2.5 min-w-0 flex-1 hover:opacity-80 transition-opacity"
+          >
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-[#00B569] dark:bg-emerald-950 dark:text-emerald-400 text-xs font-black shrink-0 border border-emerald-300 dark:border-emerald-800">
+              {userInitials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-foreground truncate">
+                {profile?.displayName || "Pengguna"}
+              </p>
+              <p className="text-[10px] text-muted-foreground truncate">
+                {profile?.email || "owner@finiq.app"}
+              </p>
+            </div>
+          </Link>
+
+          <button
+            onClick={handleLogout}
+            title="Keluar dari akun"
+            className="p-1.5 text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors ml-1"
+            aria-label="Logout"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </aside>
   );
