@@ -424,30 +424,101 @@ export function detectCategory(
 }
 
 /**
- * Pemetaan fonetik akun umum di Indonesia
+ * Sinonim dan kata kunci keluarga akun finansial di Indonesia
  */
-const ACCOUNT_PHONETIC_MAP: Record<string, string> = {
-  blue: "blu",
-  blu: "blu",
-  "bca digital": "blu",
-  cash: "kas",
-  tunai: "kas",
-  "kas tunai": "kas",
-  dompet: "kas",
-  shopee: "shopeepay",
-  spay: "shopeepay",
-  shopeepay: "shopeepay",
-  gopay: "gopay",
-  gojek: "gopay",
-  ovo: "ovo",
-  dana: "dana",
-  jago: "jago",
-  bca: "bca",
-  mandiri: "mandiri",
-  bri: "bri",
-  bni: "bni",
-  seabank: "seabank",
+const ACCOUNT_FAMILY_KEYWORDS: Record<string, string[]> = {
+  cash: [
+    "cash",
+    "kas",
+    "tunai",
+    "uang tunai",
+    "kas tunai",
+    "duit tunai",
+    "uang cash",
+    "bayar cash",
+    "secara cash",
+    "dompet",
+  ],
+  blu: ["blu", "blue", "bca digital", "blubca", "akun blue", "akun blu"],
+  bca: ["bca", "bank bca", "klikbca", "tahapan bca"],
+  mandiri: ["mandiri", "livin", "bank mandiri"],
+  bri: ["bri", "brimo", "bank bri"],
+  bni: ["bni", "bni mobile", "bank bni"],
+  jago: ["jago", "bank jago"],
+  dana: ["dana", "dompet dana"],
+  gopay: ["gopay", "gojek", "go pay"],
+  ovo: ["ovo"],
+  shopeepay: ["shopeepay", "shopee", "spay", "shopee pay"],
+  seabank: ["seabank", "sea bank"],
 };
+
+/**
+ * Hitung skor kecocokan antara teks ucapan dengan sebuah akun
+ */
+function matchAccountScore(text: string, acc: AccountItem): number {
+  const lower = text.toLowerCase().trim();
+  const accName = acc.name.toLowerCase().trim();
+  const accGroup = (acc.group || "").toLowerCase().trim();
+  let score = 0;
+
+  // 1. Direct exact / token name match
+  const escapedName = accName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const nameRegex = new RegExp(`\\b${escapedName}\\b`, "i");
+  if (nameRegex.test(lower)) {
+    score += 150 + accName.length * 5;
+    if (lower === accName) score += 200;
+  } else if (lower.includes(accName)) {
+    score += 80 + accName.length * 3;
+  }
+
+  // 2. Penanganan cerdas khusus cash vs kas tunai
+  const hasCash = /\bcash(?!back)\b/i.test(lower);
+  const hasKasTunai = /\bkas\s*tunai\b/i.test(lower);
+  const hasTunai = /\btunai\b/i.test(lower);
+  const hasKas = /\bkas\b/i.test(lower);
+
+  if (hasCash) {
+    if (accName === "cash") score += 200;
+    else if (accName.includes("cash")) score += 140;
+    else if (accName === "kas tunai" || accName === "kas") score += 60;
+    else if (accGroup === "cash") score += 40;
+  }
+
+  if (hasKasTunai) {
+    if (accName === "kas tunai") score += 200;
+    else if (accName === "cash") score += 60;
+    else if (accGroup === "cash") score += 40;
+  } else if (hasTunai) {
+    if (accName.includes("tunai")) score += 180;
+    else if (accName === "cash") score += 70;
+    else if (accGroup === "cash") score += 50;
+  } else if (hasKas && !hasKasTunai) {
+    if (accName === "kas") score += 180;
+    else if (accName === "kas tunai") score += 120;
+    else if (accName === "cash") score += 70;
+  }
+
+  // 3. Pencocokan keluarga akun lainnya (blu, dana, gopay, dll.)
+  for (const [familyKey, keywords] of Object.entries(ACCOUNT_FAMILY_KEYWORDS)) {
+    if (familyKey === "cash") continue; // sudah diproses di atas
+    const isMember =
+      accName.includes(familyKey) ||
+      keywords.some((kw) => accName.includes(kw));
+
+    if (isMember) {
+      for (const kw of keywords) {
+        const escapedKw = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const kwRegex = new RegExp(`\\b${escapedKw}\\b`, "i");
+        if (kwRegex.test(lower)) {
+          score += 100 + kw.length * 3;
+          if (accName === kw) score += 100;
+        }
+      }
+    }
+  }
+
+  return score;
+}
 
 /**
  * Deteksi dan cocokkan akun dari suara
@@ -461,64 +532,64 @@ export function detectAccount(
   toAccountHint?: string;
   matchedToAccountId?: string;
 } {
-  const lower = text.toLowerCase();
+  const lower = text.toLowerCase().trim();
 
   // 1. Cek transfer pola: "dari [akun A] ke [akun B]"
   const transferMatch = lower.match(/(?:dari|from)\s+([a-z0-9\s]+?)\s+(?:ke|to)\s+([a-z0-9\s]+)/i);
-  let fromHint = "kas";
+  let fromHint = "cash";
   let toHint = "";
 
   if (transferMatch) {
     fromHint = transferMatch[1].trim();
     toHint = transferMatch[2].trim();
-  } else {
-    // Normal akun hint
-    for (const [phonetic, canonical] of Object.entries(ACCOUNT_PHONETIC_MAP)) {
-      if (lower.includes(phonetic)) {
-        fromHint = canonical;
-        break;
-      }
+  }
+
+  if (!userAccounts || userAccounts.length === 0) {
+    return { accountHint: fromHint };
+  }
+
+  // 2. Cari akun asal (source account) dengan skor tertinggi
+  let bestAcc: AccountItem | null = null;
+  let maxScore = 0;
+
+  for (const acc of userAccounts) {
+    const sc = matchAccountScore(transferMatch ? fromHint : lower, acc);
+    if (sc > maxScore) {
+      maxScore = sc;
+      bestAcc = acc;
     }
   }
 
-  // 2. Cocokkan dengan akun pengguna di database
-  let matchedAccountId: string | undefined;
+  // 3. Cari akun tujuan jika ada (transfer)
   let matchedToAccountId: string | undefined;
-
-  if (userAccounts && userAccounts.length > 0) {
-    const findAcc = (hint: string) => {
-      const hLower = hint.toLowerCase();
-      // Coba phonetic mapping dulu
-      const mapped = ACCOUNT_PHONETIC_MAP[hLower] || hLower;
-      return userAccounts.find((a) => {
-        const aLower = a.name.toLowerCase();
-        return (
-          aLower.includes(hLower) ||
-          hLower.includes(aLower) ||
-          aLower.includes(mapped) ||
-          mapped.includes(aLower)
-        );
-      });
-    };
-
-    const fromAcc = findAcc(fromHint);
-    if (fromAcc) {
-      matchedAccountId = fromAcc.id;
-      fromHint = fromAcc.name;
-    }
-
-    if (toHint) {
-      const toAcc = findAcc(toHint);
-      if (toAcc) {
-        matchedToAccountId = toAcc.id;
-        toHint = toAcc.name;
+  if (toHint) {
+    let bestToAcc: AccountItem | null = null;
+    let maxToScore = 0;
+    for (const acc of userAccounts) {
+      if (bestAcc && acc.id === bestAcc.id) continue;
+      const sc = matchAccountScore(toHint, acc);
+      if (sc > maxToScore) {
+        maxToScore = sc;
+        bestToAcc = acc;
       }
     }
+    if (bestToAcc) {
+      matchedToAccountId = bestToAcc.id;
+      toHint = bestToAcc.name;
+    }
   }
+
+  // 4. Fallback jika tidak ada penyebutan eksplisit akun yang cocok
+  const fallback =
+    userAccounts.find((a) => a.name.toLowerCase() === "cash") ||
+    userAccounts.find((a) => a.name.toLowerCase().includes("kas")) ||
+    userAccounts[0];
+
+  const finalMatched = bestAcc || fallback;
 
   return {
-    accountHint: fromHint,
-    matchedAccountId,
+    accountHint: finalMatched.name,
+    matchedAccountId: finalMatched.id,
     toAccountHint: toHint || undefined,
     matchedToAccountId,
   };
@@ -560,6 +631,44 @@ const INDONESIAN_NUMBER_WORDS: Record<string, number> = {
   "tiga puluh": 30, "tiga puluh lima": 35, "empat puluh": 40,
   "empat puluh lima": 45, "lima puluh": 50, "lima puluh lima": 55,
 };
+
+const INDONESIAN_DAY_WORDS: Record<string, number> = {
+  satu: 1, dua: 2, tiga: 3, empat: 4, lima: 5,
+  enam: 6, tujuh: 7, delapan: 8, sembilan: 9, sepuluh: 10,
+  sebelas: 11, "dua belas": 12, "tiga belas": 13, "empat belas": 14,
+  "lima belas": 15, "enam belas": 16, "tujuh belas": 17, "delapan belas": 18,
+  "sembilan belas": 19, "dua puluh": 20, "dua puluh satu": 21,
+  "dua puluh dua": 22, "dua puluh tiga": 23, "dua puluh empat": 24,
+  "dua puluh lima": 25, "dua puluh enam": 26, "dua puluh tujuh": 27,
+  "dua puluh delapan": 28, "dua puluh sembilan": 29, "tiga puluh": 30,
+  "tiga puluh satu": 31,
+};
+
+export function parseDayNumber(str: string): number | null {
+  if (!str) return null;
+  const clean = str.trim().toLowerCase().replace(/\s+/g, " ");
+  const asInt = parseInt(clean, 10);
+  if (!isNaN(asInt) && asInt >= 1 && asInt <= 31) return asInt;
+  if (INDONESIAN_DAY_WORDS[clean]) return INDONESIAN_DAY_WORDS[clean];
+  return null;
+}
+
+export function parseRelativeQuantity(str: string): number {
+  if (!str) return 1;
+  const clean = str.trim().toLowerCase();
+  if (clean === "se" || clean === "satu") return 1;
+  if (clean === "dua") return 2;
+  if (clean === "tiga") return 3;
+  if (clean === "empat") return 4;
+  if (clean === "lima") return 5;
+  if (clean === "enam") return 6;
+  if (clean === "tujuh") return 7;
+  if (clean === "delapan") return 8;
+  if (clean === "sembilan") return 9;
+  if (clean === "sepuluh") return 10;
+  const val = parseInt(clean, 10);
+  return isNaN(val) ? 1 : val;
+}
 
 export function parseIndonesianNumber(str: string): number | null {
   if (!str) return null;
@@ -784,11 +893,18 @@ export function formatToDateTimeLocal(date: Date): string {
   return `${yr}-${mo}-${day}T${hr}:${min}`;
 }
 
+const MONTH_REGEX_PART =
+  "(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember|jan|feb|mar|apr|jun|jul|ags|agu|sep|okt|nov|des)";
+
+const DAY_WORD_REGEX_PART =
+  "(?:tiga\\s+puluh\\s+satu|tiga\\s+puluh|dua\\s+puluh\\s+(?:satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan)|dua\\s+puluh|sembilan\\s+belas|delapan\\s+belas|tujuh\\s+belas|enam\\s+belas|lima\\s+belas|empat\\s+belas|tiga\\s+belas|dua\\s+belas|sebelas|sepuluh|sembilan|delapan|tujuh|enam|lima|empat|tiga|dua|satu|\\d{1,2})";
+
 /**
  * Ekstraksi Waktu & Tanggal Natural Language Bahasa Indonesia
  * Menangani: "saat ini", "sekarang", "kemarin", "semalam", "lusa", "besok",
- * "tadi pagi/siang/sore/malam", "jam 2 siang", "pukul 14.30", "jam setengah 2",
- * "tanggal 25 agustus 2026", "2 jam lalu", "30 menit lalu", "senin lalu", "bulan lalu", dll.
+ * "3 hari yang lalu", "5 hari lalu", "seminggu yang lalu", "bulan lalu", "3 bulan lalu",
+ * "tanggal 15 maret", "bulan maret tanggal 15", "tanggal lima belas maret",
+ * "jam 2 siang", "pukul 14.30", "jam setengah 2", "2 jam lalu", dll.
  */
 export function extractDateTimeFromText(
   text: string,
@@ -799,7 +915,7 @@ export function extractDateTimeFromText(
   hasTimeMention: boolean;
 } {
   if (!text) return { hasTimeMention: false };
-  const lower = text.toLowerCase();
+  const lower = text.toLowerCase().trim();
 
   const targetDate = new Date(referenceDate.getTime());
   let hasMention = false;
@@ -817,18 +933,45 @@ export function extractDateTimeFromText(
     targetDate.setDate(d);
   }
 
-  // 2. Tanggal eksplisit dengan nama bulan: "tanggal 25 agustus 2026", "25 agustus", "tgl 15 maret"
-  const fullDateMatch = lower.match(
-    /(?:tanggal|tgl\s*)?\b(\d{1,2})\s+(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember|jan|feb|mar|apr|jun|jul|ags|agu|sep|okt|nov|des)\b(?:\s*(\d{4}))?/i
+  // 2. Pola tanggal dengan nama bulan eksplisit:
+  // a) "[tanggal] [bulan] [tahun]" misal: "tanggal 15 maret 2026", "15 maret", "tanggal lima belas maret"
+  const dateBeforeMonthRegex = new RegExp(
+    `(?:pada\\s+)?(?:tanggal|tgl\\s*)?\\b(${DAY_WORD_REGEX_PART})\\s+${MONTH_REGEX_PART}\\b(?:\\s*(\\d{4}))?`,
+    "i"
   );
-  if (fullDateMatch && !slashDateMatch) {
+  const dateBeforeMonthMatch = !slashDateMatch ? lower.match(dateBeforeMonthRegex) : null;
+
+  // b) "bulan [nama_bulan] (tanggal [tgl])? ([tahun])?" misal: "bulan maret tanggal 15", "di bulan agustus tanggal 17", "pada bulan januari"
+  const monthBeforeDateRegex = new RegExp(
+    `(?:pada|di)?\\s*bulan\\s+${MONTH_REGEX_PART}(?:\\s*(?:tanggal|tgl)?\\s*(${DAY_WORD_REGEX_PART}))?(?:\\s*(\\d{4}))?`,
+    "i"
+  );
+  const monthBeforeDateMatch = !slashDateMatch && !dateBeforeMonthMatch ? lower.match(monthBeforeDateRegex) : null;
+
+  if (dateBeforeMonthMatch) {
     hasMention = true;
-    const d = parseInt(fullDateMatch[1], 10);
-    const m = MONTH_NAMES[fullDateMatch[2].toLowerCase()];
-    const y = fullDateMatch[3] ? parseInt(fullDateMatch[3], 10) : targetDate.getFullYear();
-    targetDate.setFullYear(y);
-    targetDate.setMonth(m);
-    targetDate.setDate(d);
+    const dayVal = parseDayNumber(dateBeforeMonthMatch[1]);
+    const monthVal = MONTH_NAMES[dateBeforeMonthMatch[2].toLowerCase()];
+    const yearVal = dateBeforeMonthMatch[3] ? parseInt(dateBeforeMonthMatch[3], 10) : targetDate.getFullYear();
+    if (monthVal !== undefined) {
+      targetDate.setFullYear(yearVal);
+      targetDate.setMonth(monthVal);
+      if (dayVal) targetDate.setDate(dayVal);
+    }
+  } else if (monthBeforeDateMatch) {
+    hasMention = true;
+    const monthVal = MONTH_NAMES[monthBeforeDateMatch[1].toLowerCase()];
+    const dayVal = monthBeforeDateMatch[2] ? parseDayNumber(monthBeforeDateMatch[2]) : null;
+    const yearVal = monthBeforeDateMatch[3] ? parseInt(monthBeforeDateMatch[3], 10) : targetDate.getFullYear();
+    if (monthVal !== undefined) {
+      targetDate.setFullYear(yearVal);
+      targetDate.setMonth(monthVal);
+      if (dayVal) {
+        targetDate.setDate(dayVal);
+      } else {
+        targetDate.setDate(1);
+      }
+    }
   } else if (!slashDateMatch) {
     // Tanggal angka saja: "tanggal 25", "tgl 5"
     const tglOnlyMatch = lower.match(/(?:tanggal|tgl)\s*(\d{1,2})\b/i);
@@ -839,23 +982,16 @@ export function extractDateTimeFromText(
     }
   }
 
-  // 3. Cek relatif jam/menit lalu: "2 jam lalu", "30 menit yang lalu", "sejam lalu"
-  const hoursAgoMatch = lower.match(/(?:(\d+)|se)\s*jam\s*(?:yang\s*)?lalu/i);
-  if (hoursAgoMatch) {
-    hasMention = true;
-    const h = hoursAgoMatch[1] ? parseInt(hoursAgoMatch[1], 10) : 1;
-    targetDate.setHours(targetDate.getHours() - h);
-  }
+  // 3. Cek Relatif Hari Lalu: "3 hari yang lalu", "3 hari lalu", "tiga hari yang lalu", "kemarin lusa", "kemarin", dll.
+  const daysAgoRegex =
+    /\b(\d+|se|satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh)\s*hari\s*(?:yang\s*)?lalu\b/i;
+  const daysAgoMatch = lower.match(daysAgoRegex);
 
-  const minsAgoMatch = lower.match(/(\d+)\s*menit\s*(?:yang\s*)?lalu/i);
-  if (minsAgoMatch) {
+  if (daysAgoMatch) {
     hasMention = true;
-    const m = parseInt(minsAgoMatch[1], 10);
-    targetDate.setMinutes(targetDate.getMinutes() - m);
-  }
-
-  // 4. Cek hari relatif
-  if (
+    const numDays = parseRelativeQuantity(daysAgoMatch[1]);
+    targetDate.setDate(targetDate.getDate() - numDays);
+  } else if (
     lower.includes("kemarin lusa") ||
     lower.includes("dua hari lalu") ||
     lower.includes("2 hari lalu") ||
@@ -877,18 +1013,49 @@ export function extractDateTimeFromText(
   } else if (lower.includes("besok")) {
     hasMention = true;
     targetDate.setDate(targetDate.getDate() + 1);
-  } else if (
-    lower.includes("minggu lalu") ||
-    lower.includes("pekan lalu") ||
-    lower.includes("1 minggu lalu") ||
-    lower.includes("seminggu lalu")
-  ) {
+  }
+
+  // 4. Cek Relatif Minggu / Pekan Lalu: "seminggu lalu", "2 minggu yang lalu", "3 minggu lalu"
+  const weeksAgoRegex =
+    /\b(\d+|se|satu|dua|tiga|empat|lima)\s*(?:minggu|pekan)\s*(?:yang\s*)?lalu\b/i;
+  const weeksAgoMatch = lower.match(weeksAgoRegex);
+  if (weeksAgoMatch) {
+    hasMention = true;
+    const numWeeks = parseRelativeQuantity(weeksAgoMatch[1]);
+    targetDate.setDate(targetDate.getDate() - numWeeks * 7);
+  } else if (lower.includes("minggu lalu") || lower.includes("pekan lalu") || lower.includes("seminggu lalu")) {
     hasMention = true;
     targetDate.setDate(targetDate.getDate() - 7);
-  } else if (lower.includes("2 minggu lalu")) {
+  }
+
+  // 5. Cek Relatif Bulan Lalu: "sebulan lalu", "1 bulan lalu", "3 bulan yang lalu", "6 bulan lalu"
+  const monthsAgoRegex =
+    /\b(\d+|se|satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh|sebelas)\s*bulan\s*(?:yang\s*)?lalu\b/i;
+  const monthsAgoMatch = lower.match(monthsAgoRegex);
+  if (monthsAgoMatch) {
     hasMention = true;
-    targetDate.setDate(targetDate.getDate() - 14);
-  } else if (
+    const numMonths = parseRelativeQuantity(monthsAgoMatch[1]);
+    targetDate.setMonth(targetDate.getMonth() - numMonths);
+  } else if (lower.includes("bulan lalu") || lower.includes("sebulan lalu")) {
+    hasMention = true;
+    targetDate.setMonth(targetDate.getMonth() - 1);
+  }
+
+  // 6. Cek Relatif Tahun Lalu: "setahun lalu", "1 tahun lalu", "2 tahun yang lalu"
+  const yearsAgoRegex =
+    /\b(\d+|se|satu|dua|tiga|empat|lima)\s*tahun\s*(?:yang\s*)?lalu\b/i;
+  const yearsAgoMatch = lower.match(yearsAgoRegex);
+  if (yearsAgoMatch) {
+    hasMention = true;
+    const numYears = parseRelativeQuantity(yearsAgoMatch[1]);
+    targetDate.setFullYear(targetDate.getFullYear() - numYears);
+  } else if (lower.includes("tahun lalu") || lower.includes("setahun lalu")) {
+    hasMention = true;
+    targetDate.setFullYear(targetDate.getFullYear() - 1);
+  }
+
+  // 7. Cek penanda "saat ini" / "sekarang"
+  if (
     lower.includes("saat ini") ||
     lower.includes("waktu saat ini") ||
     lower.includes("pada saat ini") ||
@@ -901,23 +1068,22 @@ export function extractDateTimeFromText(
     lower.includes("seketika")
   ) {
     hasMention = true;
-    // targetDate tetap waktu saat ini
   }
 
-  // 5. Cek hari dalam seminggu: "hari senin", "senin lalu", "rabu kemarin"
+  // 8. Cek hari dalam seminggu: "hari senin", "senin lalu", "rabu kemarin"
   const dayMatch = lower.match(
     /\b(?:hari\s+)?(senin|selasa|rabu|kamis|jumat|sabtu|minggu)(?:\s+(?:lalu|kemarin))?\b/i
   );
-  if (dayMatch && !fullDateMatch && !slashDateMatch) {
+  if (dayMatch && !slashDateMatch && !dateBeforeMonthMatch && !monthBeforeDateMatch && !daysAgoMatch) {
     hasMention = true;
     const targetDayIndex = DAY_NAMES[dayMatch[1].toLowerCase()];
     const currentDayIndex = targetDate.getDay();
     let diff = currentDayIndex - targetDayIndex;
-    if (diff <= 0) diff += 7; // Mundur ke hari tersebut di minggu lalu/terdekat
+    if (diff <= 0) diff += 7;
     targetDate.setDate(targetDate.getDate() - diff);
   }
 
-  // 6. Cek jam eksplisit / verbal dengan parseClockFromIndonesian
+  // 9. Cek jam eksplisit / verbal dengan parseClockFromIndonesian
   const clock = parseClockFromIndonesian(lower);
   if (clock.hasMatch) {
     hasMention = true;
@@ -956,18 +1122,19 @@ export function extractDateTimeFromText(
     }
   }
 
-  // 7. Cek bulan lalu / tahun lalu
-  if (lower.includes("bulan lalu") || lower.includes("1 bulan lalu") || lower.includes("sebulan lalu")) {
+  // 10. Cek relatif jam/menit lalu: "2 jam lalu", "30 menit yang lalu", "sejam lalu"
+  const hoursAgoMatch = lower.match(/(?:(\d+)|se)\s*jam\s*(?:yang\s*)?lalu/i);
+  if (hoursAgoMatch) {
     hasMention = true;
-    targetDate.setMonth(targetDate.getMonth() - 1);
-  } else if (lower.includes("2 bulan lalu")) {
-    hasMention = true;
-    targetDate.setMonth(targetDate.getMonth() - 2);
+    const h = hoursAgoMatch[1] ? parseInt(hoursAgoMatch[1], 10) : 1;
+    targetDate.setHours(targetDate.getHours() - h);
   }
 
-  if (lower.includes("tahun lalu") || lower.includes("1 tahun lalu") || lower.includes("setahun lalu")) {
+  const minsAgoMatch = lower.match(/(\d+)\s*menit\s*(?:yang\s*)?lalu/i);
+  if (minsAgoMatch) {
     hasMention = true;
-    targetDate.setFullYear(targetDate.getFullYear() - 1);
+    const m = parseInt(minsAgoMatch[1], 10);
+    targetDate.setMinutes(targetDate.getMinutes() - m);
   }
 
   return {
@@ -1038,6 +1205,10 @@ export function cleanSpeechToNote(text: string): string {
     ""
   );
   cleaned = cleaned.replace(
+    /(?:pada\s+)?(?:\d+|se|satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh)\s*hari\s*(?:yang\s*)?lalu/gi,
+    ""
+  );
+  cleaned = cleaned.replace(
     /(?:pada\s+)?(?:kemarin\s+lusa|dua\s+hari\s+lalu|2\s+hari\s+lalu|2\s+hari\s+yang\s+lalu)/gi,
     ""
   );
@@ -1050,7 +1221,22 @@ export function cleanSpeechToNote(text: string): string {
     /(?:pada\s+)?(?:hari\s+)?(?:senin|selasa|rabu|kamis|jumat|sabtu|minggu)(?:\s+(?:lalu|kemarin))?/gi,
     ""
   );
-  cleaned = cleaned.replace(/(?:1\s+|2\s+|se)?(?:minggu|pekan|bulan|tahun)\s*(?:yang\s*)?lalu/gi, "");
+  cleaned = cleaned.replace(
+    /(?:pada\s+)?(?:\d+|se|satu|dua|tiga|empat|lima)\s*(?:minggu|pekan)\s*(?:yang\s*)?lalu/gi,
+    ""
+  );
+  cleaned = cleaned.replace(
+    /(?:pada\s+)?(?:\d+|se|satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh|sebelas)\s*bulan\s*(?:yang\s*)?lalu/gi,
+    ""
+  );
+  cleaned = cleaned.replace(
+    /(?:pada\s+)?(?:\d+|se|satu|dua|tiga|empat|lima)\s*tahun\s*(?:yang\s*)?lalu/gi,
+    ""
+  );
+  cleaned = cleaned.replace(
+    /(?:pada|di)?\s*bulan\s+(?:januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember|jan|feb|mar|apr|jun|jul|ags|agu|sep|okt|nov|des)(?:\s*(?:tanggal|tgl)?\s*[\w\d]+)?(?:\s*\d{4})?/gi,
+    ""
+  );
 
   // 8. Hapus deklarasi akun: "dengan akun blue", "pakai akun blu", "ke akun blu", "pake cash"
   cleaned = cleaned.replace(

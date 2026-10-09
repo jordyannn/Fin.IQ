@@ -23,6 +23,7 @@ import {
   smartParseIndonesianTransaction,
   extractDateTimeFromText,
   detectCategory,
+  detectAccount,
 } from "@/lib/nlp-parser";
 
 export interface TransactionToEdit {
@@ -392,11 +393,10 @@ export function EditTransactionModal({
                   title="Sebut akun (misal: Blu, Cash, BCA)"
                   onResult={(text) => {
                     if (accountsData?.accounts) {
-                      const lower = text.toLowerCase();
-                      const found = accountsData.accounts.find((a) =>
-                        a.name.toLowerCase().includes(lower) || lower.includes(a.name.toLowerCase())
-                      );
-                      if (found) setAccountId(found.id);
+                      const detected = detectAccount(text, accountsData.accounts);
+                      if (detected.matchedAccountId) {
+                        setAccountId(detected.matchedAccountId);
+                      }
                     }
                   }}
                 />
@@ -429,13 +429,11 @@ export function EditTransactionModal({
                     title="Sebut akun tujuan"
                     onResult={(text) => {
                       if (accountsData?.accounts) {
-                        const lower = text.toLowerCase();
-                        const found = accountsData.accounts
-                          .filter((a) => a.id !== accountId)
-                          .find((a) =>
-                            a.name.toLowerCase().includes(lower) || lower.includes(a.name.toLowerCase())
-                          );
-                        if (found) setToAccountId(found.id);
+                        const targetAccounts = accountsData.accounts.filter((a) => a.id !== accountId);
+                        const detected = detectAccount(text, targetAccounts);
+                        if (detected.matchedAccountId) {
+                          setToAccountId(detected.matchedAccountId);
+                        }
                       }
                     }}
                   />
