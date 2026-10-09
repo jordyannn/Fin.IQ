@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, formatInputIDR, parseInputIDR } from "@/lib/utils";
 import { VoiceMicButton } from "@/components/ui/VoiceMicButton";
+import { smartParseIndonesianTransaction } from "@/lib/nlp-parser";
 
 export function QuickAddModal() {
   const { isQuickAddOpen, closeQuickAdd } = useUIStore();
@@ -37,33 +38,93 @@ export function QuickAddModal() {
   const { data: categoriesList } = trpc.categories.list.useQuery();
   const { data: ledgersList } = trpc.ledgers.list.useQuery();
 
-  // Voice & AI parsing
+  // Smart Voice & NLP parsing
+  const applySmartSpeechParse = (transcript: string) => {
+    // 1. Eksekusi lokal instan (0 ms latency)
+    const result = smartParseIndonesianTransaction(transcript, {
+      accounts: accountsData?.accounts,
+      categories: categoriesList,
+    });
+
+    if (result.amount > 0) {
+      setAmount(result.formattedAmount);
+    }
+    if (result.txType) {
+      setTxType(result.txType);
+    }
+    if (result.matchedAccountId) {
+      setAccountId(result.matchedAccountId);
+    } else if (accountsData?.accounts) {
+      const foundAcc = accountsData.accounts.find((a) =>
+        a.name.toLowerCase().includes(result.accountHint.toLowerCase()) ||
+        result.accountHint.toLowerCase().includes(a.name.toLowerCase())
+      );
+      if (foundAcc) setAccountId(foundAcc.id);
+    }
+
+    if (result.matchedToAccountId) {
+      setToAccountId(result.matchedToAccountId);
+    }
+
+    if (result.matchedCategoryId) {
+      setCategoryId(result.matchedCategoryId);
+    } else if (categoriesList) {
+      const foundCat = categoriesList
+        .filter((c) => c.kind === result.txType)
+        .find((c) =>
+          c.name.toLowerCase().includes(result.categoryHint.toLowerCase()) ||
+          result.categoryHint.toLowerCase().includes(c.name.toLowerCase())
+        );
+      if (foundCat) setCategoryId(foundCat.id);
+    }
+
+    if (result.cleanNote) {
+      setNote(result.cleanNote);
+    } else {
+      setNote(transcript);
+    }
+
+    // 2. Kirim ke backend mutation untuk memastikan sinkronisasi
+    parseMutation.mutate({ text: transcript });
+  };
+
   const parseMutation = trpc.ai.parseTextToTransaction.useMutation({
     onSuccess: (data) => {
-      if (data.amount > 0) setAmount(formatInputIDR(String(data.amount)));
+      if (data.amount > 0) setAmount(data.formattedAmount || formatInputIDR(String(data.amount)));
       if (data.txType) setTxType(data.txType);
-      if (data.note) setNote(data.note);
+      if (data.cleanNote) setNote(data.cleanNote);
+      else if (data.note) setNote(data.note);
 
-      // Auto select account if matches cash/blu/dana
-      if (accountsData?.accounts) {
+      if (data.matchedAccountId) {
+        setAccountId(data.matchedAccountId);
+      } else if (accountsData?.accounts) {
         const foundAcc = accountsData.accounts.find((a) =>
-          a.name.toLowerCase().includes(data.accountHint.toLowerCase())
+          a.name.toLowerCase().includes(data.accountHint.toLowerCase()) ||
+          data.accountHint.toLowerCase().includes(a.name.toLowerCase())
         );
         if (foundAcc) setAccountId(foundAcc.id);
       }
 
-      // Auto select category
-      if (categoriesList) {
-        const foundCat = categoriesList.find((c) =>
-          c.name.toLowerCase().includes(data.categoryHint.toLowerCase())
-        );
+      if (data.matchedToAccountId) {
+        setToAccountId(data.matchedToAccountId);
+      }
+
+      if (data.matchedCategoryId) {
+        setCategoryId(data.matchedCategoryId);
+      } else if (categoriesList) {
+        const foundCat = categoriesList
+          .filter((c) => c.kind === data.txType)
+          .find((c) =>
+            c.name.toLowerCase().includes(data.categoryHint.toLowerCase()) ||
+            data.categoryHint.toLowerCase().includes(c.name.toLowerCase())
+          );
         if (foundCat) setCategoryId(foundCat.id);
       }
     },
   });
 
   const { isListening, startListening, stopListening } = useVoiceInput((transcript) => {
-    parseMutation.mutate({ text: transcript });
+    applySmartSpeechParse(transcript);
   });
 
   // Create mutation
@@ -411,9 +472,9 @@ export function QuickAddModal() {
               <label className="text-xs font-medium text-muted-foreground">Catatan / Deskripsi</label>
               <VoiceMicButton
                 size="sm"
-                title="Dikte catatan transaksi"
+                title="Dikte transaksi cerdas (otomatis isi seluruh form)"
                 onResult={(text) => {
-                  setNote((prev) => (prev ? `${prev} ${text}` : text));
+                  applySmartSpeechParse(text);
                 }}
               />
             </div>

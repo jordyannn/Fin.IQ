@@ -12,12 +12,14 @@ import {
   Tag,
   FileText,
   Save,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, formatInputIDR, parseInputIDR } from "@/lib/utils";
 import { VoiceMicButton } from "@/components/ui/VoiceMicButton";
 import { parseSpokenNumber } from "@/hooks/use-voice-input";
+import { smartParseIndonesianTransaction } from "@/lib/nlp-parser";
 
 export interface TransactionToEdit {
   id: string;
@@ -94,6 +96,51 @@ export function EditTransactionModal({
     },
   });
 
+  const applySmartSpeechParse = (transcript: string) => {
+    const result = smartParseIndonesianTransaction(transcript, {
+      accounts: accountsData?.accounts,
+      categories: categoriesList,
+    });
+
+    if (result.amount > 0) {
+      setAmount(result.formattedAmount);
+    }
+    if (result.txType) {
+      setTxType(result.txType);
+    }
+    if (result.matchedAccountId) {
+      setAccountId(result.matchedAccountId);
+    } else if (accountsData?.accounts) {
+      const foundAcc = accountsData.accounts.find((a) =>
+        a.name.toLowerCase().includes(result.accountHint.toLowerCase()) ||
+        result.accountHint.toLowerCase().includes(a.name.toLowerCase())
+      );
+      if (foundAcc) setAccountId(foundAcc.id);
+    }
+
+    if (result.matchedToAccountId) {
+      setToAccountId(result.matchedToAccountId);
+    }
+
+    if (result.matchedCategoryId) {
+      setCategoryId(result.matchedCategoryId);
+    } else if (categoriesList) {
+      const foundCat = categoriesList
+        .filter((c) => c.kind === result.txType)
+        .find((c) =>
+          c.name.toLowerCase().includes(result.categoryHint.toLowerCase()) ||
+          result.categoryHint.toLowerCase().includes(c.name.toLowerCase())
+        );
+      if (foundCat) setCategoryId(foundCat.id);
+    }
+
+    if (result.cleanNote) {
+      setNote(result.cleanNote);
+    } else {
+      setNote(transcript);
+    }
+  };
+
   if (!isOpen || !transaction) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -161,6 +208,24 @@ export function EditTransactionModal({
             {errorMessage}
           </div>
         )}
+
+        {/* AI Voice Assistant Bar */}
+        <div className="mt-3 flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary shrink-0" />
+            <div>
+              <p className="text-xs font-semibold text-foreground">Dikte Suara Cerdas</p>
+              <p className="text-[10px] text-muted-foreground">
+                Ubah transaksi lewat suara (misal: &ldquo;Beli kopi 30rb pakai blu&rdquo;)
+              </p>
+            </div>
+          </div>
+          <VoiceMicButton
+            size="md"
+            title="Dikte transaksi cerdas"
+            onResult={(text) => applySmartSpeechParse(text)}
+          />
+        </div>
 
         <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
           {/* Tipe Transaksi (Tabs) */}
@@ -379,9 +444,9 @@ export function EditTransactionModal({
               </label>
               <VoiceMicButton
                 size="sm"
-                title="Dikte catatan transaksi"
+                title="Dikte transaksi cerdas (otomatis isi seluruh form)"
                 onResult={(text) => {
-                  setNote((prev) => (prev ? `${prev} ${text}` : text));
+                  applySmartSpeechParse(text);
                 }}
               />
             </div>
