@@ -2,7 +2,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { transactions, accounts, categories, ledgers } from "../../db/schema";
-import { eq, and, desc, sql, gte, lte, like, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, like, inArray, isNull } from "drizzle-orm";
 
 export const transactionsRouter = router({
   list: protectedProcedure
@@ -29,7 +29,11 @@ export const transactionsRouter = router({
         conditions.push(eq(transactions.accountId, input.accountId));
       }
       if (input.categoryId) {
-        conditions.push(eq(transactions.categoryId, input.categoryId));
+        if (input.categoryId === "uncategorized") {
+          conditions.push(isNull(transactions.categoryId));
+        } else {
+          conditions.push(eq(transactions.categoryId, input.categoryId));
+        }
       }
       if (input.txType) {
         conditions.push(eq(transactions.txType, input.txType));

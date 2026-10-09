@@ -32,6 +32,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  CategoryDetailModal,
+  type CategoryDetailTarget,
+} from "@/components/analytics/CategoryDetailModal";
+import {
   AreaChart,
   Area,
   ResponsiveContainer,
@@ -49,6 +53,7 @@ export default function OverviewPage() {
   const [scope, setScope] = useState<HeroScope>("month");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [topCatScope, setTopCatScope] = useState<HeroScope>("month");
+  const [selectedCategory, setSelectedCategory] = useState<CategoryDetailTarget | null>(null);
 
   // Format periode: YYYY-MM untuk month, YYYY untuk year
   const periodStr =
@@ -61,6 +66,22 @@ export default function OverviewPage() {
     topCatScope === "month"
       ? `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`
       : `${currentDate.getFullYear()}`;
+
+  const catPeriodLabel =
+    topCatScope === "month"
+      ? new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(currentDate)
+      : `Tahun ${currentDate.getFullYear()}`;
+
+  // Rentang tanggal ISO untuk detail kategori
+  const catDateFrom =
+    topCatScope === "month"
+      ? new Date(currentDate.getFullYear(), currentDate.getMonth(), 1, 0, 0, 0).toISOString()
+      : new Date(currentDate.getFullYear(), 0, 1, 0, 0, 0).toISOString();
+
+  const catDateTo =
+    topCatScope === "month"
+      ? new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59, 999).toISOString()
+      : new Date(currentDate.getFullYear(), 11, 31, 23, 59, 59, 999).toISOString();
 
   const periodLabel =
     scope === "month"
@@ -582,40 +603,85 @@ export default function OverviewPage() {
           4.5. HEATMAP AKTIVITAS BULANAN (Data yearHeatmap)
       ========================================================================= */}
       {heatmapData && heatmapData.length > 0 && (
-        <Card className="p-5 sm:p-6 rounded-3xl border-border/70 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
+        <Card className="p-5 sm:p-6 rounded-3xl border-border/80 shadow-xs bg-card">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded-xl bg-primary/15 flex items-center justify-center text-primary">
+              <div className="h-8 w-8 rounded-xl bg-primary/15 flex items-center justify-center text-primary shrink-0">
                 <CalendarDays className="h-4 w-4" />
               </div>
               <div>
-                <h3 className="font-extrabold text-sm text-foreground">Aktivitas Bulanan {currentDate.getFullYear()}</h3>
-                <p className="text-[11px] text-muted-foreground">Jumlah transaksi & arus kas per bulan</p>
+                <h3 className="font-extrabold text-sm text-foreground">
+                  Aktivitas Bulanan {currentDate.getFullYear()}
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Arus kas & intensitas transaksi per bulan (klik bulan untuk filter cepat)
+                </p>
               </div>
+            </div>
+
+            <div className="text-[11px] text-muted-foreground self-start sm:self-auto font-medium">
+              Total {heatmapData.reduce((acc, m) => acc + m.txCount, 0)} transaksi tercatat
             </div>
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {heatmapData.map((m) => {
               const net = m.income - m.expense;
-              const intensity = Math.min(m.txCount, 30);
-              const opacityPct = m.txCount > 0 ? Math.max(15, Math.round((intensity / 30) * 100)) : 5;
+              const isSelectedMonth =
+                scope === "month" &&
+                currentDate.getMonth() === m.monthIndex &&
+                currentDate.getFullYear() === (heatmapData[0] ? currentDate.getFullYear() : new Date().getFullYear());
+
               return (
                 <div
                   key={m.monthIndex}
-                  className="flex flex-col gap-1 p-2.5 rounded-xl border border-border/60 transition-all hover:border-primary/40"
-                  style={{ backgroundColor: m.txCount > 0 ? `hsl(var(--primary) / ${opacityPct / 100})` : undefined }}
+                  onClick={() => {
+                    setCurrentDate(new Date(currentDate.getFullYear(), m.monthIndex, 1));
+                    setScope("month");
+                    setTopCatScope("month");
+                  }}
+                  className={`flex flex-col gap-2 p-3 rounded-2xl border transition-all cursor-pointer text-left group shadow-xs ${
+                    isSelectedMonth
+                      ? "border-primary bg-primary/[0.07] ring-1 ring-primary/40 shadow-sm"
+                      : "border-border/80 bg-background/95 hover:bg-muted/40 hover:border-primary/40"
+                  }`}
+                  title={`Klik untuk memfilter tampilan ke ${m.monthName}`}
                 >
-                  <span className="text-[11px] font-bold text-foreground uppercase">{m.monthName}</span>
-                  <span className="text-[10px] text-muted-foreground">{m.txCount} transaksi</span>
-                  <div className="flex items-center gap-1 text-[10px]">
-                    <span className="text-emerald-600 font-bold">+{formatCurrency(m.income, "IDR", { compact: true })}</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-foreground tracking-tight uppercase group-hover:text-primary transition-colors">
+                      {m.monthName}
+                    </span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-muted text-foreground border border-border/50">
+                      {m.txCount} tx
+                    </span>
                   </div>
-                  <div className="flex items-center gap-1 text-[10px]">
-                    <span className="text-rose-600 font-bold">-{formatCurrency(m.expense, "IDR", { compact: true })}</span>
+
+                  <div className="flex flex-col gap-1 text-[11px] font-semibold border-y border-border/60 py-1.5 my-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground text-[10px]">Masuk</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                        +{formatCurrency(m.income, "IDR", { compact: true })}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground text-[10px]">Keluar</span>
+                      <span className="text-rose-600 dark:text-rose-400 font-bold">
+                        -{formatCurrency(m.expense, "IDR", { compact: true })}
+                      </span>
+                    </div>
                   </div>
-                  <div className={`text-[10px] font-extrabold ${net >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"}`}>
-                    Nett: {formatCurrency(net, "IDR", { compact: true })}
+
+                  <div
+                    className={`text-[10px] font-extrabold px-2 py-1 rounded-lg text-center flex items-center justify-between ${
+                      net > 0
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+                        : net < 0
+                        ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30"
+                        : "bg-muted/70 text-muted-foreground border border-border/50"
+                    }`}
+                  >
+                    <span className="text-[9px] uppercase tracking-wider font-semibold">Nett</span>
+                    <span>{formatCurrency(net, "IDR", { compact: true })}</span>
                   </div>
                 </div>
               );
@@ -640,7 +706,7 @@ export default function OverviewPage() {
               className={`px-3 py-1 rounded-lg transition-all ${
                 topCatScope === "month"
                   ? "bg-background text-foreground shadow-xs font-bold"
-                  : "text-muted-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               Bulan Ini
@@ -650,7 +716,7 @@ export default function OverviewPage() {
               className={`px-3 py-1 rounded-lg transition-all ${
                 topCatScope === "year"
                   ? "bg-background text-foreground shadow-xs font-bold"
-                  : "text-muted-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               Tahun Ini
@@ -670,24 +736,41 @@ export default function OverviewPage() {
               </span>
             </div>
 
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               {expenseRanks?.ranks?.slice(0, 5).map((rank, idx) => (
-                <div key={rank.id} className="flex flex-col gap-1 text-xs">
+                <button
+                  key={rank.id}
+                  type="button"
+                  onClick={() =>
+                    setSelectedCategory({
+                      id: rank.id,
+                      name: rank.name,
+                      icon: rank.icon,
+                      kind: "expense",
+                      total: rank.total,
+                      percent: rank.percent,
+                    })
+                  }
+                  className="flex flex-col gap-1.5 text-xs text-left p-2 -mx-2 rounded-xl hover:bg-muted/50 transition-all cursor-pointer group"
+                  title={`Klik untuk melihat detail transaksi kategori ${rank.name}`}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-foreground">
+                    <span className="font-bold text-foreground group-hover:text-rose-600 transition-colors flex items-center gap-1.5">
                       #{idx + 1} {rank.name}
+                      <ChevronRightIcon className="h-3.5 w-3.5 text-muted-foreground opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
                     </span>
-                    <span className="font-extrabold">
-                      {formatCurrency(rank.total)} ({rank.percent}%)
+                    <span className="font-extrabold text-foreground">
+                      {formatCurrency(rank.total)}{" "}
+                      <span className="text-muted-foreground font-semibold">({rank.percent}%)</span>
                     </span>
                   </div>
                   <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-rose-500"
+                      className="h-full rounded-full bg-rose-500 group-hover:bg-rose-600 transition-colors"
                       style={{ width: `${rank.percent}%` }}
                     />
                   </div>
-                </div>
+                </button>
               ))}
 
               {(!expenseRanks?.ranks || expenseRanks.ranks.length === 0) && (
@@ -709,24 +792,41 @@ export default function OverviewPage() {
               </span>
             </div>
 
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               {incomeRanks?.ranks?.slice(0, 5).map((rank, idx) => (
-                <div key={rank.id} className="flex flex-col gap-1 text-xs">
+                <button
+                  key={rank.id}
+                  type="button"
+                  onClick={() =>
+                    setSelectedCategory({
+                      id: rank.id,
+                      name: rank.name,
+                      icon: rank.icon,
+                      kind: "income",
+                      total: rank.total,
+                      percent: rank.percent,
+                    })
+                  }
+                  className="flex flex-col gap-1.5 text-xs text-left p-2 -mx-2 rounded-xl hover:bg-muted/50 transition-all cursor-pointer group"
+                  title={`Klik untuk melihat detail transaksi kategori ${rank.name}`}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-foreground">
+                    <span className="font-bold text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5">
                       #{idx + 1} {rank.name}
+                      <ChevronRightIcon className="h-3.5 w-3.5 text-muted-foreground opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
                     </span>
-                    <span className="font-extrabold">
-                      {formatCurrency(rank.total)} ({rank.percent}%)
+                    <span className="font-extrabold text-foreground">
+                      {formatCurrency(rank.total)}{" "}
+                      <span className="text-muted-foreground font-semibold">({rank.percent}%)</span>
                     </span>
                   </div>
                   <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-primary"
+                      className="h-full rounded-full bg-primary group-hover:bg-primary/90 transition-colors"
                       style={{ width: `${rank.percent}%` }}
                     />
                   </div>
-                </div>
+                </button>
               ))}
 
               {(!incomeRanks?.ranks || incomeRanks.ranks.length === 0) && (
@@ -738,6 +838,16 @@ export default function OverviewPage() {
           </Card>
         </div>
       </div>
+
+      {/* Modal Detail Kategori (Filtered by Month / Year) */}
+      <CategoryDetailModal
+        isOpen={!!selectedCategory}
+        onClose={() => setSelectedCategory(null)}
+        category={selectedCategory}
+        periodLabel={catPeriodLabel}
+        dateFrom={catDateFrom}
+        dateTo={catDateTo}
+      />
     </div>
   );
 }
