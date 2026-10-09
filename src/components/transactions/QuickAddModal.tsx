@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, formatInputIDR, parseInputIDR } from "@/lib/utils";
 import { VoiceMicButton } from "@/components/ui/VoiceMicButton";
-import { smartParseIndonesianTransaction } from "@/lib/nlp-parser";
+import { smartParseIndonesianTransaction, extractDateTimeFromText } from "@/lib/nlp-parser";
 
 export function QuickAddModal() {
   const { isQuickAddOpen, closeQuickAdd } = useUIStore();
@@ -78,6 +78,10 @@ export function QuickAddModal() {
       if (foundCat) setCategoryId(foundCat.id);
     }
 
+    if (result.happenedAtFormatted) {
+      setHappenedAt(result.happenedAtFormatted);
+    }
+
     if (result.cleanNote) {
       setNote(result.cleanNote);
     } else {
@@ -92,6 +96,7 @@ export function QuickAddModal() {
     onSuccess: (data) => {
       if (data.amount > 0) setAmount(data.formattedAmount || formatInputIDR(String(data.amount)));
       if (data.txType) setTxType(data.txType);
+      if (data.happenedAtFormatted) setHappenedAt(data.happenedAtFormatted);
       if (data.cleanNote) setNote(data.cleanNote);
       else if (data.note) setNote(data.note);
 
@@ -305,14 +310,26 @@ export function QuickAddModal() {
 
           {/* Tanggal & Waktu Transaksi (Opsional - Default NOW) */}
           <div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                 Tanggal & Waktu
               </label>
-              <span className="text-[10px] text-muted-foreground/80">
-                {happenedAt ? "Waktu Kustom" : "Otomatis Saat Ini (NOW)"}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-muted-foreground/80">
+                  {happenedAt ? "Waktu Kustom" : "Otomatis Saat Ini (NOW)"}
+                </span>
+                <VoiceMicButton
+                  size="sm"
+                  title="Dikte waktu (misal: saat ini, kemarin sore, tanggal 15)"
+                  onResult={(text) => {
+                    const { happenedAtFormatted } = extractDateTimeFromText(text);
+                    if (happenedAtFormatted) {
+                      setHappenedAt(happenedAtFormatted);
+                    }
+                  }}
+                />
+              </div>
             </div>
             <div className="relative mt-1 flex gap-2">
               <Input

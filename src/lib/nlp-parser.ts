@@ -10,6 +10,8 @@ export interface ParsedTransactionResult {
   matchedToAccountId?: string;
   categoryHint: string;
   matchedCategoryId?: string;
+  happenedAt?: Date;
+  happenedAtFormatted?: string;
   cleanNote: string;
   note: string; // alias for cleanNote
   rawText: string;
@@ -402,6 +404,259 @@ export function detectAccount(
   };
 }
 
+const MONTH_NAMES: Record<string, number> = {
+  januari: 0, jan: 0,
+  februari: 1, feb: 1,
+  maret: 2, mar: 2,
+  april: 3, apr: 3,
+  mei: 4,
+  juni: 5, jun: 5,
+  juli: 6, jul: 6,
+  agustus: 7, ags: 7, agu: 7,
+  september: 8, sep: 8, sept: 8,
+  oktober: 9, okt: 9,
+  november: 10, nov: 10,
+  desember: 11, des: 11,
+};
+
+const DAY_NAMES: Record<string, number> = {
+  minggu: 0,
+  senin: 1,
+  selasa: 2,
+  rabu: 3,
+  kamis: 4,
+  jumat: 5,
+  sabtu: 6,
+};
+
+/**
+ * Format Date ke format datetime-local HTML (YYYY-MM-DDTHH:mm)
+ */
+export function formatToDateTimeLocal(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const yr = date.getFullYear();
+  const mo = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hr = pad(date.getHours());
+  const min = pad(date.getMinutes());
+  return `${yr}-${mo}-${day}T${hr}:${min}`;
+}
+
+/**
+ * Ekstraksi Waktu & Tanggal Natural Language Bahasa Indonesia
+ * Menangani: "saat ini", "sekarang", "kemarin", "semalam", "lusa", "besok",
+ * "tadi pagi/siang/sore/malam", "jam 2 siang", "pukul 14.30", "jam setengah 2",
+ * "tanggal 25 agustus 2026", "2 jam lalu", "30 menit lalu", "senin lalu", "bulan lalu", dll.
+ */
+export function extractDateTimeFromText(
+  text: string,
+  referenceDate: Date = new Date()
+): {
+  happenedAt?: Date;
+  happenedAtFormatted?: string;
+  hasTimeMention: boolean;
+} {
+  if (!text) return { hasTimeMention: false };
+  const lower = text.toLowerCase();
+
+  const targetDate = new Date(referenceDate.getTime());
+  let hasMention = false;
+
+  // 1. Format tanggal numerik: 25/08/2026 atau 25-08-2026
+  const slashDateMatch = lower.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b/);
+  if (slashDateMatch) {
+    hasMention = true;
+    const d = parseInt(slashDateMatch[1], 10);
+    const m = parseInt(slashDateMatch[2], 10) - 1;
+    let y = parseInt(slashDateMatch[3], 10);
+    if (y < 100) y += 2000;
+    targetDate.setFullYear(y);
+    targetDate.setMonth(m);
+    targetDate.setDate(d);
+  }
+
+  // 2. Tanggal eksplisit dengan nama bulan: "tanggal 25 agustus 2026", "25 agustus", "tgl 15 maret"
+  const fullDateMatch = lower.match(
+    /(?:tanggal|tgl\s*)?\b(\d{1,2})\s+(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember|jan|feb|mar|apr|jun|jul|ags|agu|sep|okt|nov|des)\b(?:\s*(\d{4}))?/i
+  );
+  if (fullDateMatch && !slashDateMatch) {
+    hasMention = true;
+    const d = parseInt(fullDateMatch[1], 10);
+    const m = MONTH_NAMES[fullDateMatch[2].toLowerCase()];
+    const y = fullDateMatch[3] ? parseInt(fullDateMatch[3], 10) : targetDate.getFullYear();
+    targetDate.setFullYear(y);
+    targetDate.setMonth(m);
+    targetDate.setDate(d);
+  } else if (!slashDateMatch) {
+    // Tanggal angka saja: "tanggal 25", "tgl 5"
+    const tglOnlyMatch = lower.match(/(?:tanggal|tgl)\s*(\d{1,2})\b/i);
+    if (tglOnlyMatch) {
+      hasMention = true;
+      const d = parseInt(tglOnlyMatch[1], 10);
+      targetDate.setDate(d);
+    }
+  }
+
+  // 3. Cek relatif jam/menit lalu: "2 jam lalu", "30 menit yang lalu", "sejam lalu"
+  const hoursAgoMatch = lower.match(/(?:(\d+)|se)\s*jam\s*(?:yang\s*)?lalu/i);
+  if (hoursAgoMatch) {
+    hasMention = true;
+    const h = hoursAgoMatch[1] ? parseInt(hoursAgoMatch[1], 10) : 1;
+    targetDate.setHours(targetDate.getHours() - h);
+  }
+
+  const minsAgoMatch = lower.match(/(\d+)\s*menit\s*(?:yang\s*)?lalu/i);
+  if (minsAgoMatch) {
+    hasMention = true;
+    const m = parseInt(minsAgoMatch[1], 10);
+    targetDate.setMinutes(targetDate.getMinutes() - m);
+  }
+
+  // 4. Cek hari relatif
+  if (
+    lower.includes("kemarin lusa") ||
+    lower.includes("dua hari lalu") ||
+    lower.includes("2 hari lalu") ||
+    lower.includes("2 hari yang lalu")
+  ) {
+    hasMention = true;
+    targetDate.setDate(targetDate.getDate() - 2);
+  } else if (lower.includes("kemarin") || lower.includes("semalam")) {
+    hasMention = true;
+    targetDate.setDate(targetDate.getDate() - 1);
+    if (lower.includes("semalam")) {
+      targetDate.setHours(20, 0, 0, 0);
+    }
+  } else if (lower.includes("lusa")) {
+    hasMention = true;
+    targetDate.setDate(targetDate.getDate() + 2);
+  } else if (lower.includes("besok")) {
+    hasMention = true;
+    targetDate.setDate(targetDate.getDate() + 1);
+  } else if (
+    lower.includes("minggu lalu") ||
+    lower.includes("pekan lalu") ||
+    lower.includes("1 minggu lalu") ||
+    lower.includes("seminggu lalu")
+  ) {
+    hasMention = true;
+    targetDate.setDate(targetDate.getDate() - 7);
+  } else if (lower.includes("2 minggu lalu")) {
+    hasMention = true;
+    targetDate.setDate(targetDate.getDate() - 14);
+  } else if (
+    lower.includes("saat ini") ||
+    lower.includes("waktu saat ini") ||
+    lower.includes("pada saat ini") ||
+    lower.includes("sekarang") ||
+    lower.includes("waktu sekarang") ||
+    lower.includes("jam sekarang") ||
+    lower.includes("hari ini") ||
+    lower.includes("barusan") ||
+    lower.includes("baru saja") ||
+    lower.includes("seketika")
+  ) {
+    hasMention = true;
+    // targetDate tetap waktu saat ini
+  }
+
+  // 5. Cek hari dalam seminggu: "hari senin", "senin lalu", "rabu kemarin"
+  const dayMatch = lower.match(
+    /\b(?:hari\s+)?(senin|selasa|rabu|kamis|jumat|sabtu|minggu)(?:\s+(?:lalu|kemarin))?\b/i
+  );
+  if (dayMatch && !fullDateMatch && !slashDateMatch) {
+    hasMention = true;
+    const targetDayIndex = DAY_NAMES[dayMatch[1].toLowerCase()];
+    const currentDayIndex = targetDate.getDay();
+    let diff = currentDayIndex - targetDayIndex;
+    if (diff <= 0) diff += 7; // Mundur ke hari tersebut di minggu lalu/terdekat
+    targetDate.setDate(targetDate.getDate() - diff);
+  }
+
+  // 6. Cek jam eksplisit: "jam 2 siang", "pukul 14.30", "jam 8 pagi", "jam 9 malam", "jam 10 lewat 15"
+  const explicitHourMinMatch = lower.match(
+    /(?:pukul|jam)\s*(\d{1,2})(?:[:.](\d{2})|\s+lewat\s+(\d{1,2}))?(?:\s*(pagi|siang|sore|malam))?/i
+  );
+  const halfHourMatch = lower.match(
+    /(?:pukul|jam)\s*setengah\s*(\d{1,2})(?:\s*(pagi|siang|sore|malam))?/i
+  );
+
+  if (halfHourMatch) {
+    hasMention = true;
+    let hour = parseInt(halfHourMatch[1], 10) - 1; // "setengah 2" = 01:30
+    if (hour < 0) hour = 11;
+    const modifier = halfHourMatch[2]?.toLowerCase();
+    if (modifier === "siang" && hour < 12) hour += 12;
+    if (modifier === "sore" && hour < 12) hour += 12;
+    if (modifier === "malam" && hour < 12) hour += 12;
+    targetDate.setHours(hour, 30, 0, 0);
+  } else if (explicitHourMinMatch) {
+    hasMention = true;
+    let hour = parseInt(explicitHourMinMatch[1], 10);
+    const minute = explicitHourMinMatch[2]
+      ? parseInt(explicitHourMinMatch[2], 10)
+      : explicitHourMinMatch[3]
+      ? parseInt(explicitHourMinMatch[3], 10)
+      : 0;
+    const modifier = explicitHourMinMatch[4]?.toLowerCase();
+
+    if ((modifier === "siang" || modifier === "sore" || modifier === "malam") && hour < 12) {
+      hour += 12;
+    }
+    targetDate.setHours(hour, minute, 0, 0);
+  } else {
+    // Modifier waktu bagian hari tanpa angka jam
+    if (lower.includes("tadi pagi") || lower.includes("pagi tadi") || lower.includes("pagi ini")) {
+      hasMention = true;
+      targetDate.setHours(8, 0, 0, 0);
+    } else if (lower.includes("tadi siang") || lower.includes("siang tadi") || lower.includes("siang ini")) {
+      hasMention = true;
+      targetDate.setHours(12, 30, 0, 0);
+    } else if (
+      lower.includes("tadi sore") ||
+      lower.includes("sore tadi") ||
+      lower.includes("sore ini") ||
+      lower.includes("kemarin sore")
+    ) {
+      hasMention = true;
+      targetDate.setHours(16, 30, 0, 0);
+    } else if (lower.includes("tadi malam") || lower.includes("malam tadi")) {
+      hasMention = true;
+      targetDate.setDate(targetDate.getDate() - 1);
+      targetDate.setHours(20, 0, 0, 0);
+    } else if (lower.includes("malam ini") || lower.includes("kemarin malam")) {
+      hasMention = true;
+      targetDate.setHours(20, 0, 0, 0);
+    } else if (lower.includes("kemarin pagi")) {
+      hasMention = true;
+      targetDate.setHours(8, 0, 0, 0);
+    } else if (lower.includes("kemarin siang")) {
+      hasMention = true;
+      targetDate.setHours(12, 30, 0, 0);
+    }
+  }
+
+  // 7. Cek bulan lalu / tahun lalu
+  if (lower.includes("bulan lalu") || lower.includes("1 bulan lalu") || lower.includes("sebulan lalu")) {
+    hasMention = true;
+    targetDate.setMonth(targetDate.getMonth() - 1);
+  } else if (lower.includes("2 bulan lalu")) {
+    hasMention = true;
+    targetDate.setMonth(targetDate.getMonth() - 2);
+  }
+
+  if (lower.includes("tahun lalu") || lower.includes("1 tahun lalu") || lower.includes("setahun lalu")) {
+    hasMention = true;
+    targetDate.setFullYear(targetDate.getFullYear() - 1);
+  }
+
+  return {
+    happenedAt: hasMention ? targetDate : undefined,
+    happenedAtFormatted: hasMention ? formatToDateTimeLocal(targetDate) : undefined,
+    hasTimeMention: hasMention,
+  };
+}
+
 /**
  * Bersihkan catatan agar menjadi ringkas tanpa kata pengisi/instruksi suara
  * Contoh: "Saya baru beli kopi dengan nominal Rp 30.000 pada waktu saat ini dengan akun blue."
@@ -412,24 +667,81 @@ export function cleanSpeechToNote(text: string): string {
 
   let cleaned = text;
 
-  // Hapus frasa pembuka
-  cleaned = cleaned.replace(/^(?:saya\s+baru|baru\s+saja|barusan|tadi\s+saya|tadi|tolong\s+catatkan|tolong\s+catat|catatkan|catat\s+transaksi|catat)\s+/i, "");
+  // 1. Hapus frasa pembuka
+  cleaned = cleaned.replace(
+    /^(?:saya\s+baru|baru\s+saja|barusan|tadi\s+saya|tadi|tolong\s+catatkan|tolong\s+catat|catatkan|catat\s+transaksi|catat)\s+/i,
+    ""
+  );
 
-  // Hapus pola deklarasi nominal: "dengan nominal Rp 30.000", "sebesar 30rb", "seharga 50.000"
-  cleaned = cleaned.replace(/(?:dengan\s+nominal|sebesar|seharga|nominalnya|seharga|harga)?\s*(?:rp|idr)?\.?\s*(\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+[\.,]?\d*\s*(?:rb|ribu|k|jt|juta)|(?:\d{4,9}))/gi, "");
+  // 2. Hapus pola tanggal numerik DULU sebelum regex angka nominal (misal: 25/08/2026)
+  cleaned = cleaned.replace(/\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/g, "");
+
+  // 3. Hapus pola tanggal kata: "tanggal 25 agustus 2026", "tgl 15 maret", "tanggal 15"
+  cleaned = cleaned.replace(
+    /(?:pada\s+)?(?:tanggal|tgl\s*)\s*\d{1,2}(?:\s+(?:januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember|jan|feb|mar|apr|jun|jul|ags|agu|sep|okt|nov|des))?(?:\s*\d{4})?/gi,
+    ""
+  );
+  cleaned = cleaned.replace(
+    /\b\d{1,2}\s+(?:januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember|jan|feb|mar|apr|jun|jul|ags|agu|sep|okt|nov|des)(?:\s*\d{4})?\b/gi,
+    ""
+  );
+
+  // 4. Hapus pola deklarasi nominal: "dengan nominal Rp 30.000", "sebesar 30rb", "seharga 50.000"
+  cleaned = cleaned.replace(
+    /(?:dengan\s+nominal|nominal\s+sebesar|sebesar|seharga|nominalnya|harga)?\s*(?:rp|idr)?\.?\s*(\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+[\.,]?\d*\s*(?:rb|ribu|k|jt|juta)|(?:\d{4,9}))/gi,
+    ""
+  );
 
   // Hapus pola nominal kata (e.g. "tiga puluh ribu")
-  cleaned = cleaned.replace(/(?:dengan\s+nominal|sebesar|seharga)?\s*(?:satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh|sebelas|dua\s+belas|seratus|seribu|sejuta)\s*(?:belas|puluh|ratus|ribu|juta)*/gi, "");
+  cleaned = cleaned.replace(
+    /(?:dengan\s+nominal|sebesar|seharga)?\s*(?:satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh|sebelas|dua\s+belas|seratus|seribu|sejuta)\s*(?:belas|puluh|ratus|ribu|juta)*/gi,
+    ""
+  );
 
-  // Hapus deklarasi waktu
-  cleaned = cleaned.replace(/(?:pada\s+)?(?:waktu\s+saat\s+ini|waktu\s+sekarang|jam\s+sekarang|saat\s+ini|sekarang\s+ini|hari\s+ini|kemarin)/gi, "");
+  // 5. Hapus pola waktu jam: "jam 2 siang", "jam 14.30", "pukul 8 pagi", "jam setengah 2 siang", "jam 2 lewat 15"
+  cleaned = cleaned.replace(
+    /(?:pada\s+)?(?:pukul|jam)\s+setengah\s+\d{1,2}(?:\s*(?:pagi|siang|sore|malam))?/gi,
+    ""
+  );
+  cleaned = cleaned.replace(
+    /(?:pada\s+)?(?:pukul|jam)\s+\d{1,2}(?:[:.]\d{2}|\s+lewat\s+\d{1,2})?(?:\s*(?:pagi|siang|sore|malam))?/gi,
+    ""
+  );
 
-  // Hapus deklarasi akun: "dengan akun blue", "pakai akun blu", "pake cash"
-  cleaned = cleaned.replace(/(?:dengan|pake|pakai|menggunakan|lewat|melalui)\s+(?:akun\s+)?(?:blue|blu|cash|tunai|kas|dana|gopay|ovo|shopee|shopeepay|spay|bca|mandiri|bri|bni|jago|seabank|rekening\s+\w+)/gi, "");
+  // 6. Hapus pola durasi lalu: "2 jam lalu", "30 menit yang lalu", "sejam lalu"
+  cleaned = cleaned.replace(/(?:(\d+)|se)\s*jam\s*(?:yang\s*)?lalu/gi, "");
+  cleaned = cleaned.replace(/\d+\s*menit\s*(?:yang\s*)?lalu/gi, "");
+
+  // 7. Hapus penanda hari & bagian hari:
+  cleaned = cleaned.replace(
+    /(?:pada\s+)?(?:waktu\s+saat\s+ini|waktu\s+sekarang|jam\s+sekarang|saat\s+ini|sekarang\s+ini|hari\s+ini|sekarang)/gi,
+    ""
+  );
+  cleaned = cleaned.replace(
+    /(?:pada\s+)?(?:kemarin\s+lusa|dua\s+hari\s+lalu|2\s+hari\s+lalu|2\s+hari\s+yang\s+lalu)/gi,
+    ""
+  );
+  cleaned = cleaned.replace(
+    /(?:kemarin\s+(?:pagi|siang|sore|malam)|tadi\s+(?:pagi|siang|sore|malam)|(?:pagi|siang|sore|malam)\s+tadi|(?:pagi|siang|sore|malam)\s+ini)/gi,
+    ""
+  );
+  cleaned = cleaned.replace(/(?:kemarin|semalam|lusa|besok)/gi, "");
+  cleaned = cleaned.replace(
+    /(?:pada\s+)?(?:hari\s+)?(?:senin|selasa|rabu|kamis|jumat|sabtu|minggu)(?:\s+(?:lalu|kemarin))?/gi,
+    ""
+  );
+  cleaned = cleaned.replace(/(?:1\s+|2\s+|se)?(?:minggu|pekan|bulan|tahun)\s*(?:yang\s*)?lalu/gi, "");
+
+  // 8. Hapus deklarasi akun: "dengan akun blue", "pakai akun blu", "ke akun blu", "pake cash"
+  cleaned = cleaned.replace(
+    /(?:ke|dari|dengan|pake|pakai|menggunakan|lewat|melalui)\s+(?:akun\s+)?(?:blue|blu|cash|tunai|kas|dana|gopay|ovo|shopee|shopeepay|spay|bca|mandiri|bri|bni|jago|seabank|rekening\s+\w+)/gi,
+    ""
+  );
   cleaned = cleaned.replace(/(?:akun\s+)?(?:blue|blu|cash|tunai|dana|gopay|ovo|shopeepay|spay)\b/gi, "");
 
-  // Hapus preposisi gantung di akhir kalimat (misal: "ke", "di", "dari", "pada")
-  cleaned = cleaned.replace(/\s+(?:ke|di|dari|pada|untuk)\s*$/i, "").trim();
+  // 9. Hapus kata penghubung/preposisi sisa di akhir atau awal: "pada", "di", "ke", "dengan", "dari"
+  cleaned = cleaned.replace(/\b(?:ke|di|dari|pada|untuk|dengan|pake|pakai)\s*$/gi, "").trim();
+  cleaned = cleaned.replace(/^(?:ke|di|dari|pada|untuk|dengan|pake|pakai)\s+/gi, "").trim();
 
   // Bersihkan spasi ganda, tanda baca berlebih di awal/akhir
   cleaned = cleaned
@@ -463,6 +775,7 @@ export function smartParseIndonesianTransaction(
   const txType = detectTxType(text);
   const { categoryHint, matchedCategoryId } = detectCategory(text, txType, options?.categories);
   const { accountHint, matchedAccountId, toAccountHint, matchedToAccountId } = detectAccount(text, options?.accounts);
+  const { happenedAt, happenedAtFormatted } = extractDateTimeFromText(text);
   const cleanNote = cleanSpeechToNote(text);
 
   return {
@@ -475,6 +788,8 @@ export function smartParseIndonesianTransaction(
     matchedToAccountId,
     categoryHint,
     matchedCategoryId,
+    happenedAt,
+    happenedAtFormatted,
     cleanNote,
     note: cleanNote,
     rawText: text,

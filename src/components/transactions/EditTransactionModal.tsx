@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { cn, formatInputIDR, parseInputIDR } from "@/lib/utils";
 import { VoiceMicButton } from "@/components/ui/VoiceMicButton";
 import { parseSpokenNumber } from "@/hooks/use-voice-input";
-import { smartParseIndonesianTransaction } from "@/lib/nlp-parser";
+import { smartParseIndonesianTransaction, extractDateTimeFromText } from "@/lib/nlp-parser";
 
 export interface TransactionToEdit {
   id: string;
@@ -132,6 +132,10 @@ export function EditTransactionModal({
           result.categoryHint.toLowerCase().includes(c.name.toLowerCase())
         );
       if (foundCat) setCategoryId(foundCat.id);
+    }
+
+    if (result.happenedAtFormatted) {
+      setHappenedAt(result.happenedAtFormatted);
     }
 
     if (result.cleanNote) {
@@ -307,10 +311,22 @@ export function EditTransactionModal({
 
           {/* Waktu Transaksi */}
           <div>
-            <label className="text-xs font-semibold text-foreground mb-1 flex items-center gap-1.5">
-              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-              Waktu Transaksi
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                Waktu Transaksi
+              </label>
+              <VoiceMicButton
+                size="sm"
+                title="Dikte waktu (misal: saat ini, kemarin sore, 25 agustus)"
+                onResult={(text) => {
+                  const { happenedAtFormatted } = extractDateTimeFromText(text);
+                  if (happenedAtFormatted) {
+                    setHappenedAt(happenedAtFormatted);
+                  }
+                }}
+              />
+            </div>
             <Input
               type="datetime-local"
               value={happenedAt}
