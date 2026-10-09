@@ -32,6 +32,7 @@ interface CategoryItem {
 interface ParserOptions {
   accounts?: AccountItem[];
   categories?: CategoryItem[];
+  referenceDate?: Date;
 }
 
 /**
@@ -610,6 +611,228 @@ const DAY_NAMES: Record<string, number> = {
   sabtu: 6,
 };
 
+const INDONESIAN_NUMBER_WORDS: Record<string, number> = {
+  nol: 0, kosong: 0,
+  satu: 1, dua: 2, tiga: 3, empat: 4, lima: 5,
+  enam: 6, tujuh: 7, delapan: 8, sembilan: 9, sepuluh: 10,
+  sebelas: 11, "dua belas": 12, "tiga belas": 13, "empat belas": 14,
+  "lima belas": 15, "enam belas": 16, "tujuh belas": 17, "delapan belas": 18,
+  "sembilan belas": 19, "dua puluh": 20, "dua satu": 21, "dua dua": 22,
+  "dua tiga": 23, "dua empat": 24, "dua lima": 25, "dua puluh lima": 25,
+  "tiga puluh": 30, "tiga puluh lima": 35, "empat puluh": 40,
+  "empat puluh lima": 45, "lima puluh": 50, "lima puluh lima": 55,
+};
+
+export function parseIndonesianNumber(str: string): number | null {
+  if (!str) return null;
+  const clean = str.trim().toLowerCase().replace(/\s+/g, " ");
+
+  const asInt = parseInt(clean, 10);
+  if (!isNaN(asInt) && asInt >= 0 && asInt <= 59) {
+    return asInt;
+  }
+
+  if (clean === "seperempat") return 15;
+  if (clean === "setengah") return 30;
+
+  if (INDONESIAN_NUMBER_WORDS[clean] !== undefined) {
+    return INDONESIAN_NUMBER_WORDS[clean];
+  }
+
+  // Pola puluhan majemuk: "dua puluh lima", "tiga puluh dua", dsb.
+  const tensMatch = clean.match(
+    /^(dua|tiga|empat|lima)\s+puluh(?:\s+(satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan))?$/
+  );
+  if (tensMatch) {
+    const tensMap: Record<string, number> = { dua: 20, tiga: 30, empat: 40, lima: 50 };
+    const tens = tensMap[tensMatch[1]] || 0;
+    const unit = tensMatch[2] ? INDONESIAN_NUMBER_WORDS[tensMatch[2]] || 0 : 0;
+    return tens + unit;
+  }
+
+  // Pola belasan: "dua belas", "tiga belas", dsb.
+  const belasMatch = clean.match(
+    /^(satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan)\s+belas$/
+  );
+  if (belasMatch) {
+    if (belasMatch[1] === "satu") return 11;
+    const unit = INDONESIAN_NUMBER_WORDS[belasMatch[1]] || 0;
+    return 10 + unit;
+  }
+
+  return null;
+}
+
+export function parseIndonesianHourNumber(str: string): number | null {
+  const num = parseIndonesianNumber(str);
+  if (num !== null && num >= 0 && num <= 24) {
+    return num;
+  }
+  return null;
+}
+
+function applyModifierToHour(rawH: number, modifier?: string): number {
+  let h = rawH;
+  if (h === 24) return 0;
+  if (h > 12) return h; // Sudah format 24 jam (13..23)
+
+  const mod = modifier?.trim().toLowerCase();
+
+  if (mod === "pagi" || mod === "subuh" || mod?.includes("dini hari")) {
+    if (h === 12) h = 0; // "jam 12 subuh" = 00:00
+  } else if (mod === "siang") {
+    if (h >= 1 && h <= 5) h += 12; // "jam 1 s.d 5 siang" -> 13..17
+    else if (h === 12) h = 12; // "jam 12 siang" -> 12:00
+  } else if (mod === "sore" || mod === "petang") {
+    if (h >= 1 && h <= 6) h += 12; // "jam 1 s.d 6 sore" -> 13..18
+    else if (h === 12) h = 12;
+  } else if (mod === "malam") {
+    if (h === 12) h = 0; // "jam 12 malam" -> 00:00
+    else if (h >= 6 && h <= 11) h += 12; // "jam 6 s.d 11 malam" -> 18..23
+    else if (h >= 1 && h <= 5) h = h; // "jam 1 s.d 5 malam" -> 01:00..05:00 (dini hari/subuh)
+  } else if (!mod) {
+    // Tanpa modifier pada transaksi finansial harian:
+    // Jam 1 s.d 5 hampir selalu jam siang/sore (13:00 - 17:00)
+    if (h >= 1 && h <= 5) {
+      h += 12;
+    }
+  }
+
+  return h;
+}
+
+/**
+ * Parsing Jam Natural Language Bahasa Indonesia
+ * Menangani: "jam 2 siang", "jam dua siang", "pukul 14.30", "15:45", "jam setengah 3",
+ * "jam 2 lewat 15", "jam 8 malam", "jam 7 pagi", "jam 12 malam", dll.
+ */
+export function parseClockFromIndonesian(text: string): { hour: number; minute: number; hasMatch: boolean } {
+  if (!text) return { hour: 0, minute: 0, hasMatch: false };
+  const lower = text.toLowerCase();
+
+  // Deteksi konteks waktu di dalam kalimat untuk modifier fallback
+  let sentenceContextMod: string | undefined = undefined;
+  if (lower.includes("tadi pagi") || lower.includes("pagi tadi") || lower.includes("pagi ini") || lower.includes("kemarin pagi")) {
+    sentenceContextMod = "pagi";
+  } else if (lower.includes("tadi siang") || lower.includes("siang tadi") || lower.includes("siang ini") || lower.includes("kemarin siang")) {
+    sentenceContextMod = "siang";
+  } else if (lower.includes("tadi sore") || lower.includes("sore tadi") || lower.includes("sore ini") || lower.includes("kemarin sore")) {
+    sentenceContextMod = "sore";
+  } else if (lower.includes("tadi malam") || lower.includes("malam tadi") || lower.includes("semalam") || lower.includes("kemarin malam") || lower.includes("malam ini")) {
+    sentenceContextMod = "malam";
+  } else if (lower.includes("subuh")) {
+    sentenceContextMod = "subuh";
+  } else if (lower.includes("dini hari")) {
+    sentenceContextMod = "dini hari";
+  }
+
+  // 1. Pola "setengah [jam]": "jam setengah 2 siang", "jam setengah dua", "setengah 8 malam", "setengah satu"
+  const halfMatch = lower.match(
+    /(?:pukul|jam)?\s*setengah\s+(\d{1,2}|dua\s+belas|sebelas|sepuluh|sembilan|delapan|tujuh|enam|lima|empat|tiga|dua|satu)(?:\s*(pagi|siang|sore|petang|malam|subuh|dini\s+hari))?(?:\s*(?:wib|wita|wit))?/i
+  );
+  if (halfMatch) {
+    const rawH = parseIndonesianHourNumber(halfMatch[1]);
+    if (rawH !== null) {
+      const mod = halfMatch[2]?.toLowerCase() || sentenceContextMod;
+      let h = rawH - 1; // "setengah 3" -> basis 2
+      if (h < 0) h = 11;
+
+      if (rawH === 1) {
+        // "setengah 1" = 12:30 (siang) kecuali malam/dini hari
+        if (mod === "malam" || mod === "subuh" || mod?.includes("dini hari")) {
+          h = 0;
+        } else {
+          h = 12;
+        }
+      } else if (mod === "malam") {
+        if (h >= 6 && h <= 11) h += 12;
+      } else if (mod === "sore" || mod === "petang") {
+        if (h >= 1 && h <= 6) h += 12;
+      } else if (mod === "siang") {
+        if (h >= 1 && h <= 5) h += 12;
+      } else if (mod === "pagi" || mod === "subuh" || mod?.includes("dini hari")) {
+        if (h === 12) h = 0;
+      } else {
+        // Tanpa modifier: rawH 2 s.d 6 -> siang/sore (13:30 - 17:30)
+        if (rawH >= 2 && rawH <= 6) {
+          h += 12;
+        }
+      }
+
+      return { hour: h, minute: 30, hasMatch: true };
+    }
+  }
+
+  // 2. Pola jam & menit format angka: "14:30", "14.30", "08.15 wib", "jam 14:30", "jam 08.00 pagi"
+  // PENTING: Jangan cocokkan nominal ber-titik seperti "15.000" atau "20.000"!
+  const colonTimeMatch = lower.match(
+    /(?:(pukul|jam)\s+)?\b([01]?\d|2[0-3])([:.])([0-5]\d)(?!\d)(?:\s*(pagi|siang|sore|petang|malam|subuh|dini\s+hari))?(?:\s*(?:wib|wita|wit))?/i
+  );
+  if (colonTimeMatch) {
+    const hasJamPrefix = !!colonTimeMatch[1];
+    const rawH = parseInt(colonTimeMatch[2], 10);
+    const sep = colonTimeMatch[3];
+    const m = parseInt(colonTimeMatch[4], 10);
+    const mod = colonTimeMatch[5]?.toLowerCase() || sentenceContextMod;
+    const hasWib = /wib|wita|wit/i.test(colonTimeMatch[0]);
+
+    if (sep === ":" || hasJamPrefix || mod || hasWib || rawH >= 13) {
+      const h = applyModifierToHour(rawH, mod);
+      return { hour: h, minute: m, hasMatch: true };
+    }
+  }
+
+  // 3. Pola jam dengan kata/angka + lewat/lebih/kurang menit:
+  // "jam 2 lewat 15", "jam 7 lebih 20", "jam 8 kurang 15 menit", "jam dua lewat sepuluh"
+  const relativeMinMatch = lower.match(
+    /(?:pukul|jam)\s*(\d{1,2}|dua\s+belas|tiga\s+belas|empat\s+belas|lima\s+belas|enam\s+belas|tujuh\s+belas|delapan\s+belas|sembilan\s+belas|dua\s+puluh|sebelas|sepuluh|sembilan|delapan|tujuh|enam|lima|empat|tiga|dua|satu)\s*(lewat|lebih|kurang)\s*(\d{1,2}|(?:dua|tiga|empat|lima)\s+puluh(?:\s+(?:satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan))?|dua\s+belas|tiga\s+belas|empat\s+belas|lima\s+belas|enam\s+belas|tujuh\s+belas|delapan\s+belas|sembilan\s+belas|sebelas|sepuluh|seperempat|setengah|sembilan|delapan|tujuh|enam|lima|empat|tiga|dua|satu)(?:\s*menit)?(?:\s*(pagi|siang|sore|petang|malam|subuh|dini\s+hari))?(?:\s*(?:wib|wita|wit))?/i
+  );
+  if (relativeMinMatch) {
+    const rawH = parseIndonesianHourNumber(relativeMinMatch[1]);
+    if (rawH !== null) {
+      const relType = relativeMinMatch[2].toLowerCase();
+      let m = parseIndonesianNumber(relativeMinMatch[3]) || 0;
+      let h = rawH;
+
+      if (relType === "kurang") {
+        h = h - 1;
+        if (h < 0) h = 23;
+        m = 60 - m;
+      }
+
+      const mod = relativeMinMatch[4]?.toLowerCase() || sentenceContextMod;
+      h = applyModifierToHour(h, mod);
+
+      return { hour: h, minute: m, hasMatch: true };
+    }
+  }
+
+  // 4. Pola "jam/pukul [angka/kata]" + modifier:
+  // "jam 2 siang", "jam dua siang", "pukul 8 malam", "jam 10", "jam 14", "jam sepuluh malam", "jam sembilan pagi"
+  const standardMatch = lower.match(
+    /(?:pukul|jam)\s*(\d{1,2}|dua\s+puluh(?:\s+(?:satu|dua|tiga|empat))?|dua\s+belas|tiga\s+belas|empat\s+belas|lima\s+belas|enam\s+belas|tujuh\s+belas|delapan\s+belas|sembilan\s+belas|dua\s+puluh|sebelas|sepuluh|sembilan|delapan|tujuh|enam|lima|empat|tiga|dua|satu)(?:\s*(?:tepat|pas))?(?:\s*(pagi|siang|sore|petang|malam|subuh|dini\s+hari))?(?:\s*(?:wib|wita|wit))?(?:\s*(?:tepat|pas))?/i
+  );
+  if (standardMatch) {
+    const rawH = parseIndonesianHourNumber(standardMatch[1]);
+    if (rawH !== null) {
+      const mod = standardMatch[2]?.toLowerCase() || sentenceContextMod;
+      const h = applyModifierToHour(rawH, mod);
+      return { hour: h, minute: 0, hasMatch: true };
+    }
+  }
+
+  // 5. Pola angka diikuti modifier tanpa kata jam: "2 siang", "8 malam", "10 pagi", "3 sore"
+  const numModMatch = lower.match(/\b([1-9]|1[0-2])\s+(siang|sore|petang|malam|pagi|subuh)\b/i);
+  if (numModMatch) {
+    const rawH = parseInt(numModMatch[1], 10);
+    const mod = numModMatch[2].toLowerCase();
+    const h = applyModifierToHour(rawH, mod);
+    return { hour: h, minute: 0, hasMatch: true };
+  }
+
+  return { hour: 0, minute: 0, hasMatch: false };
+}
+
 /**
  * Format Date ke format datetime-local HTML (YYYY-MM-DDTHH:mm)
  */
@@ -702,12 +925,14 @@ export function extractDateTimeFromText(
   ) {
     hasMention = true;
     targetDate.setDate(targetDate.getDate() - 2);
-  } else if (lower.includes("kemarin") || lower.includes("semalam")) {
+  } else if (
+    lower.includes("kemarin") ||
+    lower.includes("semalam") ||
+    lower.includes("tadi malam") ||
+    lower.includes("malam tadi")
+  ) {
     hasMention = true;
     targetDate.setDate(targetDate.getDate() - 1);
-    if (lower.includes("semalam")) {
-      targetDate.setHours(20, 0, 0, 0);
-    }
   } else if (lower.includes("lusa")) {
     hasMention = true;
     targetDate.setDate(targetDate.getDate() + 2);
@@ -754,39 +979,13 @@ export function extractDateTimeFromText(
     targetDate.setDate(targetDate.getDate() - diff);
   }
 
-  // 6. Cek jam eksplisit: "jam 2 siang", "pukul 14.30", "jam 8 pagi", "jam 9 malam", "jam 10 lewat 15"
-  const explicitHourMinMatch = lower.match(
-    /(?:pukul|jam)\s*(\d{1,2})(?:[:.](\d{2})|\s+lewat\s+(\d{1,2}))?(?:\s*(pagi|siang|sore|malam))?/i
-  );
-  const halfHourMatch = lower.match(
-    /(?:pukul|jam)\s*setengah\s*(\d{1,2})(?:\s*(pagi|siang|sore|malam))?/i
-  );
-
-  if (halfHourMatch) {
+  // 6. Cek jam eksplisit / verbal dengan parseClockFromIndonesian
+  const clock = parseClockFromIndonesian(lower);
+  if (clock.hasMatch) {
     hasMention = true;
-    let hour = parseInt(halfHourMatch[1], 10) - 1; // "setengah 2" = 01:30
-    if (hour < 0) hour = 11;
-    const modifier = halfHourMatch[2]?.toLowerCase();
-    if (modifier === "siang" && hour < 12) hour += 12;
-    if (modifier === "sore" && hour < 12) hour += 12;
-    if (modifier === "malam" && hour < 12) hour += 12;
-    targetDate.setHours(hour, 30, 0, 0);
-  } else if (explicitHourMinMatch) {
-    hasMention = true;
-    let hour = parseInt(explicitHourMinMatch[1], 10);
-    const minute = explicitHourMinMatch[2]
-      ? parseInt(explicitHourMinMatch[2], 10)
-      : explicitHourMinMatch[3]
-      ? parseInt(explicitHourMinMatch[3], 10)
-      : 0;
-    const modifier = explicitHourMinMatch[4]?.toLowerCase();
-
-    if ((modifier === "siang" || modifier === "sore" || modifier === "malam") && hour < 12) {
-      hour += 12;
-    }
-    targetDate.setHours(hour, minute, 0, 0);
+    targetDate.setHours(clock.hour, clock.minute, 0, 0);
   } else {
-    // Modifier waktu bagian hari tanpa angka jam
+    // Modifier waktu bagian hari tanpa angka jam spesifik
     if (lower.includes("tadi pagi") || lower.includes("pagi tadi") || lower.includes("pagi ini")) {
       hasMention = true;
       targetDate.setHours(8, 0, 0, 0);
@@ -801,11 +1000,13 @@ export function extractDateTimeFromText(
     ) {
       hasMention = true;
       targetDate.setHours(16, 30, 0, 0);
-    } else if (lower.includes("tadi malam") || lower.includes("malam tadi")) {
-      hasMention = true;
-      targetDate.setDate(targetDate.getDate() - 1);
-      targetDate.setHours(20, 0, 0, 0);
-    } else if (lower.includes("malam ini") || lower.includes("kemarin malam")) {
+    } else if (
+      lower.includes("tadi malam") ||
+      lower.includes("malam tadi") ||
+      lower.includes("semalam") ||
+      lower.includes("malam ini") ||
+      lower.includes("kemarin malam")
+    ) {
       hasMention = true;
       targetDate.setHours(20, 0, 0, 0);
     } else if (lower.includes("kemarin pagi")) {
@@ -956,7 +1157,7 @@ export function smartParseIndonesianTransaction(
   const txType = detectTxType(text);
   const { categoryHint, matchedCategoryId } = detectCategory(text, txType, options?.categories);
   const { accountHint, matchedAccountId, toAccountHint, matchedToAccountId } = detectAccount(text, options?.accounts);
-  const { happenedAt, happenedAtFormatted } = extractDateTimeFromText(text);
+  const { happenedAt, happenedAtFormatted } = extractDateTimeFromText(text, options?.referenceDate);
   const fullSpeech = text.trim();
 
   return {

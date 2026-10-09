@@ -6,7 +6,7 @@ import { smartParseIndonesianTransaction } from "@/lib/nlp-parser";
 
 export const aiRouter = router({
   parseTextToTransaction: protectedProcedure
-    .input(z.object({ text: z.string().min(2) }))
+    .input(z.object({ text: z.string().min(2), clientTime: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       // Ambil akun dan kategori milik user untuk pencocokan kontekstual
       const userAccounts = await ctx.db
@@ -22,6 +22,7 @@ export const aiRouter = router({
       return smartParseIndonesianTransaction(input.text, {
         accounts: userAccounts,
         categories: userCategories,
+        referenceDate: input.clientTime ? new Date(input.clientTime) : new Date(),
       });
     }),
 

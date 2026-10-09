@@ -94,14 +94,16 @@ export function QuickAddModal() {
     }
 
     // 2. Kirim ke backend mutation untuk memastikan sinkronisasi
-    parseMutation.mutate({ text: transcript });
+    parseMutation.mutate({ text: transcript, clientTime: new Date().toISOString() });
   };
 
   const parseMutation = trpc.ai.parseTextToTransaction.useMutation({
     onSuccess: (data) => {
       if (data.amount > 0) setAmount(data.formattedAmount || formatInputIDR(String(data.amount)));
       if (data.txType) setTxType(data.txType);
-      if (data.happenedAtFormatted) setHappenedAt(data.happenedAtFormatted);
+      if (data.happenedAtFormatted) {
+        setHappenedAt((prev) => prev || data.happenedAtFormatted || "");
+      }
       if (data.cleanNote) setNote(data.cleanNote);
       else if (data.note) setNote(data.note);
 
