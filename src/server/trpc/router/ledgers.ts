@@ -22,17 +22,22 @@ export const ledgersRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const [newLedger] = await ctx.db
+      const id = crypto.randomUUID();
+      await ctx.db
         .insert(ledgers)
         .values({
+          id,
           userId: ctx.userId,
           name: input.name,
           currency: input.currency,
           monthStartDay: input.monthStartDay,
-        })
-        .returning();
+        });
 
-      return newLedger;
+      const newLedger = await ctx.db.query.ledgers.findFirst({
+        where: eq(ledgers.id, id),
+      });
+
+      return newLedger!;
     }),
 
   createInvite: protectedProcedure
@@ -47,7 +52,7 @@ export const ledgersRouter = router({
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 hari
 
-      const [invite] = await ctx.db
+      await ctx.db
         .insert(ledgerInvites)
         .values({
           code,
@@ -55,10 +60,13 @@ export const ledgersRouter = router({
           invitedBy: ctx.userId,
           targetRole: input.role,
           expiresAt,
-        })
-        .returning();
+        });
 
-      return invite;
+      const invite = await ctx.db.query.ledgerInvites.findFirst({
+        where: eq(ledgerInvites.code, code),
+      });
+
+      return invite!;
     }),
 
   joinWithCode: protectedProcedure

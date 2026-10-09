@@ -1,53 +1,29 @@
-import { createClient } from "@libsql/client";
-import { drizzle } from "drizzle-orm/libsql";
+import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 import * as schema from "./schema";
-import fs from "fs";
-import path from "path";
+import * as dotenv from "dotenv";
 
-function resolveDatabaseUrl(): string {
-  const envUrl = process.env.DATABASE_URL;
-
-  // Cloud Turso database URL takes precedence
-  if (envUrl && (envUrl.startsWith("libsql://") || envUrl.startsWith("https://"))) {
-    return envUrl;
-  }
-
-  // When running on Vercel Serverless environment:
-  // /var/task is read-only; copy initial seeded finiq.db into /tmp/finiq.db for full read/write support
-  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-    const tmpPath = path.join("/tmp", "finiq.db");
-    if (!fs.existsSync(tmpPath)) {
-      const candidates = [
-        path.join(process.cwd(), "finiq.db"),
-        path.join(__dirname, "../../../finiq.db"),
-        path.join(__dirname, "../../../../finiq.db"),
-        path.resolve("./finiq.db"),
-      ];
-      for (const candidate of candidates) {
-        if (fs.existsSync(candidate)) {
-          try {
-            fs.copyFileSync(candidate, tmpPath);
-            break;
-          } catch {
-            // Ignore copy failure
-          }
-        }
-      }
-    }
-    return `file:${tmpPath}`;
-  }
-
-  return envUrl || "file:finiq.db";
+if (!process.env.DATABASE_URL) {
+  dotenv.config({ path: ".env.local" });
+  dotenv.config();
 }
 
-const url = resolveDatabaseUrl();
-const authToken = process.env.DATABASE_AUTH_TOKEN;
+const connectionUri = process.env.DATABASE_URL;
 
-// Libsql client works seamlessly with local file:finiq.db and cloud Turso edge DB
-export const client = createClient({
-  url,
-  authToken,
+if (!connectionUri) {
+  throw new Error("DATABASE_URL is not set in environment variables");
+}
+
+export const pool = mysql.createPool({
+  uri: connectionUri,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+  connectTimeout: 30000,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
 
-export const db = drizzle(client, { schema });
+export const db = drizzle(pool, { schema, mode: "default" });
 export type Database = typeof db;

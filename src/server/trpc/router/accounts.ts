@@ -44,9 +44,11 @@ export const accountsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const [newAccount] = await ctx.db
+      const id = crypto.randomUUID();
+      await ctx.db
         .insert(accounts)
         .values({
+          id,
           userId: ctx.userId,
           name: input.name,
           group: input.group,
@@ -54,10 +56,13 @@ export const accountsRouter = router({
           initialBalance: input.initialBalance,
           balance: input.initialBalance,
           note: input.note,
-        })
-        .returning();
+        });
 
-      return newAccount;
+      const newAccount = await ctx.db.query.accounts.findFirst({
+        where: eq(accounts.id, id),
+      });
+
+      return newAccount!;
     }),
 
   update: protectedProcedure
@@ -76,17 +81,20 @@ export const accountsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
-      const [updated] = await ctx.db
+      await ctx.db
         .update(accounts)
         .set({
           ...data,
           note: data.note === null ? null : data.note,
           updatedAt: new Date(),
         })
-        .where(and(eq(accounts.id, id), eq(accounts.userId, ctx.userId)))
-        .returning();
+        .where(and(eq(accounts.id, id), eq(accounts.userId, ctx.userId)));
 
-      return updated;
+      const updated = await ctx.db.query.accounts.findFirst({
+        where: and(eq(accounts.id, id), eq(accounts.userId, ctx.userId)),
+      });
+
+      return updated!;
     }),
 
   adjustBalance: protectedProcedure
@@ -106,13 +114,16 @@ export const accountsRouter = router({
         updateData.note = input.note;
       }
 
-      const [updated] = await ctx.db
+      await ctx.db
         .update(accounts)
         .set(updateData)
-        .where(and(eq(accounts.id, input.accountId), eq(accounts.userId, ctx.userId)))
-        .returning();
+        .where(and(eq(accounts.id, input.accountId), eq(accounts.userId, ctx.userId)));
 
-      return updated;
+      const updated = await ctx.db.query.accounts.findFirst({
+        where: and(eq(accounts.id, input.accountId), eq(accounts.userId, ctx.userId)),
+      });
+
+      return updated!;
     }),
 
   delete: protectedProcedure

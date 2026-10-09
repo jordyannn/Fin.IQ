@@ -208,18 +208,18 @@ async function seedBeeCountCategories() {
     if (existingGroup) {
       parentId = existingGroup.id;
     } else {
-      const [newParent] = await db
+      parentId = crypto.randomUUID();
+      await db
         .insert(categories)
         .values({
+          id: parentId,
           userId: user.id,
           name: group.name,
           kind: group.kind,
           level: 1,
           icon: group.icon,
           parentId: null,
-        })
-        .returning();
-      parentId = newParent.id;
+        });
       existingNames.add(groupLower);
       insertedCount++;
     }

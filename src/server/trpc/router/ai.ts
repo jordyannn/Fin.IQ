@@ -82,19 +82,24 @@ export const aiRouter = router({
     .mutation(async ({ ctx, input }) => {
       const rawToken = `bcmcp_${Math.random().toString(36).substring(2)}${Math.random().toString(36).substring(2)}`;
       const prefix = rawToken.substring(0, 14);
+      const id = crypto.randomUUID();
 
-      const [token] = await ctx.db
+      await ctx.db
         .insert(personalAccessTokens)
         .values({
+          id,
           userId: ctx.userId,
           name: input.name,
           prefix,
           tokenHash: "hash_" + rawToken,
-        })
-        .returning();
+        });
+
+      const token = await ctx.db.query.personalAccessTokens.findFirst({
+        where: eq(personalAccessTokens.id, id),
+      });
 
       return {
-        ...token,
+        ...token!,
         rawToken, // Hanya ditampilkan 1x saat generate
       };
     }),

@@ -37,18 +37,23 @@ export const categoriesRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const [newCategory] = await ctx.db
+      const id = crypto.randomUUID();
+      await ctx.db
         .insert(categories)
         .values({
+          id,
           userId: ctx.userId,
           name: input.name,
           kind: input.kind,
           icon: input.icon,
           parentId: input.parentId || null,
-        })
-        .returning();
+        });
 
-      return newCategory;
+      const newCategory = await ctx.db.query.categories.findFirst({
+        where: eq(categories.id, id),
+      });
+
+      return newCategory!;
     }),
 
   delete: protectedProcedure

@@ -44,19 +44,19 @@ async function main() {
 
     if (!existingUser) {
       console.log(`👤 Membuat demo user: ${demoEmail}`);
-      const [newUser] = await db
+      userId = crypto.randomUUID();
+      await db
         .insert(users)
         .values({
+          id: userId,
           email: demoEmail,
           passwordHash: "demo_scrypt_hash_placeholder",
           isAdmin: true,
           isEnabled: true,
-        })
-        .returning();
-
-      userId = newUser.id;
+        });
 
       await db.insert(userProfiles).values({
+        id: crypto.randomUUID(),
         userId: userId,
         displayName: "Owner Fin.IQ",
         primaryCurrency: "IDR",
@@ -74,16 +74,19 @@ async function main() {
 
     if (!defaultLedger) {
       console.log("📘 Membuat Default Buku Kas (Ledger)...");
-      const [newLedger] = await db
+      const ledgerId = crypto.randomUUID();
+      await db
         .insert(ledgers)
         .values({
+          id: ledgerId,
           userId: userId,
           name: "Buku Kas Utama",
           currency: "IDR",
           monthStartDay: 1,
-        })
-        .returning();
-      defaultLedger = newLedger;
+        });
+      defaultLedger = (await db.query.ledgers.findFirst({
+        where: eq(ledgers.id, ledgerId),
+      }))!;
     }
     console.log(`📘 Ledger ID: ${defaultLedger.id}`);
 

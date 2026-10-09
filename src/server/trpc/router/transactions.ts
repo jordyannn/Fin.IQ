@@ -2,7 +2,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { transactions, accounts, categories, ledgers } from "../../db/schema";
-import { eq, and, desc, sql, gte, lte, ilike, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, like, inArray } from "drizzle-orm";
 
 export const transactionsRouter = router({
   list: protectedProcedure
@@ -41,7 +41,7 @@ export const transactionsRouter = router({
         conditions.push(lte(transactions.happenedAt, new Date(input.dateTo)));
       }
       if (input.search && input.search.trim().length > 0) {
-        conditions.push(ilike(transactions.note, `%${input.search.trim()}%`));
+        conditions.push(like(transactions.note, `%${input.search.trim()}%`));
       }
 
       const items = await ctx.db
@@ -94,10 +94,12 @@ export const transactionsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const date = input.happenedAt ? new Date(input.happenedAt) : new Date();
+      const id = crypto.randomUUID();
 
-      const [newTx] = await ctx.db
+      await ctx.db
         .insert(transactions)
         .values({
+          id,
           userId: ctx.userId,
           ledgerId: input.ledgerId,
           txType: input.txType,
@@ -112,8 +114,7 @@ export const transactionsRouter = router({
           tagsJson: input.tags,
           excludeFromStats: input.excludeFromStats,
           excludeFromBudget: input.excludeFromBudget,
-        })
-        .returning();
+        });
 
       // Update saldo akun
       if (input.txType === "expense") {
@@ -137,7 +138,11 @@ export const transactionsRouter = router({
           .where(eq(accounts.id, input.toAccountId));
       }
 
-      return newTx;
+      const newTx = await ctx.db.query.transactions.findFirst({
+        where: eq(transactions.id, id),
+      });
+
+      return newTx!;
     }),
 
   update: protectedProcedure

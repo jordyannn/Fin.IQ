@@ -138,16 +138,21 @@ async function main() {
     // Validasi atau create kategori
     let catRecord = categoryMap.get(categoryName);
     if (!catRecord && categoryName) {
-      const [newCat] = await db
+      const catId = crypto.randomUUID();
+      await db
         .insert(categories)
         .values({
+          id: catId,
           userId: defaultUser.id,
           name: row.category,
           kind: txType === "income" ? "income" : "expense",
-        })
-        .returning();
-      catRecord = newCat;
-      categoryMap.set(categoryName, newCat);
+        });
+      catRecord = (await db.query.categories.findFirst({
+        where: eq(categories.id, catId),
+      })) || undefined;
+      if (catRecord) {
+        categoryMap.set(categoryName, catRecord);
+      }
     }
 
     // Insert transaksi

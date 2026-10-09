@@ -1,12 +1,15 @@
 import {
-  sqliteTable,
+  mysqlTable,
+  varchar,
+  int,
+  double,
+  boolean,
+  timestamp,
   text,
-  integer,
-  real,
+  json,
   index,
   uniqueIndex,
-} from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
+} from "drizzle-orm/mysql-core";
 
 // Helper ID generator
 const generateId = () => crypto.randomUUID();
@@ -15,196 +18,173 @@ const generateId = () => crypto.randomUUID();
 // 1. Users & Authentication
 // ============================================================================
 
-export const users = sqliteTable("users", {
-  id: text("id").primaryKey().$defaultFn(generateId),
-  email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
-  isAdmin: integer("is_admin", { mode: "boolean" }).default(false).notNull(),
-  isEnabled: integer("is_enabled", { mode: "boolean" }).default(true).notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .default(sql`(strftime('%s', 'now'))`)
-    .notNull(),
+export const users = mysqlTable("users", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(generateId),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  isAdmin: boolean("is_admin").default(false).notNull(),
+  isEnabled: boolean("is_enabled").default(true).notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
 
-export const userProfiles = sqliteTable("user_profiles", {
-  id: text("id").primaryKey().$defaultFn(generateId),
-  userId: text("user_id")
+export const userProfiles = mysqlTable("user_profiles", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(generateId),
+  userId: varchar("user_id", { length: 36 })
     .notNull()
     .references(() => users.id, { onDelete: "cascade" })
     .unique(),
-  displayName: text("display_name"),
+  displayName: varchar("display_name", { length: 255 }),
   avatarUrl: text("avatar_url"),
-  primaryCurrency: text("primary_currency").default("IDR").notNull(),
-  themePrimaryColor: text("theme_primary_color").default("#3b82f6"),
-  totpSecret: text("totp_secret"),
-  totpEnabled: integer("totp_enabled", { mode: "boolean" }).default(false).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" })
-    .default(sql`(strftime('%s', 'now'))`)
-    .notNull(),
+  primaryCurrency: varchar("primary_currency", { length: 10 }).default("IDR").notNull(),
+  themePrimaryColor: varchar("theme_primary_color", { length: 30 }).default("#3b82f6"),
+  totpSecret: varchar("totp_secret", { length: 255 }),
+  totpEnabled: boolean("totp_enabled").default(false).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
 });
 
-export const recoveryCodes = sqliteTable("recovery_codes", {
-  id: text("id").primaryKey().$defaultFn(generateId),
-  userId: text("user_id")
+export const recoveryCodes = mysqlTable("recovery_codes", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(generateId),
+  userId: varchar("user_id", { length: 36 })
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  codeHash: text("code_hash").notNull(),
-  usedAt: integer("used_at", { mode: "timestamp" }),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .default(sql`(strftime('%s', 'now'))`)
-    .notNull(),
+  codeHash: varchar("code_hash", { length: 255 }).notNull(),
+  usedAt: timestamp("used_at", { mode: "date" }),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
 
 // ============================================================================
 // 2. Ledgers (Multi-Buku Kas) & Collaboration
 // ============================================================================
 
-export const ledgers = sqliteTable("ledgers", {
-  id: text("id").primaryKey().$defaultFn(generateId),
-  userId: text("user_id")
+export const ledgers = mysqlTable("ledgers", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(generateId),
+  userId: varchar("user_id", { length: 36 })
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  currency: text("currency").default("IDR").notNull(),
-  monthStartDay: integer("month_start_day").default(1).notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .default(sql`(strftime('%s', 'now'))`)
-    .notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  currency: varchar("currency", { length: 10 }).default("IDR").notNull(),
+  monthStartDay: int("month_start_day").default(1).notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
 
-export const ledgerMembers = sqliteTable(
+export const ledgerMembers = mysqlTable(
   "ledger_members",
   {
-    ledgerId: text("ledger_id")
+    id: varchar("id", { length: 36 }).primaryKey().$defaultFn(generateId),
+    ledgerId: varchar("ledger_id", { length: 36 })
       .notNull()
       .references(() => ledgers.id, { onDelete: "cascade" }),
-    userId: text("user_id")
+    userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    role: text("role").default("editor").notNull(), // 'owner' | 'editor' | 'viewer'
-    joinedAt: integer("joined_at", { mode: "timestamp" })
-      .default(sql`(strftime('%s', 'now'))`)
-      .notNull(),
+    role: varchar("role", { length: 50 }).default("editor").notNull(), // 'owner' | 'editor' | 'viewer'
+    joinedAt: timestamp("joined_at", { mode: "date" }).defaultNow().notNull(),
   },
   (table) => ({
-    pk: uniqueIndex("pk_ledger_members").on(table.ledgerId, table.userId),
+    memberUnique: uniqueIndex("idx_ledger_member_uniq").on(table.ledgerId, table.userId),
   })
 );
 
-export const ledgerInvites = sqliteTable("ledger_invites", {
-  code: text("code").primaryKey(),
-  ledgerId: text("ledger_id")
+export const ledgerInvites = mysqlTable("ledger_invites", {
+  code: varchar("code", { length: 64 }).primaryKey(),
+  ledgerId: varchar("ledger_id", { length: 36 })
     .notNull()
     .references(() => ledgers.id, { onDelete: "cascade" }),
-  invitedBy: text("invited_by")
+  invitedBy: varchar("invited_by", { length: 36 })
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  targetRole: text("target_role").default("editor").notNull(),
-  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
-  usedAt: integer("used_at", { mode: "timestamp" }),
-  usedBy: text("used_by").references(() => users.id, { onDelete: "set null" }),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .default(sql`(strftime('%s', 'now'))`)
-    .notNull(),
+  targetRole: varchar("target_role", { length: 50 }).default("editor").notNull(),
+  expiresAt: timestamp("expires_at", { mode: "date" }).notNull(),
+  usedAt: timestamp("used_at", { mode: "date" }),
+  usedBy: varchar("used_by", { length: 36 }).references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
 
 // ============================================================================
 // 3. Accounts (Akun Finansial)
 // ============================================================================
 
-export const accounts = sqliteTable("accounts", {
-  id: text("id").primaryKey().$defaultFn(generateId),
-  userId: text("user_id")
+export const accounts = mysqlTable("accounts", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(generateId),
+  userId: varchar("user_id", { length: 36 })
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  group: text("group").notNull(), // 'Cash' | 'Bank card' | 'Alipay' | 'Credit' | etc.
-  currency: text("currency").default("IDR").notNull(),
-  initialBalance: real("initial_balance").default(0).notNull(),
-  balance: real("balance").default(0).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  group: varchar("group", { length: 100 }).notNull(), // 'Cash' | 'Bank card' | 'Alipay' | 'Credit' | etc.
+  currency: varchar("currency", { length: 10 }).default("IDR").notNull(),
+  initialBalance: double("initial_balance").default(0).notNull(),
+  balance: double("balance").default(0).notNull(),
   note: text("note"),
-  isHidden: integer("is_hidden", { mode: "boolean" }).default(false).notNull(),
-  sortOrder: integer("sort_order").default(0).notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .default(sql`(strftime('%s', 'now'))`)
-    .notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" })
-    .default(sql`(strftime('%s', 'now'))`)
-    .notNull(),
+  isHidden: boolean("is_hidden").default(false).notNull(),
+  sortOrder: int("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
 });
 
 // ============================================================================
 // 4. Categories & Tags
 // ============================================================================
 
-export const categories = sqliteTable("categories", {
-  id: text("id").primaryKey().$defaultFn(generateId),
-  userId: text("user_id")
+export const categories = mysqlTable("categories", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(generateId),
+  userId: varchar("user_id", { length: 36 })
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  kind: text("kind").notNull(), // 'expense' | 'income'
-  level: integer("level").default(1).notNull(),
-  sortOrder: integer("sort_order").default(0).notNull(),
-  icon: text("icon").default("wallet"),
-  iconType: text("icon_type").default("lucide"),
-  parentId: text("parent_id"),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .default(sql`(strftime('%s', 'now'))`)
-    .notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  kind: varchar("kind", { length: 50 }).notNull(), // 'expense' | 'income'
+  level: int("level").default(1).notNull(),
+  sortOrder: int("sort_order").default(0).notNull(),
+  icon: varchar("icon", { length: 100 }).default("wallet"),
+  iconType: varchar("icon_type", { length: 50 }).default("lucide"),
+  parentId: varchar("parent_id", { length: 36 }),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
 
-export const tags = sqliteTable("tags", {
-  id: text("id").primaryKey().$defaultFn(generateId),
-  userId: text("user_id")
+export const tags = mysqlTable("tags", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(generateId),
+  userId: varchar("user_id", { length: 36 })
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  color: text("color").default("#64748b"),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .default(sql`(strftime('%s', 'now'))`)
-    .notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  color: varchar("color", { length: 30 }).default("#64748b"),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
 
 // ============================================================================
 // 5. Transactions
 // ============================================================================
 
-export const transactions = sqliteTable(
+export const transactions = mysqlTable(
   "transactions",
   {
-    id: text("id").primaryKey().$defaultFn(generateId),
-    userId: text("user_id")
+    id: varchar("id", { length: 36 }).primaryKey().$defaultFn(generateId),
+    userId: varchar("user_id", { length: 36 })
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    ledgerId: text("ledger_id")
+    ledgerId: varchar("ledger_id", { length: 36 })
       .notNull()
       .references(() => ledgers.id, { onDelete: "cascade" }),
-    txType: text("tx_type").notNull(), // 'expense' | 'income' | 'transfer'
-    amount: real("amount").default(0).notNull(),
-    currency: text("currency").default("IDR").notNull(),
-    nativeAmount: real("native_amount"),
-    happenedAt: integer("happened_at", { mode: "timestamp" })
-      .default(sql`(strftime('%s', 'now'))`)
-      .notNull(),
+    txType: varchar("tx_type", { length: 50 }).notNull(), // 'expense' | 'income' | 'transfer'
+    amount: double("amount").default(0).notNull(),
+    currency: varchar("currency", { length: 10 }).default("IDR").notNull(),
+    nativeAmount: double("native_amount"),
+    happenedAt: timestamp("happened_at", { mode: "date" }).defaultNow().notNull(),
     note: text("note"),
 
     // Relasi Akun
-    accountId: text("account_id").references(() => accounts.id, { onDelete: "set null" }),
-    toAccountId: text("to_account_id").references(() => accounts.id, { onDelete: "set null" }),
+    accountId: varchar("account_id", { length: 36 }).references(() => accounts.id, { onDelete: "set null" }),
+    toAccountId: varchar("to_account_id", { length: 36 }).references(() => accounts.id, { onDelete: "set null" }),
 
     // Relasi Kategori
-    categoryId: text("category_id").references(() => categories.id, { onDelete: "set null" }),
+    categoryId: varchar("category_id", { length: 36 }).references(() => categories.id, { onDelete: "set null" }),
 
     // Metadata & Flags
-    tagsJson: text("tags_json", { mode: "json" }).default("[]"),
-    attachmentsJson: text("attachments_json", { mode: "json" }).default("[]"),
-    excludeFromStats: integer("exclude_from_stats", { mode: "boolean" }).default(false).notNull(),
-    excludeFromBudget: integer("exclude_from_budget", { mode: "boolean" }).default(false).notNull(),
+    tagsJson: json("tags_json").$type<string[]>().$defaultFn(() => []),
+    attachmentsJson: json("attachments_json").$type<any[]>().$defaultFn(() => []),
+    excludeFromStats: boolean("exclude_from_stats").default(false).notNull(),
+    excludeFromBudget: boolean("exclude_from_budget").default(false).notNull(),
 
-    createdAt: integer("created_at", { mode: "timestamp" })
-      .default(sql`(strftime('%s', 'now'))`)
-      .notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   },
   (table) => ({
     ledgerIdx: index("idx_tx_ledger_time").on(table.ledgerId, table.happenedAt),
@@ -216,70 +196,62 @@ export const transactions = sqliteTable(
 // 6. Budgets
 // ============================================================================
 
-export const budgets = sqliteTable("budgets", {
-  id: text("id").primaryKey().$defaultFn(generateId),
-  userId: text("user_id")
+export const budgets = mysqlTable("budgets", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(generateId),
+  userId: varchar("user_id", { length: 36 })
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  ledgerId: text("ledger_id")
+  ledgerId: varchar("ledger_id", { length: 36 })
     .notNull()
     .references(() => ledgers.id, { onDelete: "cascade" }),
-  categoryId: text("category_id").references(() => categories.id, { onDelete: "cascade" }),
-  month: text("month").notNull(), // "YYYY-MM"
-  amount: real("amount").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .default(sql`(strftime('%s', 'now'))`)
-    .notNull(),
+  categoryId: varchar("category_id", { length: 36 }).references(() => categories.id, { onDelete: "cascade" }),
+  month: varchar("month", { length: 20 }).notNull(), // "YYYY-MM"
+  amount: double("amount").notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
 
 // ============================================================================
 // 7. Security (PAT, MCP, Realtime Sync Log)
 // ============================================================================
 
-export const personalAccessTokens = sqliteTable("personal_access_tokens", {
-  id: text("id").primaryKey().$defaultFn(generateId),
-  userId: text("user_id")
+export const personalAccessTokens = mysqlTable("personal_access_tokens", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(generateId),
+  userId: varchar("user_id", { length: 36 })
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  tokenHash: text("token_hash").notNull().unique(),
-  prefix: text("prefix").notNull(),
-  scopes: text("scopes", { mode: "json" }).default('["read", "write"]'),
-  expiresAt: integer("expires_at", { mode: "timestamp" }),
-  lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
-  revokedAt: integer("revoked_at", { mode: "timestamp" }),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .default(sql`(strftime('%s', 'now'))`)
-    .notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  tokenHash: varchar("token_hash", { length: 255 }).notNull().unique(),
+  prefix: varchar("prefix", { length: 20 }).notNull(),
+  scopes: json("scopes").$type<string[]>().$defaultFn(() => ["read", "write"]),
+  expiresAt: timestamp("expires_at", { mode: "date" }),
+  lastUsedAt: timestamp("last_used_at", { mode: "date" }),
+  revokedAt: timestamp("revoked_at", { mode: "date" }),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
 
-export const mcpCallLogs = sqliteTable("mcp_call_logs", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  userId: text("user_id")
+export const mcpCallLogs = mysqlTable("mcp_call_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: varchar("user_id", { length: 36 })
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  patId: text("pat_id").references(() => personalAccessTokens.id, { onDelete: "set null" }),
-  toolName: text("tool_name").notNull(),
-  status: text("status").notNull(), // 'ok' | 'error'
+  patId: varchar("pat_id", { length: 36 }).references(() => personalAccessTokens.id, { onDelete: "set null" }),
+  toolName: varchar("tool_name", { length: 100 }).notNull(),
+  status: varchar("status", { length: 50 }).notNull(), // 'ok' | 'error'
   errorMessage: text("error_message"),
   argsSummary: text("args_summary"),
-  durationMs: integer("duration_ms").default(0),
-  calledAt: integer("called_at", { mode: "timestamp" })
-    .default(sql`(strftime('%s', 'now'))`)
-    .notNull(),
+  durationMs: int("duration_ms").default(0),
+  calledAt: timestamp("called_at", { mode: "date" }).defaultNow().notNull(),
 });
 
-export const syncChanges = sqliteTable("sync_changes", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  userId: text("user_id")
+export const syncChanges = mysqlTable("sync_changes", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: varchar("user_id", { length: 36 })
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  ledgerId: text("ledger_id"),
-  entityType: text("entity_type").notNull(),
-  entityId: text("entity_id").notNull(),
-  action: text("action").notNull(), // 'create' | 'update' | 'delete'
-  payload: text("payload", { mode: "json" }).notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .default(sql`(strftime('%s', 'now'))`)
-    .notNull(),
+  ledgerId: varchar("ledger_id", { length: 36 }),
+  entityType: varchar("entity_type", { length: 100 }).notNull(),
+  entityId: varchar("entity_id", { length: 100 }).notNull(),
+  action: varchar("action", { length: 50 }).notNull(), // 'create' | 'update' | 'delete'
+  payload: json("payload").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });

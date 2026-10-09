@@ -108,25 +108,33 @@ export const budgetsRouter = router({
       });
 
       if (existing) {
-        const [updated] = await ctx.db
+        await ctx.db
           .update(budgets)
           .set({ amount: input.amount })
-          .where(eq(budgets.id, existing.id))
-          .returning();
-        return updated;
+          .where(eq(budgets.id, existing.id));
+
+        const updated = await ctx.db.query.budgets.findFirst({
+          where: eq(budgets.id, existing.id),
+        });
+        return updated!;
       }
 
-      const [created] = await ctx.db
+      const id = crypto.randomUUID();
+      await ctx.db
         .insert(budgets)
         .values({
+          id,
           userId: ctx.userId,
           ledgerId: input.ledgerId,
           categoryId: input.categoryId,
           month: input.month,
           amount: input.amount,
-        })
-        .returning();
+        });
 
-      return created;
+      const created = await ctx.db.query.budgets.findFirst({
+        where: eq(budgets.id, id),
+      });
+
+      return created!;
     }),
 });
