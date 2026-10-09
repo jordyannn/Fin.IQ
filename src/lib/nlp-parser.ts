@@ -132,49 +132,84 @@ export function extractAmountFromText(text: string): number {
 }
 
 /**
- * Deteksi tipe transaksi (expense, income, transfer)
+ * Deteksi tipe transaksi (expense, income, transfer) secara cerdas berbasis kosakata bahasa Indonesia
  */
 export function detectTxType(text: string): "expense" | "income" | "transfer" {
+  if (!text) return "expense";
   const lower = text.toLowerCase();
 
-  // Transfer check
+  // 1. Cek Pola Transfer
+  const transferKeywords = [
+    "transfer", " tf ", "kirim uang ke", "tarik tunai", "pindah saldo", "pindahin ke",
+    "pindah dana", "mutasi ke", "antar rekening"
+  ];
   if (
-    lower.includes("transfer") ||
-    lower.includes(" tf ") ||
     lower.startsWith("tf ") ||
-    lower.includes("tarik tunai") ||
-    lower.includes("pindah saldo") ||
-    lower.includes("pindahin ke") ||
-    lower.includes("kirim uang ke") ||
+    lower.endsWith(" tf") ||
+    transferKeywords.some((k) => lower.includes(k)) ||
     /dari\s+.*\s+ke\s+/i.test(lower)
   ) {
     return "transfer";
   }
 
-  // Income check
-  if (
-    lower.includes("gaji") ||
-    lower.includes("uang masuk") ||
-    lower.includes("masuk duit") ||
-    lower.includes("duit masuk") ||
-    lower.includes("terima uang") ||
-    lower.includes("dapat uang") ||
-    lower.includes("dapet uang") ||
-    lower.includes("bonus") ||
-    lower.includes("thr") ||
-    lower.includes("cashback") ||
-    lower.includes("top up") ||
-    lower.includes("topup") ||
-    lower.includes("penjualan") ||
-    lower.includes("dividen") ||
-    lower.includes("cair") ||
-    lower.includes("kembalian") ||
-    lower.includes("pemasukan")
-  ) {
+  // 2. Skoring Pemasukan vs Pengeluaran
+  let incomeScore = 0;
+  let expenseScore = 0;
+
+  // Eksplisit deklarasi berbobot tertinggi
+  if (lower.includes("pemasukan")) incomeScore += 12;
+  if (lower.includes("pengeluaran")) expenseScore += 12;
+  if (lower.includes("uang masuk") || lower.includes("duit masuk") || lower.includes("dana masuk")) incomeScore += 8;
+  if (lower.includes("uang keluar") || lower.includes("duit keluar") || lower.includes("dana keluar")) expenseScore += 8;
+
+  // Kata kunci kuat Pemasukan
+  const strongIncomeKeywords = [
+    "gaji", "gajian", "payroll", "upah", "honor", "honorarium", "thr",
+    "dividen", "deviden", "profit", "penjualan", "hasil jualan", "omset",
+    "cashback", "refund", "reimburse", "reimbursement", "beasiswa", "klaim asuransi",
+    "dapat bonus", "terima bonus", "dapat hadiah", "menang undian"
+  ];
+
+  // Kata kunci sedang Pemasukan
+  const mediumIncomeKeywords = [
+    "masuk", "terima", "diterima", "menerima", "dapat", "dapet", "cair",
+    "bonus", "komisi", "insentif", "fee", "untung", "cuan", "laku", "top up", "topup",
+    "uang saku", "uang jajan", "dikasih", "kiriman", "hibah"
+  ];
+
+  // Kata kunci kuat Pengeluaran
+  const strongExpenseKeywords = [
+    "bayar", "membayar", "pembayaran", "beli", "membeli", "belanja",
+    "tagihan", "cicilan", "angsuran", "sewa", "kontrak", "iuran",
+    "checkout", "order", "pesan makanan", "isi bensin", "ganti oli"
+  ];
+
+  // Kata kunci sedang Pengeluaran
+  const mediumExpenseKeywords = [
+    "keluar", "makan", "minum", "jajan", "sarapan", "dinner", "lunch",
+    "nongkrong", "ngopi", "ongkos", "tarif", "parkir", "tol", "karcis",
+    "tiket", "servis", "bengkel", "obat", "sedekah", "zakat", "infaq",
+    "donasi", "sumbangan", "traktir", "sawer", "denda", "tilang"
+  ];
+
+  for (const kw of strongIncomeKeywords) {
+    if (lower.includes(kw)) incomeScore += 5;
+  }
+  for (const kw of mediumIncomeKeywords) {
+    if (new RegExp(`\\b${kw}\\b`, "i").test(lower) || lower.includes(kw)) incomeScore += 2;
+  }
+
+  for (const kw of strongExpenseKeywords) {
+    if (lower.includes(kw)) expenseScore += 5;
+  }
+  for (const kw of mediumExpenseKeywords) {
+    if (new RegExp(`\\b${kw}\\b`, "i").test(lower) || lower.includes(kw)) expenseScore += 2;
+  }
+
+  if (incomeScore > expenseScore) {
     return "income";
   }
 
-  // Expense check (default)
   return "expense";
 }
 

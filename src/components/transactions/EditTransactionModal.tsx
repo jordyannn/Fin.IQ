@@ -131,7 +131,12 @@ export function EditTransactionModal({
           c.name.toLowerCase().includes(result.categoryHint.toLowerCase()) ||
           result.categoryHint.toLowerCase().includes(c.name.toLowerCase())
         );
-      if (foundCat) setCategoryId(foundCat.id);
+      if (foundCat) {
+        setCategoryId(foundCat.id);
+      } else {
+        const fallbackCat = categoriesList.find((c) => c.kind === result.txType);
+        if (fallbackCat) setCategoryId(fallbackCat.id);
+      }
     }
 
     if (result.happenedAtFormatted) {
@@ -470,7 +475,16 @@ export function EditTransactionModal({
               type="text"
               placeholder="Contoh: Belanja bulanan, isi bensin, makan siang..."
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setNote(val);
+                const lower = val.toLowerCase();
+                if (lower.includes("pemasukan") || lower.includes("uang masuk") || lower.includes("gaji")) {
+                  setTxType("income");
+                } else if (lower.includes("pengeluaran") || lower.includes("uang keluar") || lower.includes("beli ") || lower.includes("bayar ")) {
+                  setTxType("expense");
+                }
+              }}
               className="text-xs h-9"
             />
           </div>
