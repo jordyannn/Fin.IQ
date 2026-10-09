@@ -178,48 +178,153 @@ export function detectTxType(text: string): "expense" | "income" | "transfer" {
   return "expense";
 }
 
+interface CategoryKeywords {
+  high: string[];
+  medium: string[];
+  low: string[];
+}
+
 /**
- * Kamus Semantik Kategori
+ * Kamus Semantik & Objek Objek Transaksi Sehari-hari Indonesia
  */
-const SEMANTIC_CATEGORIES: Record<string, string[]> = {
-  "Makanan & Minuman": [
-    "kopi", "coffee", "cafe", "kafe", "starbucks", "teh", "boba", "jus", "minum", "minuman",
-    "makan", "makanan", "sarapan", "siang", "malam", "dinner", "lunch", "nasi", "ayam", "mie",
-    "bakso", "sate", "burger", "pizza", "roti", "kue", "snack", "cemilan", "jajan", "warteg",
-    "resto", "restoran", "indomaret", "alfamart", "family mart", "lawson", "kantin", "food", "dining", "beverage"
-  ],
-  "Transportasi": [
-    "bensin", "pertalite", "pertamax", "solar", "spbu", "pom bensin", "shell", "gojek", "goride",
-    "gocar", "grab", "grabcar", "taksi", "taxi", "ojol", "parkir", "tol", "krl", "mrt", "busway",
-    "kereta", "pesawat", "transport", "travel", "bengkel", "servis motor", "servis mobil"
-  ],
-  "Belanja": [
-    "belanja", "baju", "celana", "sepatu", "tas", "pakaian", "jaket", "shopee", "tokopedia",
-    "lazada", "tiktok shop", "mall", "supermarket", "hypermart", "superindo", "shopping", "beli barang"
-  ],
-  "Tagihan & Utilitas": [
-    "pln", "listrik", "token", "pdam", "air", "wifi", "indihome", "biznet", "internet",
-    "pulsa", "kuota", "paket data", "bpjs", "iuran", "sampah", "utilitas", "utilities"
-  ],
-  "Kesehatan": [
-    "obat", "apotek", "apotik", "dokter", "klinik", "vitamin", "rumah sakit", "rs", "masker",
-    "medis", "health"
-  ],
-  "Hiburan": [
-    "nonton", "bioskop", "cinema", "xxi", "cgv", "netflix", "spotify", "youtube", "game",
-    "steam", "playstation", "karaoke", "liburan", "wisata", "entertain"
-  ],
-  "Gaji & Pendapatan": [
-    "gaji", "payroll", "upah", "honor", "bonus", "thr", "dividen", "komisi", "proyek",
-    "freelance", "penjualan", "hasil jualan", "uang saku", "income"
-  ],
-  "Tabungan & Investasi": [
-    "tabungan", "investasi", "reksadana", "saham", "crypto", "emas", "bibit", "bareksa", "saving"
-  ],
+const SEMANTIC_CATEGORIES: Record<string, CategoryKeywords> = {
+  "Makanan & Minuman": {
+    high: [
+      "kopi", "coffee", "kafe", "cafe", "starbucks", "janji jiwa", "kopi kenangan", "kulo", "tomoro",
+      "point coffee", "fore", "boba", "chatime", "mixue", "teh", "es teh", "jus", "jus buah",
+      "susu", "yoghurt", "yakult", "air mineral", "aqua", "le minerale", "nasgor", "nasi goreng",
+      "nasi padang", "nasi uduk", "nasi kuning", "ayam goreng", "ayam bakar", "ayam geprek",
+      "bebek goreng", "mie ayam", "bakmi", "indomie", "ramen", "bakso", "cuanki", "sate", "sate ayam",
+      "sate kambing", "burger", "pizza", "mcd", "mcdonalds", "kfc", "richeese", "hokben", "burger king",
+      "roti", "bakery", "roti o", "roti boy", "martabak", "terang bulan", "seblak", "batagor", "siomay",
+      "cilok", "cireng", "gorengan", "pecel lele", "warteg", "angkringan", "chiki", "keripik", "snack"
+    ],
+    medium: [
+      "makan", "makanan", "minum", "minuman", "sarapan", "siang", "malam", "dinner", "lunch",
+      "nasi", "ayam", "mie", "ikan", "daging", "kue", "cemilan", "jajan", "jajanan", "resto",
+      "restoran", "kantin", "food court", "kuliner", "indomaret", "alfamart", "family mart", "lawson"
+    ],
+    low: ["nongkrong", "lapar", "haus", "makan siang", "makan malam", "sarapan pagi"]
+  },
+  "Transportasi": {
+    high: [
+      "bensin", "pertalite", "pertamax", "solar", "dexlite", "shell", "spbu", "pom bensin",
+      "ojol", "gojek", "goride", "gocar", "grab", "grabbike", "grabcar", "maxim", "indrive",
+      "taksi", "taxi", "bluebird", "blue bird", "parkir", "karcis parkir", "tol", "e-toll",
+      "krl", "commuter line", "mrt", "lrt", "busway", "transjakarta", "kereta", "tiket kereta",
+      "whoosh", "pesawat", "tiket pesawat", "garuda", "lion air", "citilink", "airasia", "batik air",
+      "ganti oli", "oli mesin", "tambal ban", "isi angin", "cuci motor", "cuci mobil", "helm",
+      "sparepart", "onderdil", "aki motor", "aki mobil"
+    ],
+    medium: [
+      "transport", "transportasi", "travel", "bengkel", "servis motor", "servis mobil", "angkot",
+      "bus", "bis", "rental mobil", "sewa motor", "sewa mobil"
+    ],
+    low: ["ongkos", "jalan", "perjalanan"]
+  },
+  "Belanja & Kebutuhan": {
+    high: [
+      "baju", "celana", "sepatu", "tas", "kemeja", "kaos", "t-shirt", "jaket", "sweater", "hoodie",
+      "rok", "gamis", "hijab", "sandal", "sneakers", "dompet", "ransel", "kacamata", "jam tangan",
+      "skincare", "serum", "toner", "moisturizer", "sunscreen", "facial wash", "sabun", "shampoo",
+      "sampo", "odol", "pasta gigi", "deodoran", "parfum", "makeup", "lipstik", "bedak", "kosmetik",
+      "popok", "pampers", "deterjen", "belanja bulanan", "sayur", "buah", "beras", "minyak goreng",
+      "shopee", "tokopedia", "tokped", "lazada", "tiktok shop", "blibli", "supermarket", "superindo",
+      "hypermart", "transmart", "mall", "elektronik", "gadget", "casing hp", "charger", "kabel data",
+      "headset", "earphone", "tws", "mouse", "keyboard", "laptop"
+    ],
+    medium: [
+      "belanja", "pakaian", "shopping", "pasar", "minimarket", "beli barang", "kebutuhan rumah",
+      "perabotan", "kasur", "bantal"
+    ],
+    low: ["beli", "pesan barang"]
+  },
+  "Tagihan & Utilitas": {
+    high: [
+      "token listrik", "tagihan listrik", "pln", "pdam", "tagihan air", "wifi", "indihome", "biznet",
+      "first media", "myrepublic", "iconnet", "pulsa", "beli pulsa", "isi pulsa", "paket data",
+      "paket internet", "kuota internet", "telkomsel", "indosat", "im3", "xl", "axis", "tri",
+      "smartfren", "byu", "bpjs", "bpjs kesehatan", "bpjs ketenagakerjaan", "iuran rt", "iuran rw",
+      "uang sampah", "pbb", "pajak motor", "pajak mobil", "uang kos", "bayar kos", "sewa kos",
+      "kontrakan", "bayar kontrakan", "cicilan", "kpr", "paylater", "kartu kredit"
+    ],
+    medium: [
+      "listrik", "air", "internet", "kuota", "iuran", "sampah", "utilitas", "utilities", "tagihan", "bill", "sewa"
+    ],
+    low: ["langganan", "bayar bulanan"]
+  },
+  "Kesehatan": {
+    high: [
+      "obat", "apotek", "apotik", "kimia farma", "k24", "century", "guardian", "watsons",
+      "dokter", "klinik", "puskesmas", "rumah sakit", "rs", "igd", "vitamin", "suplemen",
+      "panadol", "paracetamol", "tolak angin", "bodrex", "promag", "betadine", "perban", "plester",
+      "masker medis", "cek darah", "cek lab", "dokter gigi", "tambal gigi", "cabut gigi", "scaling",
+      "optik", "kacamata minus"
+    ],
+    medium: [
+      "medis", "kesehatan", "health", "periksa dokter", "rawat inap", "rawat jalan"
+    ],
+    low: ["sakit", "berobat", "terapi"]
+  },
+  "Hiburan": {
+    high: [
+      "bioskop", "cinema", "xxi", "cgv", "cinepolis", "netflix", "spotify", "youtube premium",
+      "disney+", "game", "topup game", "top up game", "diamond ml", "mobile legends", "free fire",
+      "pubg", "genshin", "steam", "playstation", "ps5", "karaoke", "staycation", "hotel", "villa",
+      "konser", "tiket konser", "dufan", "ancol", "taman safari", "wisata", "rekreasi"
+    ],
+    medium: [
+      "nonton", "film", "liburan", "libur", "jalan-jalan", "entertain", "hiburan", "hobi"
+    ],
+    low: ["senang-senang", "refreshing"]
+  },
+  "Gaji & Pendapatan": {
+    high: [
+      "gaji", "gajian", "payroll", "upah", "honor", "honorarium", "fee", "bonus", "thr",
+      "dividen", "komisi", "insentif", "proyek", "freelance", "lemburan", "penjualan", "omset",
+      "hasil jualan", "cashback", "uang jajan", "kiriman uang", "uang saku"
+    ],
+    medium: [
+      "pendapatan", "pemasukan", "income", "untung", "cuan", "refund"
+    ],
+    low: ["terima uang", "dapat duit"]
+  },
+  "Bonus & Investasi": {
+    high: [
+      "investasi", "saham", "reksadana", "bibit", "bareksa", "ajaib", "pluang", "crypto",
+      "bitcoin", "btc", "eth", "binance", "indodax", "tokocrypto", "emas antam", "logam mulia",
+      "deposito", "obligasi", "sukuk"
+    ],
+    medium: [
+      "tabungan", "menabung", "nabung", "saving", "invest"
+    ],
+    low: ["simpan uang"]
+  },
+  "Pendidikan": {
+    high: [
+      "spp", "uang sekolah", "kuliah", "ukt", "uang semester", "skripsi", "wisuda", "les",
+      "kursus", "bimbel", "ruangguru", "buku pelajaran", "alat tulis", "ujian", "sertifikasi",
+      "bootcamp", "udemy"
+    ],
+    medium: [
+      "sekolah", "pendidikan", "edukasi", "education", "buku", "belajar", "pelatihan"
+    ],
+    low: ["les anak"]
+  },
+  "Donasi & Sosial": {
+    high: [
+      "zakat", "zakat fitrah", "infaq", "infak", "sedekah", "donasi", "sumbangan", "kitabisa",
+      "kotak amal", "amplop kondangan", "kado nikahan", "kado ultah", "traktiran", "angpau"
+    ],
+    medium: [
+      "sosial", "hadiah", "kado", "traktir"
+    ],
+    low: ["kasih uang", "bantu teman"]
+  }
 };
 
 /**
- * Deteksi dan cocokkan kategori
+ * Deteksi dan cocokkan kategori menggunakan seluruh objek yang dibicarakan
  */
 export function detectCategory(
   text: string,
@@ -235,40 +340,57 @@ export function detectCategory(
 
   // 1. Cek kecocokan langsung dengan nama kategori yang ada di userCategories
   if (userCategories && userCategories.length > 0) {
-    // Filter sesuai jenis (expense / income)
-    const filtered = userCategories.filter((c) => !c.kind || c.kind === txType);
+    const directMatch = userCategories
+      .filter((c) => !c.kind || c.kind === txType)
+      .find((c) => {
+        const catNameLower = c.name.toLowerCase().trim();
+        return lower.includes(catNameLower);
+      });
 
-    for (const cat of filtered) {
-      const catLower = cat.name.toLowerCase();
-      // Jika nama kategori (e.g. "kopi", "makanan") muncul di teks
-      if (lower.includes(catLower)) {
-        return { categoryHint: cat.name, matchedCategoryId: cat.id };
-      }
+    if (directMatch) {
+      return { categoryHint: directMatch.name, matchedCategoryId: directMatch.id };
     }
   }
 
-  // 2. Cek kamus semantik
-  let bestCategoryHint = txType === "income" ? "Gaji & Pendapatan" : "Makanan & Minuman";
-  let maxScore = 0;
+  // 2. Evaluasi seluruh objek yang dibicarakan dalam kalimat menggunakan kamus semantik komprehensif
+  const scores: Record<string, number> = {};
 
-  for (const [catName, keywords] of Object.entries(SEMANTIC_CATEGORIES)) {
-    // Jika income, utamakan kategori income
-    if (txType === "income" && catName !== "Gaji & Pendapatan" && catName !== "Tabungan & Investasi") {
-      continue;
-    }
-    // Jika expense, hindari kategori income
-    if (txType === "expense" && catName === "Gaji & Pendapatan") {
-      continue;
+  for (const [catName, { high, medium, low }] of Object.entries(SEMANTIC_CATEGORIES)) {
+    // Filter jenis transaksi
+    if (txType === "income") {
+      if (catName !== "Gaji & Pendapatan" && catName !== "Bonus & Investasi") continue;
+    } else {
+      if (catName === "Gaji & Pendapatan") continue;
     }
 
     let score = 0;
-    for (const kw of keywords) {
+
+    for (const kw of high) {
       if (lower.includes(kw)) {
-        // Beri bobot lebih tinggi untuk kata yang lebih spesifik (misal "kopi" > "beli")
-        score += kw.length > 3 ? 2 : 1;
+        score += 5; // Objek spesifik (misal: "kopi", "pertamax", "token listrik", "panadol")
+      }
+    }
+    for (const kw of medium) {
+      if (lower.includes(kw)) {
+        score += 2; // Objek umum (misal: "makan", "bensin", "obat", "belanja")
+      }
+    }
+    for (const kw of low) {
+      if (lower.includes(kw)) {
+        score += 1;
       }
     }
 
+    if (score > 0) {
+      scores[catName] = score;
+    }
+  }
+
+  // Tentukan kategori terbaik dari skor objek terbanyak
+  let bestCategoryHint = txType === "income" ? "Gaji & Pendapatan" : "Makanan & Minuman";
+  let maxScore = 0;
+
+  for (const [catName, score] of Object.entries(scores)) {
     if (score > maxScore) {
       maxScore = score;
       bestCategoryHint = catName;
@@ -279,24 +401,48 @@ export function detectCategory(
   let matchedCategoryId: string | undefined;
   if (userCategories && userCategories.length > 0) {
     const hintLower = bestCategoryHint.toLowerCase();
-    const candidate = userCategories
-      .filter((c) => !c.kind || c.kind === txType)
-      .find((c) => {
+    const findMatchingUserCat = (cats: CategoryItem[]) => {
+      return cats.find((c) => {
         const cLower = c.name.toLowerCase();
         return (
           cLower.includes(hintLower) ||
           hintLower.includes(cLower) ||
-          (hintLower.includes("makan") && (cLower.includes("makan") || cLower.includes("dining") || cLower.includes("food") || cLower.includes("beverage"))) ||
-          (hintLower.includes("transport") && cLower.includes("transport")) ||
-          (hintLower.includes("belanja") && (cLower.includes("belanja") || cLower.includes("shop"))) ||
-          (hintLower.includes("utilitas") && (cLower.includes("utilit") || cLower.includes("tagihan"))) ||
-          (hintLower.includes("gaji") && (cLower.includes("gaji") || cLower.includes("income")))
+          (hintLower.includes("makan") && (cLower.includes("makan") || cLower.includes("dining") || cLower.includes("food") || cLower.includes("beverage") || cLower.includes("kuliner"))) ||
+          (hintLower.includes("transport") && (cLower.includes("transport") || cLower.includes("kendaraan") || cLower.includes("bensin"))) ||
+          (hintLower.includes("belanja") && (cLower.includes("belanja") || cLower.includes("shop") || cLower.includes("kebutuhan"))) ||
+          (hintLower.includes("utilitas") && (cLower.includes("utilit") || cLower.includes("tagihan") || cLower.includes("bill") || cLower.includes("listrik"))) ||
+          (hintLower.includes("kesehatan") && (cLower.includes("sehat") || cLower.includes("health") || cLower.includes("medis"))) ||
+          (hintLower.includes("hiburan") && (cLower.includes("hibur") || cLower.includes("entertain") || cLower.includes("game"))) ||
+          (hintLower.includes("pendidikan") && (cLower.includes("didik") || cLower.includes("sekolah") || cLower.includes("kuliah"))) ||
+          (hintLower.includes("gaji") && (cLower.includes("gaji") || cLower.includes("income") || cLower.includes("pendapatan"))) ||
+          (hintLower.includes("investasi") && (cLower.includes("invest") || cLower.includes("tabung") || cLower.includes("saving") || cLower.includes("bonus")))
         );
       });
+    };
+
+    let candidate = findMatchingUserCat(userCategories.filter((c) => !c.kind || c.kind === txType));
+    if (!candidate) {
+      candidate = findMatchingUserCat(userCategories);
+    }
 
     if (candidate) {
       matchedCategoryId = candidate.id;
       bestCategoryHint = candidate.name;
+    } else {
+      // Fallback cerdas jika user belum memiliki kategori kustom tersebut (misal: Kesehatan/Hiburan ke Belanja)
+      if (bestCategoryHint === "Kesehatan" || bestCategoryHint === "Hiburan") {
+        const belanjaFallback = userCategories.find((c) => c.kind === "expense" && (c.name.toLowerCase().includes("belanja") || c.name.toLowerCase().includes("kebutuhan")));
+        if (belanjaFallback) {
+          matchedCategoryId = belanjaFallback.id;
+          bestCategoryHint = belanjaFallback.name;
+        }
+      } else if (bestCategoryHint === "Pendidikan" || bestCategoryHint === "Donasi & Sosial") {
+        const tagihanFallback = userCategories.find((c) => c.kind === "expense" && (c.name.toLowerCase().includes("tagihan") || c.name.toLowerCase().includes("kebutuhan")));
+        if (tagihanFallback) {
+          matchedCategoryId = tagihanFallback.id;
+          bestCategoryHint = tagihanFallback.name;
+        }
+      }
     }
   }
 
@@ -776,7 +922,7 @@ export function smartParseIndonesianTransaction(
   const { categoryHint, matchedCategoryId } = detectCategory(text, txType, options?.categories);
   const { accountHint, matchedAccountId, toAccountHint, matchedToAccountId } = detectAccount(text, options?.accounts);
   const { happenedAt, happenedAtFormatted } = extractDateTimeFromText(text);
-  const cleanNote = cleanSpeechToNote(text);
+  const fullSpeech = text.trim();
 
   return {
     txType,
@@ -790,8 +936,8 @@ export function smartParseIndonesianTransaction(
     matchedCategoryId,
     happenedAt,
     happenedAtFormatted,
-    cleanNote,
-    note: cleanNote,
+    cleanNote: fullSpeech,
+    note: fullSpeech,
     rawText: text,
   };
 }
