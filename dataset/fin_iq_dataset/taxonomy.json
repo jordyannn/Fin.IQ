@@ -1,0 +1,141 @@
+{
+  "Makanan & Minuman": {
+    "kind": "expense",
+    "subcategories": [
+      "Restoran",
+      "Makan Harian",
+      "Makanan Cepat Saji",
+      "Kopi & Minuman",
+      "Bar & Minuman",
+      "Kue & Bakery",
+      "Pizza & Western",
+      "Es Krim & Dessert"
+    ]
+  },
+  "Transportasi": {
+    "kind": "expense",
+    "subcategories": [
+      "Bahan Bakar & SPBU",
+      "Mobil Pribadi",
+      "Bus & Angkot",
+      "Kereta & MRT / KRL",
+      "Taksi & Ojek Online",
+      "Tiket Pesawat",
+      "Kereta Api Jarak Jauh",
+      "Sepeda",
+      "Parkir & Tol"
+    ]
+  },
+  "Belanja & Belanjaan": {
+    "kind": "expense",
+    "subcategories": [
+      "Belanja Online",
+      "Supermarket & Minimarket",
+      "Toko Kelontong",
+      "Mall & Pusat Belanja",
+      "Pakaian & Busana",
+      "Aksesoris & Jam Tangan",
+      "Perhiasan"
+    ]
+  },
+  "Hiburan & Rekreasi": {
+    "kind": "expense",
+    "subcategories": [
+      "Film & Bioskop",
+      "Musik & Konser",
+      "Game & Voucher",
+      "Sepak Bola & Olahraga",
+      "Liburan & Wisata",
+      "Fotografi",
+      "Seni & Hobi"
+    ]
+  },
+  "Kebutuhan Rumah": {
+    "kind": "expense",
+    "subcategories": [
+      "Perabot & Rumah Tangga",
+      "Laundry & Cuci Baju",
+      "Kebersihan & Alat Cuci",
+      "Perbaikan & Tukang",
+      "Listrik & Elektronik",
+      "Hewan Peliharaan",
+      "Kebutuhan Bayi & Anak"
+    ]
+  },
+  "Kesehatan & Medis": {
+    "kind": "expense",
+    "subcategories": [
+      "Rumah Sakit & Rawat",
+      "Klinik & Dokter",
+      "Obat & Apotek",
+      "Gym & Fitness",
+      "Salon & Spa",
+      "Konseling & Mental",
+      "Skincare & Perawatan",
+      "Potong Rambut"
+    ]
+  },
+  "Pendidikan & Karir": {
+    "kind": "expense",
+    "subcategories": [
+      "Sekolah & Kuliah",
+      "Buku & Referensi",
+      "Komputer & Perangkat",
+      "Pulsa & Paket Data",
+      "Kursus Bahasa & Skill",
+      "Alat Kantor & Riset"
+    ]
+  },
+  "Tagihan & Finansial": {
+    "kind": "expense",
+    "subcategories": [
+      "Tagihan Listrik & Air",
+      "Internet & Wifi",
+      "Donasi & Zakat",
+      "Biaya Administrasi Bank",
+      "Pengeluaran Lainnya"
+    ]
+  },
+  "Gaji & Penghasilan Kerja": {
+    "kind": "income",
+    "subcategories": [
+      "Gaji Pokok Bulanan",
+      "Bonus Kerja & THR",
+      "Insentif & Komisi",
+      "Uang Lembur",
+      "Hasil Bisnis & Dagang",
+      "Jasa Teknik & IT",
+      "Jasa Desain & Kreatif"
+    ]
+  },
+  "Investasi & Finansial": {
+    "kind": "income",
+    "subcategories": [
+      "Keuntungan Saham & Reksa Dana",
+      "Bunga Tabungan & Deposito",
+      "Dividen & Bagi Hasil",
+      "Sewa Kos / Properti",
+      "Selisih Kurs Valas",
+      "Cashback & Reward Kartu"
+    ]
+  },
+  "Hadiah & Rezeki": {
+    "kind": "income",
+    "subcategories": [
+      "Angpao & Hadiah Tunai",
+      "Kado & Hadiah Acara",
+      "Penghargaan & Juara",
+      "Poin Loyalitas & Voucher"
+    ]
+  },
+  "Pemasukan Lainnya": {
+    "kind": "income",
+    "subcategories": [
+      "Pekerjaan Sampingan / Freelance",
+      "Pengembalian Dana / Refund",
+      "Klaim & Reimburse Kantor",
+      "Penjualan Barang Bekas",
+      "Pendapatan Lain-lain"
+    ]
+  }
+}

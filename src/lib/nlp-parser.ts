@@ -1,5 +1,6 @@
 import { formatInputIDR } from "./utils";
 import { DATASET_TAXONOMY } from "./taxonomy-dictionary";
+import { DATASET_SLANG_AMOUNTS, normalizeSpokenIndonesian } from "./fin-iq-dataset-reference";
 
 export interface ParsedTransactionResult {
   txType: "expense" | "income" | "transfer";
@@ -44,6 +45,14 @@ interface ParserOptions {
 export function extractAmountFromText(text: string): number {
   if (!text) return 0;
   const lower = text.toLowerCase().trim();
+
+  // 0. Pola Slang Nominal Bahasa Indonesia dari dataset (goceng, ceban, goban, cepek, seceng, gopek, dll.)
+  for (const [slang, val] of Object.entries(DATASET_SLANG_AMOUNTS)) {
+    const regex = new RegExp(`\\b${slang}\\b`, "i");
+    if (regex.test(lower)) {
+      return val;
+    }
+  }
 
   // 1. Pola dengan awalan Rp / nominal / seharga / sebesar diikuti angka bertitik/koma
   // Contoh: "Rp 30.000", "Rp. 30.000", "nominal Rp 30.000", "Rp 1.500.000"
@@ -1507,11 +1516,12 @@ export function smartParseIndonesianTransaction(
   text: string,
   options?: ParserOptions
 ): ParsedTransactionResult {
-  const amount = extractAmountFromText(text);
-  const txType = detectTxType(text);
-  const { categoryHint, matchedCategoryId } = detectCategory(text, txType, options?.categories);
-  const { accountHint, matchedAccountId, toAccountHint, matchedToAccountId } = detectAccount(text, options?.accounts);
-  const { happenedAt, happenedAtFormatted } = extractDateTimeFromText(text, options?.referenceDate);
+  const normalized = normalizeSpokenIndonesian(text);
+  const amount = extractAmountFromText(normalized) || extractAmountFromText(text);
+  const txType = detectTxType(normalized);
+  const { categoryHint, matchedCategoryId } = detectCategory(normalized, txType, options?.categories);
+  const { accountHint, matchedAccountId, toAccountHint, matchedToAccountId } = detectAccount(normalized, options?.accounts);
+  const { happenedAt, happenedAtFormatted } = extractDateTimeFromText(normalized, options?.referenceDate);
   const fullSpeech = text.trim();
 
   return {
