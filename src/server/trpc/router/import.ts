@@ -116,21 +116,27 @@ export const importRouter = router({
         const happenedAtDate = isNaN(rawDateObj.getTime()) ? new Date() : rawDateObj;
 
         // Category resolution
-        const catName = item.categoryName ? item.categoryName.trim() : "Umum";
-        let matchedCat = categoryMap.get(catName.toLowerCase());
+        const rawCat = item.categoryName ? item.categoryName.trim() : "Umum";
+        const cleanCatName =
+          rawCat
+            .replace(/\s*[\(（][\u4e00-\u9fa5\s]+[\)）]/g, "")
+            .replace(/[\u4e00-\u9fa5]+/g, "")
+            .trim() || "Umum";
+
+        let matchedCat = categoryMap.get(cleanCatName.toLowerCase());
         if (!matchedCat) {
           const newCatId = crypto.randomUUID();
           const newCat = {
             id: newCatId,
             userId: ctx.userId,
-            name: catName,
+            name: cleanCatName,
             kind: item.txType === "income" ? "income" : "expense",
             icon: "Receipt",
           };
           await ctx.db.insert(categories).values(newCat);
           matchedCat = newCat;
-          categoryMap.set(catName.toLowerCase(), newCat);
-          categoriesCreated.push(catName);
+          categoryMap.set(cleanCatName.toLowerCase(), newCat);
+          categoriesCreated.push(cleanCatName);
         }
 
         // Account resolution

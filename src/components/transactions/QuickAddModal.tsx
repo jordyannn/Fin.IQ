@@ -18,7 +18,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, formatInputIDR, parseInputIDR } from "@/lib/utils";
 import { VoiceMicButton } from "@/components/ui/VoiceMicButton";
-import { smartParseIndonesianTransaction, extractDateTimeFromText } from "@/lib/nlp-parser";
+import {
+  smartParseIndonesianTransaction,
+  extractDateTimeFromText,
+  detectCategory,
+} from "@/lib/nlp-parser";
 
 export function QuickAddModal() {
   const { isQuickAddOpen, closeQuickAdd } = useUIStore();
@@ -37,6 +41,32 @@ export function QuickAddModal() {
   const { data: accountsData } = trpc.accounts.list.useQuery();
   const { data: categoriesList } = trpc.categories.list.useQuery();
   const { data: ledgersList } = trpc.ledgers.list.useQuery();
+
+  // Sinkronisasi kategori ketika jenis transaksi berganti
+  const handleTxTypeChange = (newType: "expense" | "income" | "transfer") => {
+    setTxType(newType);
+    if (newType === "transfer") {
+      setCategoryId("");
+    } else {
+      const currentCat = categoriesList?.find((c) => c.id === categoryId);
+      if (!currentCat || currentCat.kind !== newType) {
+        const firstMatching = categoriesList?.find((c) => c.kind === newType);
+        setCategoryId(firstMatching ? firstMatching.id : "");
+      }
+    }
+  };
+
+  // Pengelompokan hierarkis kategori untuk optgroup
+  const activeCategories = (categoriesList || []).filter((c) => c.kind === txType);
+  const parentCategories = activeCategories.filter((c) => !c.parentId);
+  const childCategoriesMap = new Map<string, typeof activeCategories>();
+  for (const cat of activeCategories) {
+    if (cat.parentId) {
+      const list = childCategoriesMap.get(cat.parentId) || [];
+      list.push(cat);
+      childCategoriesMap.set(cat.parentId, list);
+    }
+  }
 
   // Smart Voice & NLP parsing
   const applySmartSpeechParse = (transcript: string) => {
@@ -187,13 +217,24 @@ export function QuickAddModal() {
       ? new Date(happenedAt).toISOString()
       : new Date().toISOString();
 
+    let validCategoryId: string | undefined = undefined;
+    if (txType !== "transfer") {
+      const selected = categoriesList?.find((c) => c.id === categoryId && c.kind === txType);
+      if (selected) {
+        validCategoryId = selected.id;
+      } else {
+        const fallbackCat = categoriesList?.find((c) => c.kind === txType);
+        validCategoryId = fallbackCat?.id;
+      }
+    }
+
     createTxMutation.mutate({
       ledgerId: defaultLedgerId,
       txType,
       amount: numAmount,
       accountId: selectedAcc,
       toAccountId: txType === "transfer" ? toAccountId : undefined,
-      categoryId: txType !== "transfer" ? (categoryId || categoriesList?.[0]?.id) : undefined,
+      categoryId: validCategoryId,
       happenedAt: txHappenedAt,
       note,
     });
@@ -249,7 +290,7 @@ export function QuickAddModal() {
           <div className="grid grid-cols-3 gap-2 rounded-xl bg-muted p-1">
             <button
               type="button"
-              onClick={() => setTxType("expense")}
+              onClick={() => handleTxTypeChange("expense")}
               className={cn(
                 "flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all",
                 txType === "expense"
@@ -262,7 +303,7 @@ export function QuickAddModal() {
             </button>
             <button
               type="button"
-              onClick={() => setTxType("income")}
+              onClick={() => handleTxTypeChange("income")}
               className={cn(
                 "flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all",
                 txType === "income"
@@ -275,7 +316,7 @@ export function QuickAddModal() {
             </button>
             <button
               type="button"
-              onClick={() => setTxType("transfer")}
+              onClick={() => handleTxTypeChange("transfer")}
               className={cn(
                 "flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all",
                 txType === "transfer"
@@ -463,16 +504,13 @@ export function QuickAddModal() {
                   <label className="text-xs font-medium text-muted-foreground">Kategori</label>
                   <VoiceMicButton
                     size="sm"
-                    title="Sebut kategori (misal: Makanan, Belanja)"
+                    title="Sebut kategori (misal: Kopi, Bensin, Gaji, Belanja)"
                     onResult={(text) => {
                       if (categoriesList) {
-                        const lower = text.toLowerCase();
-                        const found = categoriesList
-                          .filter((c) => c.kind === txType)
-                          .find((c) =>
-                            c.name.toLowerCase().includes(lower) || lower.includes(c.name.toLowerCase())
-                          );
-                        if (found) setCategoryId(found.id);
+                        const detected = detectCategory(text, txType, categoriesList);
+                        if (detected.matchedCategoryId) {
+                          setCategoryId(detected.matchedCategoryId);
+                        }
                       }
                     }}
                   />
@@ -483,11 +521,32 @@ export function QuickAddModal() {
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 >
                   <option value="">Pilih Kategori...</option>
-                  {categoriesList
-                    ?.filter((c) => c.kind === txType)
-                    .map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
+                  {parentCategories.map((parent) => {
+                    const children = childCategoriesMap.get(parent.id) || [];
+                    if (children.length > 0) {
+                      return (
+                        <optgroup key={parent.id} label={parent.name}>
+                          <option value={parent.id}>{parent.name} (Utama)</option>
+                          {children.map((child) => (
+                            <option key={child.id} value={child.id}>
+                              &nbsp;&nbsp;• {child.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    }
+                    return (
+                      <option key={parent.id} value={parent.id}>
+                        {parent.name}
+                      </option>
+                    );
+                  })}
+                  {/* Kategori anak tanpa parent yang terdaftar di parentCategories */}
+                  {activeCategories
+                    .filter((c) => c.parentId && !parentCategories.some((p) => p.id === c.parentId))
+                    .map((orphan) => (
+                      <option key={orphan.id} value={orphan.id}>
+                        {orphan.name}
                       </option>
                     ))}
                 </select>

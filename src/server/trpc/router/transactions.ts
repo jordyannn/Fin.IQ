@@ -100,6 +100,22 @@ export const transactionsRouter = router({
       const date = input.happenedAt ? new Date(input.happenedAt) : new Date();
       const id = crypto.randomUUID();
 
+      // Validasi & sanitasi kategori agar sinkron dengan jenis transaksi
+      let finalCategoryId: string | null = null;
+      if (input.txType !== "transfer" && input.categoryId) {
+        const cat = await ctx.db.query.categories.findFirst({
+          where: and(eq(categories.id, input.categoryId), eq(categories.userId, ctx.userId)),
+        });
+        if (cat && cat.kind === input.txType) {
+          finalCategoryId = cat.id;
+        } else {
+          const fallbackCat = await ctx.db.query.categories.findFirst({
+            where: and(eq(categories.kind, input.txType), eq(categories.userId, ctx.userId)),
+          });
+          finalCategoryId = fallbackCat?.id || null;
+        }
+      }
+
       await ctx.db
         .insert(transactions)
         .values({
@@ -113,8 +129,8 @@ export const transactionsRouter = router({
           happenedAt: date,
           note: input.note,
           accountId: input.accountId,
-          toAccountId: input.toAccountId || null,
-          categoryId: input.categoryId || null,
+          toAccountId: input.txType === "transfer" ? (input.toAccountId || null) : null,
+          categoryId: finalCategoryId,
           tagsJson: input.tags,
           excludeFromStats: input.excludeFromStats,
           excludeFromBudget: input.excludeFromBudget,
@@ -223,7 +239,23 @@ export const transactionsRouter = router({
 
       const date = input.happenedAt ? new Date(input.happenedAt) : new Date();
 
-      // 4. Update transaction row
+      // 4. Validasi & sanitasi kategori agar sinkron dengan jenis transaksi
+      let finalCategoryId: string | null = null;
+      if (input.txType !== "transfer" && input.categoryId) {
+        const cat = await ctx.db.query.categories.findFirst({
+          where: and(eq(categories.id, input.categoryId), eq(categories.userId, ctx.userId)),
+        });
+        if (cat && cat.kind === input.txType) {
+          finalCategoryId = cat.id;
+        } else {
+          const fallbackCat = await ctx.db.query.categories.findFirst({
+            where: and(eq(categories.kind, input.txType), eq(categories.userId, ctx.userId)),
+          });
+          finalCategoryId = fallbackCat?.id || null;
+        }
+      }
+
+      // 5. Update transaction row
       await ctx.db
         .update(transactions)
         .set({
@@ -236,7 +268,7 @@ export const transactionsRouter = router({
           note: input.note || null,
           accountId: input.accountId,
           toAccountId: input.txType === "transfer" ? (input.toAccountId || null) : null,
-          categoryId: input.txType !== "transfer" ? (input.categoryId || null) : null,
+          categoryId: finalCategoryId,
           tagsJson: input.tags,
           excludeFromStats: input.excludeFromStats,
           excludeFromBudget: input.excludeFromBudget,

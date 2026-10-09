@@ -15,7 +15,12 @@ export const aiRouter = router({
         .where(eq(accounts.userId, ctx.userId));
 
       const userCategories = await ctx.db
-        .select({ id: categories.id, name: categories.name, kind: categories.kind })
+        .select({
+          id: categories.id,
+          name: categories.name,
+          kind: categories.kind,
+          parentId: categories.parentId,
+        })
         .from(categories)
         .where(eq(categories.userId, ctx.userId));
 
