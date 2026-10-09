@@ -15,7 +15,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, formatInputIDR, parseInputIDR } from "@/lib/utils";
+import { VoiceMicButton } from "@/components/ui/VoiceMicButton";
+import { parseSpokenNumber } from "@/hooks/use-voice-input";
 
 export interface TransactionToEdit {
   id: string;
@@ -61,7 +63,7 @@ export function EditTransactionModal({
   useEffect(() => {
     if (transaction) {
       setTxType((transaction.txType as any) || "expense");
-      setAmount(String(transaction.amount || ""));
+      setAmount(formatInputIDR(String(transaction.amount || "")));
       setAccountId(transaction.accountId || "");
       setToAccountId(transaction.toAccountId || "");
       setCategoryId(transaction.categoryId || "");
@@ -98,7 +100,7 @@ export function EditTransactionModal({
     e.preventDefault();
     setErrorMessage(null);
 
-    const numAmount = parseFloat(amount.replace(/[^0-9.]/g, ""));
+    const numAmount = parseInputIDR(amount);
     if (!numAmount || numAmount <= 0) {
       setErrorMessage("Nominal transaksi harus lebih dari 0.");
       return;
@@ -206,19 +208,31 @@ export function EditTransactionModal({
 
           {/* Nominal Input */}
           <div>
-            <label className="text-xs font-semibold text-foreground mb-1 block">
-              Nominal ({transaction.currency || "IDR"})
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-semibold text-foreground">
+                Nominal ({transaction.currency || "IDR"})
+              </label>
+              <VoiceMicButton
+                size="sm"
+                title="Dikte nominal (misal: lima puluh ribu)"
+                onResult={(text) => {
+                  const num = parseSpokenNumber(text);
+                  if (num) {
+                    setAmount(formatInputIDR(String(num)));
+                  }
+                }}
+              />
+            </div>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">
                 Rp
               </span>
               <Input
-                type="number"
-                step="any"
+                type="text"
+                inputMode="numeric"
                 min="0"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => setAmount(formatInputIDR(e.target.value))}
                 placeholder="0"
                 className="pl-11 text-base font-bold h-11"
                 required
@@ -245,10 +259,25 @@ export function EditTransactionModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Akun Sumber */}
             <div>
-              <label className="text-xs font-semibold text-foreground mb-1 flex items-center gap-1.5">
-                <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
-                {txType === "transfer" ? "Dari Akun" : "Akun Keuangan"}
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
+                  {txType === "transfer" ? "Dari Akun" : "Akun Keuangan"}
+                </label>
+                <VoiceMicButton
+                  size="sm"
+                  title="Sebut akun (misal: Blu, Cash, BCA)"
+                  onResult={(text) => {
+                    if (accountsData?.accounts) {
+                      const lower = text.toLowerCase();
+                      const found = accountsData.accounts.find((a) =>
+                        a.name.toLowerCase().includes(lower) || lower.includes(a.name.toLowerCase())
+                      );
+                      if (found) setAccountId(found.id);
+                    }
+                  }}
+                />
+              </div>
               <select
                 value={accountId}
                 onChange={(e) => setAccountId(e.target.value)}
@@ -267,10 +296,27 @@ export function EditTransactionModal({
             {/* Akun Tujuan (Transfer) ATAU Kategori (Expense/Income) */}
             {txType === "transfer" ? (
               <div>
-                <label className="text-xs font-semibold text-foreground mb-1 flex items-center gap-1.5">
-                  <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
-                  Ke Akun Tujuan
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
+                    Ke Akun Tujuan
+                  </label>
+                  <VoiceMicButton
+                    size="sm"
+                    title="Sebut akun tujuan"
+                    onResult={(text) => {
+                      if (accountsData?.accounts) {
+                        const lower = text.toLowerCase();
+                        const found = accountsData.accounts
+                          .filter((a) => a.id !== accountId)
+                          .find((a) =>
+                            a.name.toLowerCase().includes(lower) || lower.includes(a.name.toLowerCase())
+                          );
+                        if (found) setToAccountId(found.id);
+                      }
+                    }}
+                  />
+                </div>
                 <select
                   value={toAccountId}
                   onChange={(e) => setToAccountId(e.target.value)}
@@ -289,10 +335,25 @@ export function EditTransactionModal({
               </div>
             ) : (
               <div>
-                <label className="text-xs font-semibold text-foreground mb-1 flex items-center gap-1.5">
-                  <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-                  Kategori
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                    Kategori
+                  </label>
+                  <VoiceMicButton
+                    size="sm"
+                    title="Sebut kategori (misal: Makanan, Belanja)"
+                    onResult={(text) => {
+                      if (filteredCategories) {
+                        const lower = text.toLowerCase();
+                        const found = filteredCategories.find((c) =>
+                          c.name.toLowerCase().includes(lower) || lower.includes(c.name.toLowerCase())
+                        );
+                        if (found) setCategoryId(found.id);
+                      }
+                    }}
+                  />
+                </div>
                 <select
                   value={categoryId}
                   onChange={(e) => setCategoryId(e.target.value)}
@@ -311,10 +372,19 @@ export function EditTransactionModal({
 
           {/* Catatan / Keterangan */}
           <div>
-            <label className="text-xs font-semibold text-foreground mb-1 flex items-center gap-1.5">
-              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-              Catatan / Keterangan
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                Catatan / Keterangan
+              </label>
+              <VoiceMicButton
+                size="sm"
+                title="Dikte catatan transaksi"
+                onResult={(text) => {
+                  setNote((prev) => (prev ? `${prev} ${text}` : text));
+                }}
+              />
+            </div>
             <Input
               type="text"
               placeholder="Contoh: Belanja bulanan, isi bensin, makan siang..."

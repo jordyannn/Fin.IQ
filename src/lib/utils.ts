@@ -56,3 +56,24 @@ export function formatDateTime(date: string | Date): string {
     timeStyle: "short",
   }).format(d);
 }
+
+/**
+ * Format string angka untuk ditampilkan di input field dengan pemisah ribuan (titik).
+ * Contoh: "3670000" → "3.670.000", "50000" → "50.000"
+ */
+export function formatInputIDR(value: string): string {
+  // Strip semua karakter non-digit
+  const digits = value.replace(/[^\d]/g, "");
+  if (!digits) return "";
+  // Tambahkan pemisah ribuan (titik)
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+/**
+ * Parse string berformat IDR kembali menjadi angka murni.
+ * Contoh: "3.670.000" → 3670000, "50.000" → 50000
+ */
+export function parseInputIDR(formatted: string): number {
+  const digits = formatted.replace(/[^\d]/g, "");
+  return digits ? parseInt(digits, 10) : 0;
+}

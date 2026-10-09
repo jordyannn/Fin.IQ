@@ -56,6 +56,12 @@ export default function OverviewPage() {
       ? `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`
       : `${currentDate.getFullYear()}`;
 
+  // Periode terpisah untuk Category Ranks (agar tidak mismatch saat topCatScope != scope)
+  const catPeriodStr =
+    topCatScope === "month"
+      ? `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`
+      : `${currentDate.getFullYear()}`;
+
   const periodLabel =
     scope === "month"
       ? new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(currentDate)
@@ -90,12 +96,12 @@ export default function OverviewPage() {
   const { data: expenseRanks } = trpc.analytics.categoryRanks.useQuery({
     scope: topCatScope,
     kind: "expense",
-    period: periodStr,
+    period: catPeriodStr,
   });
   const { data: incomeRanks } = trpc.analytics.categoryRanks.useQuery({
     scope: topCatScope,
     kind: "income",
-    period: periodStr,
+    period: catPeriodStr,
   });
   const { data: heatmapData } = trpc.analytics.yearHeatmap.useQuery({
     year: currentDate.getFullYear(),
@@ -191,10 +197,10 @@ export default function OverviewPage() {
               </span>
               <div
                 className={`text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight mt-1.5 ${
-                  (heroData?.balance || 0) >= 0 ? "text-foreground" : "text-rose-600"
+                  (heroData?.totalNetWorth || 0) >= 0 ? "text-foreground" : "text-rose-600"
                 }`}
               >
-                {isHeroLoading ? "..." : formatCurrency(heroData?.balance || 0)}
+                {isHeroLoading ? "..." : formatCurrency(heroData?.totalNetWorth || 0)}
               </div>
             </div>
 
@@ -571,6 +577,52 @@ export default function OverviewPage() {
           )}
         </div>
       </Card>
+
+      {/* =========================================================================
+          4.5. HEATMAP AKTIVITAS BULANAN (Data yearHeatmap)
+      ========================================================================= */}
+      {heatmapData && heatmapData.length > 0 && (
+        <Card className="p-5 sm:p-6 rounded-3xl border-border/70 shadow-xs">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-xl bg-primary/15 flex items-center justify-center text-primary">
+                <CalendarDays className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm text-foreground">Aktivitas Bulanan {currentDate.getFullYear()}</h3>
+                <p className="text-[11px] text-muted-foreground">Jumlah transaksi & arus kas per bulan</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
+            {heatmapData.map((m) => {
+              const net = m.income - m.expense;
+              const intensity = Math.min(m.txCount, 30);
+              const opacityPct = m.txCount > 0 ? Math.max(15, Math.round((intensity / 30) * 100)) : 5;
+              return (
+                <div
+                  key={m.monthIndex}
+                  className="flex flex-col gap-1 p-2.5 rounded-xl border border-border/60 transition-all hover:border-primary/40"
+                  style={{ backgroundColor: m.txCount > 0 ? `hsl(var(--primary) / ${opacityPct / 100})` : undefined }}
+                >
+                  <span className="text-[11px] font-bold text-foreground uppercase">{m.monthName}</span>
+                  <span className="text-[10px] text-muted-foreground">{m.txCount} transaksi</span>
+                  <div className="flex items-center gap-1 text-[10px]">
+                    <span className="text-emerald-600 font-bold">+{formatCurrency(m.income, "IDR", { compact: true })}</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px]">
+                    <span className="text-rose-600 font-bold">-{formatCurrency(m.expense, "IDR", { compact: true })}</span>
+                  </div>
+                  <div className={`text-[10px] font-extrabold ${net >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"}`}>
+                    Nett: {formatCurrency(net, "IDR", { compact: true })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* =========================================================================
           5. RANKING KATEGORI (Pengeluaran vs Pemasukan)

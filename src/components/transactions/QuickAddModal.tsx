@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useUIStore } from "@/store/ui.store";
 import { trpc } from "@/lib/trpc/client";
-import { useVoiceInput } from "@/hooks/use-voice-input";
+import { useVoiceInput, parseSpokenNumber } from "@/hooks/use-voice-input";
 import {
   X,
   Mic,
@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, formatInputIDR, parseInputIDR } from "@/lib/utils";
+import { VoiceMicButton } from "@/components/ui/VoiceMicButton";
 
 export function QuickAddModal() {
   const { isQuickAddOpen, closeQuickAdd } = useUIStore();
@@ -39,7 +40,7 @@ export function QuickAddModal() {
   // Voice & AI parsing
   const parseMutation = trpc.ai.parseTextToTransaction.useMutation({
     onSuccess: (data) => {
-      if (data.amount > 0) setAmount(String(data.amount));
+      if (data.amount > 0) setAmount(formatInputIDR(String(data.amount)));
       if (data.txType) setTxType(data.txType);
       if (data.note) setNote(data.note);
 
@@ -89,7 +90,7 @@ export function QuickAddModal() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const numAmount = parseFloat(amount.replace(/[^0-9]/g, ""));
+    const numAmount = parseInputIDR(amount);
     if (!numAmount || numAmount <= 0) {
       alert("Harap masukkan nominal yang valid");
       return;
@@ -211,16 +212,29 @@ export function QuickAddModal() {
 
           {/* Nominal Input */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Nominal (IDR)</label>
-            <div className="relative mt-1">
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-muted-foreground">Nominal (IDR)</label>
+              <VoiceMicButton
+                size="sm"
+                title="Dikte nominal (misal: lima puluh ribu)"
+                onResult={(text) => {
+                  const num = parseSpokenNumber(text);
+                  if (num) {
+                    setAmount(formatInputIDR(String(num)));
+                  }
+                }}
+              />
+            </div>
+            <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-sm">
                 Rp
               </span>
               <Input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 placeholder="0"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => setAmount(formatInputIDR(e.target.value))}
                 className="pl-10 text-lg font-bold tracking-tight h-12"
                 required
                 autoFocus
@@ -284,13 +298,28 @@ export function QuickAddModal() {
           <div className="grid grid-cols-2 gap-3">
             {/* Akun Sumber */}
             <div>
-              <label className="text-xs font-medium text-muted-foreground">
-                {txType === "transfer" ? "Dari Akun" : "Akun"}
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  {txType === "transfer" ? "Dari Akun" : "Akun"}
+                </label>
+                <VoiceMicButton
+                  size="sm"
+                  title="Sebut akun (misal: Blu, Cash, BCA)"
+                  onResult={(text) => {
+                    if (accountsData?.accounts) {
+                      const lower = text.toLowerCase();
+                      const found = accountsData.accounts.find((a) =>
+                        a.name.toLowerCase().includes(lower) || lower.includes(a.name.toLowerCase())
+                      );
+                      if (found) setAccountId(found.id);
+                    }
+                  }}
+                />
+              </div>
               <select
                 value={accountId}
                 onChange={(e) => setAccountId(e.target.value)}
-                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
               >
                 <option value="">Pilih Akun...</option>
                 {accountsData?.accounts?.map((acc) => (
@@ -304,11 +333,28 @@ export function QuickAddModal() {
             {/* Target Akun atau Kategori */}
             {txType === "transfer" ? (
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Ke Akun</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-muted-foreground">Ke Akun</label>
+                  <VoiceMicButton
+                    size="sm"
+                    title="Sebut akun tujuan"
+                    onResult={(text) => {
+                      if (accountsData?.accounts) {
+                        const lower = text.toLowerCase();
+                        const found = accountsData.accounts
+                          .filter((a) => a.id !== accountId)
+                          .find((a) =>
+                            a.name.toLowerCase().includes(lower) || lower.includes(a.name.toLowerCase())
+                          );
+                        if (found) setToAccountId(found.id);
+                      }
+                    }}
+                  />
+                </div>
                 <select
                   value={toAccountId}
                   onChange={(e) => setToAccountId(e.target.value)}
-                  className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
                   required
                 >
                   <option value="">Pilih Akun Tujuan...</option>
@@ -323,11 +369,28 @@ export function QuickAddModal() {
               </div>
             ) : (
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Kategori</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-muted-foreground">Kategori</label>
+                  <VoiceMicButton
+                    size="sm"
+                    title="Sebut kategori (misal: Makanan, Belanja)"
+                    onResult={(text) => {
+                      if (categoriesList) {
+                        const lower = text.toLowerCase();
+                        const found = categoriesList
+                          .filter((c) => c.kind === txType)
+                          .find((c) =>
+                            c.name.toLowerCase().includes(lower) || lower.includes(c.name.toLowerCase())
+                          );
+                        if (found) setCategoryId(found.id);
+                      }
+                    }}
+                  />
+                </div>
                 <select
                   value={categoryId}
                   onChange={(e) => setCategoryId(e.target.value)}
-                  className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 >
                   <option value="">Pilih Kategori...</option>
                   {categoriesList
@@ -344,13 +407,22 @@ export function QuickAddModal() {
 
           {/* Catatan */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Catatan / Deskripsi</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-muted-foreground">Catatan / Deskripsi</label>
+              <VoiceMicButton
+                size="sm"
+                title="Dikte catatan transaksi"
+                onResult={(text) => {
+                  setNote((prev) => (prev ? `${prev} ${text}` : text));
+                }}
+              />
+            </div>
             <Input
               type="text"
               placeholder="Contoh: Sarapan pagi, beli bensin, dll."
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="mt-1 h-10 text-xs"
+              className="h-10 text-xs"
             />
           </div>
 
