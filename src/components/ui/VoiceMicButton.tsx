@@ -22,7 +22,7 @@ export function VoiceMicButton({
   className,
   title = "Input suara",
 }: VoiceMicButtonProps) {
-  const { isListening, startListening, stopListening, error } = useVoiceInput(onResult);
+  const { isListening, isProcessing, startListening, stopListening } = useVoiceInput(onResult);
 
   const sizeClasses = size === "sm" ? "h-8 w-8" : "h-9 w-9";
   const iconSize = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
@@ -31,11 +31,14 @@ export function VoiceMicButton({
     <button
       type="button"
       onClick={isListening ? stopListening : startListening}
-      title={isListening ? "Berhenti mendengarkan..." : title}
+      disabled={isProcessing}
+      title={isListening ? "Berhenti mendengarkan..." : isProcessing ? "Sedang memproses suara..." : title}
       className={cn(
         "inline-flex items-center justify-center rounded-full border transition-all shadow-sm shrink-0",
         isListening
           ? "bg-rose-600 border-rose-600 text-white animate-pulse"
+          : isProcessing
+          ? "bg-primary/20 border-primary text-primary animate-pulse cursor-wait"
           : "bg-background border-input text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5",
         sizeClasses,
         className

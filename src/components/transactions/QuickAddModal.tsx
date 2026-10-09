@@ -171,7 +171,7 @@ export function QuickAddModal() {
     },
   });
 
-  const { isListening, startListening, stopListening } = useVoiceInput((transcript) => {
+  const { isListening, isProcessing, startListening, stopListening } = useVoiceInput((transcript) => {
     applySmartSpeechParse(transcript);
   });
 
@@ -270,18 +270,40 @@ export function QuickAddModal() {
           <div className="flex items-center gap-2.5">
             <Button
               type="button"
-              variant={isListening ? "destructive" : "default"}
+              variant={isListening ? "destructive" : isProcessing ? "secondary" : "default"}
               size="icon"
+              disabled={isProcessing}
               onClick={isListening ? stopListening : startListening}
-              className={cn("h-9 w-9 rounded-full shadow-sm", isListening && "animate-pulse")}
+              className={cn(
+                "h-9 w-9 rounded-full shadow-sm transition-all",
+                isListening && "animate-pulse",
+                isProcessing && "bg-primary/20 text-primary border border-primary/40 animate-pulse"
+              )}
             >
-              {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              {isListening ? (
+                <MicOff className="h-4 w-4" />
+              ) : isProcessing ? (
+                <Sparkles className="h-4 w-4 animate-spin text-primary" />
+              ) : (
+                <Mic className="h-4 w-4" />
+              )}
             </Button>
-            <span className="text-xs font-medium text-foreground">
-              {isListening
-                ? "Mendengarkan... (misal: 'Beli bensin 50rb pake blu')"
-                : "Tekan mic untuk input suara bahasa Indonesia"}
-            </span>
+            <div className="flex flex-col">
+              <span className="text-xs font-semibold text-foreground">
+                {isListening
+                  ? "Mendengarkan... (bicara santai, jeda hening 2 detik)"
+                  : isProcessing
+                  ? "Sedang memproses & menganalisis kalimat..."
+                  : "Dikte Suara Fin.IQ AI"}
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                {isListening
+                  ? "Sebut nominal, kategori, akun & waktu transaksi"
+                  : isProcessing
+                  ? "Mengekstrak tanggal, jam, nominal, kategori & akun..."
+                  : "Tekan mic lalu sebutkan transaksi Anda"}
+              </span>
+            </div>
           </div>
         </div>
 

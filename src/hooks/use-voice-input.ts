@@ -93,15 +93,76 @@ export function parseSpokenNumber(text: string): number | null {
   return total > 0 ? total : null;
 }
 
-export function useVoiceInput(onResult?: (transcript: string) => void) {
+export interface UseVoiceInputOptions {
+  silenceDelayMs?: number; // Waktu jeda hening sebelum otomatis selesai bicara (default: 2000ms)
+  processDelayMs?: number; // Waktu pemrosesan halus sebelum mengeksekusi hasil (default: 1000ms)
+}
+
+export function useVoiceInput(
+  onResult?: (transcript: string) => void,
+  options?: UseVoiceInputOptions
+) {
+  const silenceDelayMs = options?.silenceDelayMs ?? 2000;
+  const processDelayMs = options?.processDelayMs ?? 1000;
+
   const [isListening, setIsListening] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const recognitionRef = useRef<any>(null);
 
-  // Stabilize onResult with useCallback ref pattern
+  const recognitionRef = useRef<any>(null);
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const finalTranscriptRef = useRef<string>("");
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
+
+  const silenceDelayRef = useRef(silenceDelayMs);
+  silenceDelayRef.current = silenceDelayMs;
+
+  const processDelayRef = useRef(processDelayMs);
+  processDelayRef.current = processDelayMs;
+
+  const isProcessingRef = useRef(false);
+  const isListeningRef = useRef(false);
+
+  const clearSilenceTimer = () => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  };
+
+  const handleFinishSpeech = useCallback(() => {
+    clearSilenceTimer();
+    const textToProcess = finalTranscriptRef.current.trim();
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+    }
+
+    setIsListening(false);
+    isListeningRef.current = false;
+
+    if (textToProcess) {
+      setIsProcessing(true);
+      isProcessingRef.current = true;
+      setTimeout(() => {
+        setIsProcessing(false);
+        isProcessingRef.current = false;
+        if (onResultRef.current) {
+          onResultRef.current(textToProcess);
+        }
+      }, processDelayRef.current);
+    } else {
+      setIsProcessing(false);
+      isProcessingRef.current = false;
+    }
+  }, []);
+
+  const handleFinishSpeechRef = useRef(handleFinishSpeech);
+  handleFinishSpeechRef.current = handleFinishSpeech;
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -110,54 +171,86 @@ export function useVoiceInput(onResult?: (transcript: string) => void) {
 
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = false;
+        recognition.continuous = true;
+        recognition.interimResults = true;
         recognition.lang = "id-ID";
 
         recognition.onresult = (event: any) => {
-          const text = event.results[0][0].transcript;
-          setTranscript(text);
-          setIsListening(false);
-          if (onResultRef.current) onResultRef.current(text);
+          let fullText = "";
+          for (let i = 0; i < event.results.length; i++) {
+            fullText += event.results[i][0].transcript + " ";
+          }
+          const cleanText = fullText.trim();
+          finalTranscriptRef.current = cleanText;
+          setTranscript(cleanText);
+
+          // Reset silence timer setiap kata baru terdeteksi
+          // Memberi waktu hening yang cukup (2000ms) agar kalimat pengguna tidak terpotong saat jeda
+          clearSilenceTimer();
+          silenceTimerRef.current = setTimeout(() => {
+            handleFinishSpeechRef.current();
+          }, silenceDelayRef.current);
         };
 
         recognition.onerror = (event: any) => {
-          setError(event.error);
-          setIsListening(false);
+          if (event.error !== "no-speech") {
+            clearSilenceTimer();
+            setError(event.error);
+            setIsListening(false);
+            isListeningRef.current = false;
+            setIsProcessing(false);
+            isProcessingRef.current = false;
+          }
         };
 
         recognition.onend = () => {
-          setIsListening(false);
+          clearSilenceTimer();
+          if (isListeningRef.current && finalTranscriptRef.current.trim() && !isProcessingRef.current) {
+            handleFinishSpeechRef.current();
+          } else {
+            setIsListening(false);
+            isListeningRef.current = false;
+          }
         };
 
         recognitionRef.current = recognition;
       }
     }
-  }, []); // No dependency on onResult — use ref instead
+
+    return () => {
+      clearSilenceTimer();
+    };
+  }, []);
 
   const startListening = useCallback(() => {
     setError(null);
+    clearSilenceTimer();
+    finalTranscriptRef.current = "";
+    setTranscript("");
+    setIsProcessing(false);
+    isProcessingRef.current = false;
+
     if (!recognitionRef.current) {
       setError("Browser tidak mendukung speech recognition.");
       return;
     }
     try {
       setIsListening(true);
+      isListeningRef.current = true;
       recognitionRef.current.start();
     } catch (e) {
       setIsListening(false);
+      isListeningRef.current = false;
     }
   }, []);
 
   const stopListening = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    }
-  }, []);
+    handleFinishSpeech();
+  }, [handleFinishSpeech]);
 
   return {
     isListening,
+    isProcessing,
     transcript,
     error,
     startListening,
