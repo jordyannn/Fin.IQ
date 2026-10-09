@@ -1,4 +1,5 @@
 import { formatInputIDR } from "./utils";
+import { DATASET_TAXONOMY } from "./taxonomy-dictionary";
 
 export interface ParsedTransactionResult {
   txType: "expense" | "income" | "transfer";
@@ -141,22 +142,54 @@ export function detectTxType(text: string): "expense" | "income" | "transfer" {
   const lower = text.toLowerCase();
 
   // 1. Cek Pola Transfer
-  const transferKeywords = [
-    "transfer", " tf ", "kirim uang ke", "tarik tunai", "pindah saldo", "pindahin ke",
-    "pindah dana", "mutasi ke", "antar rekening"
+  // Kecualikan jika top up game/voucher (yang merupakan pengeluaran hiburan)
+  const isTopUpGame = /(?:top\s*up|isi\s+ulang)\s+(?:diamond|dm|game|ml|mobile\s*legends|ff|free\s*fire|pubg|genshin|steam|roblox|robux)/i.test(lower);
+
+  const transferExplicit = [
+    "transfer", " tf ", "kirim uang ke", "tarik tunai", "setor tunai",
+    "pindah saldo", "pindahin saldo", "pindahin uang", "pindahin dana", "pindahin duit",
+    "pindah dana", "pindah uang", "pindah duit", "geser saldo", "geser dana",
+    "mutasi ke", "antar rekening", "antar akun", "nabung ke", "masukin ke tabungan"
   ];
-  if (
+
+  const hasTransferVerb =
     lower.startsWith("tf ") ||
     lower.endsWith(" tf") ||
-    transferKeywords.some((k) => lower.includes(k)) ||
-    /dari\s+.*\s+ke\s+/i.test(lower)
-  ) {
+    transferExplicit.some((k) => lower.includes(k)) ||
+    /(?:dari|from)\s+.*\s+(?:ke|to)\s+/i.test(lower) ||
+    (/(?:pindahin|geser)\s+/i.test(lower) && /(?:ke|to)\s+/i.test(lower)) ||
+    (!isTopUpGame && /(?:top\s*up|isi\s+saldo)\s+(?:ke\s+)?(?:dana|gopay|ovo|shopeepay|spay|linkaja|rekening|bank|e-?wallet)/i.test(lower));
+
+  if (hasTransferVerb) {
     return "transfer";
   }
 
   // 2. Skoring Pemasukan vs Pengeluaran
   let incomeScore = 0;
   let expenseScore = 0;
+
+  // Frasa santai & bahasa lokal kuat untuk pemasukan (Hadiah/Uang Saku/Rezeki/Keluarga)
+  const casualIncomePatterns = [
+    /dikasih\s+(?:duit|uang|dana|jajan|angpao|ongkos)/i,
+    /diberi\s+(?:duit|uang|dana|jajan|angpao)/i,
+    /dap[ae]t\s+(?:duit|uang|dana|jajan|angpao|transferan|kiriman|rezeki)/i,
+    /nemu\s+(?:duit|uang)/i,
+    /uang\s+(?:saku|jajan|bulanan|hadiah|kaget)\s+dari/i,
+    /duit\s+(?:saku|jajan|bulanan|hadiah|kaget)\s+dari/i,
+    /kiriman\s+(?:dari|ortu|orang\s*tua|ibu|ayah|mama|papa)/i,
+    /transferan\s+(?:dari|ortu|orang\s*tua|ibu|ayah|mama|papa|teman|bos)/i,
+    /ditransfer\s+(?:sama|oleh|dari)?\s*(?:mama|papa|ibu|ayah|ortu|orang\s*tua|bos|klien|teman)/i,
+    /dikasih\s+(?:sama|oleh)?\s*(?:mama|papa|ibu|ayah|ortu|orang\s*tua|nenek|kakek|om|tante)/i,
+    /salam\s+tempel/i,
+    /amplop\s+dari/i,
+    /cair(?:in|kan)?\s+(?:jht|bpjs|arisan|klaim|reimburse)/i
+  ];
+
+  for (const pattern of casualIncomePatterns) {
+    if (pattern.test(lower)) {
+      incomeScore += 16;
+    }
+  }
 
   // Eksplisit deklarasi berbobot tertinggi
   if (lower.includes("pemasukan")) incomeScore += 12;
@@ -175,8 +208,8 @@ export function detectTxType(text: string): "expense" | "income" | "transfer" {
   // Kata kunci sedang Pemasukan
   const mediumIncomeKeywords = [
     "masuk", "terima", "diterima", "menerima", "dapat", "dapet", "cair",
-    "bonus", "komisi", "insentif", "fee", "untung", "cuan", "laku", "top up", "topup",
-    "uang saku", "uang jajan", "dikasih", "kiriman", "hibah"
+    "bonus", "komisi", "insentif", "fee", "untung", "cuan", "laku",
+    "uang saku", "uang jajan", "dikasih", "kiriman", "hibah", "angpao", "hadiah"
   ];
 
   // Kata kunci kuat Pengeluaran
@@ -329,7 +362,7 @@ export function detectCategory(
 
   // Jika userCategories tidak tersedia
   if (!userCategories || userCategories.length === 0) {
-    return { categoryHint: txType === "income" ? "Gaji Pokok Bulanan" : "Makanan & Minuman" };
+    return { categoryHint: txType === "income" ? "Hadiah & Rezeki" : "Makanan & Minuman" };
   }
 
   // Filter kategori sesuai jenis transaksi (expense/income) dan bersihkan teks mandarin jika ada
@@ -337,7 +370,7 @@ export function detectCategory(
     .filter((c) => !c.kind || c.kind === txType)
     .map((c) => ({
       ...c,
-      name: c.name
+      cleanName: c.name
         .replace(/\s*[\(（][\u4e00-\u9fa5\s]+[\)）]/g, "")
         .replace(/[\u4e00-\u9fa5]+/g, "")
         .trim(),
@@ -351,73 +384,151 @@ export function detectCategory(
     return { categoryHint: firstClean, matchedCategoryId: userCategories[0].id };
   }
 
-  // 1. Scoring candidate categories based on direct tokens and semantic dictionary
-  const scores = new Map<string, { cat: CategoryItem; score: number }>();
+  // 1. Scoring semantik komprehensif menggunakan DATASET_TAXONOMY (79 subkategori & 12 induk)
+  const GENERIC_WORDS = new Set(["uang", "duit", "dana", "saldo", "biaya", "tarif", "kantor", "rumah", "bulan", "hari", "tahun", "toko", "belanja"]);
+  let bestDatasetEntry: (typeof DATASET_TAXONOMY)[0] | null = null;
+  let maxDatasetScore = 0;
 
-  for (const cat of targetCats) {
+  for (const entry of DATASET_TAXONOMY) {
+    if (entry.kind !== txType) continue;
     let score = 0;
-    const catNameLower = cat.name.toLowerCase().trim();
 
-    // Komponen token nama: "Kopi & Minuman" -> ["kopi & minuman", "kopi", "minuman"]
-    const parts = catNameLower
-      .split(/[\&\/\,\-]/)
-      .map((p) => p.trim())
-      .filter((p) => p.length >= 3);
-
-    // Direct token check
-    for (const part of [catNameLower, ...parts]) {
-      if (lower.includes(part)) {
-        score += part.length * 2;
+    // Subcategory keywords
+    const subWords = entry.sub.toLowerCase().split(/[\s&/,\-]+/).filter((w) => w.length >= 3);
+    for (const w of subWords) {
+      if (!GENERIC_WORDS.has(w) && lower.includes(w)) {
+        score += 80 + w.length * 4;
       }
     }
 
-    // Check semantic dictionary for this category
-    for (const [targetName, keywords] of Object.entries(DETAILED_CATEGORY_KEYWORDS)) {
-      const isTarget =
-        catNameLower.includes(targetName.toLowerCase()) ||
-        targetName.toLowerCase().includes(catNameLower);
-      if (isTarget) {
-        for (const kw of keywords) {
-          if (lower.includes(kw)) {
-            score += kw.length * 3;
-          }
+    // Items match (spesifik dan bobot lebih besar untuk frasa lengkap)
+    for (const item of entry.items) {
+      const itemLower = item.toLowerCase();
+      if (itemLower.length >= 3 && lower.includes(itemLower)) {
+        const phraseWeight = itemLower.includes(" ") ? 150 : 70;
+        score += phraseWeight + itemLower.length * 5;
+      }
+    }
+
+    // Merchants / Actor match (e.g. Mama, Ibu, Ayah, Indomaret, dsb.)
+    for (const merch of entry.merchants) {
+      const merchLower = merch.toLowerCase();
+      if (merchLower.length >= 2 && !GENERIC_WORDS.has(merchLower)) {
+        const regex = new RegExp(`\\b${merchLower}\\b`, "i");
+        if (regex.test(lower)) {
+          score += 80 + merchLower.length * 3;
         }
       }
     }
 
-    // Subcategory specificity boost: subkategori spesifik (misal: Kopi & Minuman) diprioritaskan di atas parent umum (Makanan & Minuman)
+    // Verbs match
+    for (const verb of entry.verbs) {
+      if (verb.length >= 3 && lower.includes(verb.toLowerCase())) {
+        score += 30;
+      }
+    }
+
+    if (score > maxDatasetScore) {
+      maxDatasetScore = score;
+      bestDatasetEntry = entry;
+    }
+  }
+
+  // 2. Jika ada pemenang dari DATASET_TAXONOMY, cocokkan dengan kategori di database user
+  if (bestDatasetEntry && maxDatasetScore > 0) {
+    const targetSubLower = bestDatasetEntry.sub.toLowerCase();
+    const targetParentLower = bestDatasetEntry.parent.toLowerCase();
+
+    // Prioritas 1: Cocok persis dengan Subkategori dataset
+    const exactSubCat = targetCats.find(
+      (c) => c.cleanName.toLowerCase() === targetSubLower
+    );
+    if (exactSubCat) {
+      return { categoryHint: exactSubCat.name, matchedCategoryId: exactSubCat.id };
+    }
+
+    // Prioritas 2: Cocok persis dengan Parent kategori dataset
+    const exactParentCat = targetCats.find(
+      (c) => c.cleanName.toLowerCase() === targetParentLower
+    );
+    if (exactParentCat) {
+      return { categoryHint: exactParentCat.name, matchedCategoryId: exactParentCat.id };
+    }
+
+    // Prioritas 3: Kesamaan token / substring
+    let bestMatchedUserCat: (typeof targetCats)[0] | null = null;
+    let maxMatchSimilarity = 0;
+
+    for (const cat of targetCats) {
+      const catLower = cat.cleanName.toLowerCase();
+      let sim = 0;
+      if (catLower.includes(targetSubLower) || targetSubLower.includes(catLower)) {
+        sim += 120;
+      }
+      if (catLower.includes(targetParentLower) || targetParentLower.includes(catLower)) {
+        sim += 80;
+      }
+      const catTokens = catLower.split(/[\s&/,\-]+/).filter((t) => t.length >= 3 && !GENERIC_WORDS.has(t));
+      for (const t of catTokens) {
+        if (targetSubLower.includes(t) || targetParentLower.includes(t)) {
+          sim += 30 + t.length * 2;
+        }
+      }
+
+      if (sim > maxMatchSimilarity) {
+        maxMatchSimilarity = sim;
+        bestMatchedUserCat = cat;
+      }
+    }
+
+    if (bestMatchedUserCat && maxMatchSimilarity > 0) {
+      return { categoryHint: bestMatchedUserCat.name, matchedCategoryId: bestMatchedUserCat.id };
+    }
+  }
+
+  // 3. Fallback scoring langsung ke kategori user jika dataset tidak match
+  let bestDirectCat: (typeof targetCats)[0] | null = null;
+  let maxDirectScore = 0;
+
+  for (const cat of targetCats) {
+    let score = 0;
+    const catLower = cat.cleanName.toLowerCase();
+
+    if (lower.includes(catLower)) {
+      score += 60 + catLower.length * 2;
+    }
+
+    const tokens = catLower.split(/[\s&/,\-]+/).filter((t) => t.length >= 3 && !GENERIC_WORDS.has(t));
+    for (const t of tokens) {
+      if (lower.includes(t)) {
+        score += 25 + t.length;
+      }
+    }
+
     if (cat.parentId && score > 0) {
-      score += 5;
+      score += 10;
     }
 
-    if (score > 0) {
-      scores.set(cat.id, { cat, score });
-    }
-  }
-
-  // Pilih kategori dengan skor tertinggi
-  let bestCandidate: CategoryItem | null = null;
-  let maxScore = 0;
-
-  for (const { cat, score } of scores.values()) {
-    if (score > maxScore) {
-      maxScore = score;
-      bestCandidate = cat;
+    if (score > maxDirectScore) {
+      maxDirectScore = score;
+      bestDirectCat = cat;
     }
   }
 
-  if (bestCandidate) {
-    return { categoryHint: bestCandidate.name, matchedCategoryId: bestCandidate.id };
+  if (bestDirectCat && maxDirectScore > 0) {
+    return { categoryHint: bestDirectCat.name, matchedCategoryId: bestDirectCat.id };
   }
 
-  // Fallback cerdas jika tidak ada keyword cocok
+  // 4. Default Fallback teraman
   const fallback =
     targetCats.find((c) =>
       txType === "income"
-        ? c.name.toLowerCase().includes("gaji") ||
-          c.name.toLowerCase().includes("income") ||
-          c.name.toLowerCase().includes("penghasilan")
-        : c.name.toLowerCase().includes("makan") || c.name.toLowerCase().includes("dining")
+        ? c.cleanName.toLowerCase().includes("hadiah") ||
+          c.cleanName.toLowerCase().includes("rezeki") ||
+          c.cleanName.toLowerCase().includes("gaji") ||
+          c.cleanName.toLowerCase().includes("lain")
+        : c.cleanName.toLowerCase().includes("makan") ||
+          c.cleanName.toLowerCase().includes("lain")
     ) || targetCats[0];
 
   return { categoryHint: fallback.name, matchedCategoryId: fallback.id };
@@ -427,6 +538,19 @@ export function detectCategory(
  * Sinonim dan kata kunci keluarga akun finansial di Indonesia
  */
 const ACCOUNT_FAMILY_KEYWORDS: Record<string, string[]> = {
+  rekening: [
+    "rekening",
+    "rek",
+    "rekening bank",
+    "tabungan",
+    "atm",
+    "bank",
+    "rekening utama",
+    "rekening tabungan",
+    "rekening gaji",
+    "rekening bca",
+    "rekening blu",
+  ],
   cash: [
     "cash",
     "kas",
@@ -471,11 +595,26 @@ function matchAccountScore(text: string, acc: AccountItem): number {
     score += 80 + accName.length * 3;
   }
 
-  // 2. Penanganan cerdas khusus cash vs kas tunai
+  // 2. Deteksi kata 'rekening', 'rek', 'tabungan', 'atm', 'bank'
+  const hasRekening = /\b(rekening|rek|tabungan|atm|bank)\b/i.test(lower);
+  if (hasRekening) {
+    if (accName.includes("rekening") || accName.includes("rek") || accName.includes("tabungan") || accName.includes("bank")) {
+      score += 260;
+    } else if (
+      accGroup.includes("bank") ||
+      accGroup.includes("card") ||
+      ["blu", "bca", "mandiri", "bri", "bni", "jago", "seabank", "cimb", "permata", "btn", "danamon", "bsi", "jenius"].includes(accName)
+    ) {
+      score += 190;
+    }
+  }
+
+  // 3. Penanganan cerdas khusus cash vs kas tunai vs dompet
   const hasCash = /\bcash(?!back)\b/i.test(lower);
   const hasKasTunai = /\bkas\s*tunai\b/i.test(lower);
   const hasTunai = /\btunai\b/i.test(lower);
   const hasKas = /\bkas\b/i.test(lower);
+  const hasDompet = /\bdompet\b/i.test(lower);
 
   if (hasCash) {
     if (accName === "cash") score += 200;
@@ -498,9 +637,15 @@ function matchAccountScore(text: string, acc: AccountItem): number {
     else if (accName === "cash") score += 70;
   }
 
-  // 3. Pencocokan keluarga akun lainnya (blu, dana, gopay, dll.)
+  if (hasDompet) {
+    if (accName === "cash" || accName.includes("tunai") || accName.includes("dompet")) {
+      score += 150;
+    }
+  }
+
+  // 4. Pencocokan keluarga akun lainnya (blu, dana, gopay, dll.)
   for (const [familyKey, keywords] of Object.entries(ACCOUNT_FAMILY_KEYWORDS)) {
-    if (familyKey === "cash") continue; // sudah diproses di atas
+    if (familyKey === "cash" || familyKey === "rekening") continue;
     const isMember =
       accName.includes(familyKey) ||
       keywords.some((kw) => accName.includes(kw));
@@ -521,7 +666,7 @@ function matchAccountScore(text: string, acc: AccountItem): number {
 }
 
 /**
- * Deteksi dan cocokkan akun dari suara
+ * Deteksi dan cocokkan akun dari suara (mendukung pengeluaran, pemasukan, dan transfer antar akun)
  */
 export function detectAccount(
   text: string,
@@ -533,64 +678,149 @@ export function detectAccount(
   matchedToAccountId?: string;
 } {
   const lower = text.toLowerCase().trim();
+  const isTransferTx = detectTxType(text) === "transfer";
 
-  // 1. Cek transfer pola: "dari [akun A] ke [akun B]"
-  const transferMatch = lower.match(/(?:dari|from)\s+([a-z0-9\s]+?)\s+(?:ke|to)\s+([a-z0-9\s]+)/i);
-  let fromHint = "cash";
+  let fromHint = "";
   let toHint = "";
 
-  if (transferMatch) {
-    fromHint = transferMatch[1].trim();
-    toHint = transferMatch[2].trim();
+  // Helper untuk membersihkan hint akun dari angka nominal dan stopwords waktu
+  const cleanAccountHint = (s: string) =>
+    s
+      .replace(/\b(?:\d+|rb|ribu|k|jt|juta|rp|idr|sebesar|sejumlah|nominal|pake|pakai|lewat|melalui|dari|ke|akun)\b/gi, "")
+      .replace(/\b(?:pada|saat\s+ini|sekarang|hari\s+ini|kemarin|tadi|jam|pukul)\b/gi, "")
+      .replace(/[\s,.\-—:]+/g, " ")
+      .trim();
+
+  // 1. Ekstraksi Pola Transfer
+  // A. Top up [B] dari/pake/lewat [A]: to = B, from = A
+  const topUpFromMatch = lower.match(/(?:top\s*up|isi\s+saldo)\s+([a-z0-9\s]+?)\s+(?:dari|pake|pakai|lewat|melalui)\s+([a-z0-9\s]+)/i);
+  if (topUpFromMatch) {
+    toHint = cleanAccountHint(topUpFromMatch[1]);
+    fromHint = cleanAccountHint(topUpFromMatch[2]);
+  }
+
+  // B. Tarik tunai: dari [A] -> to = cash
+  const tarikMatch = lower.match(/(?:tarik\s+tunai|tarik\s+di\s+atm|ambil\s+tunai)\s*(?:[\d\.,\w\s]+?)?\s*(?:dari|lewat|pake|pakai|di)\s+([a-z0-9\s]+)/i);
+  if (!fromHint && tarikMatch) {
+    fromHint = cleanAccountHint(tarikMatch[1]);
+    toHint = "cash";
+  }
+
+  // C. Setor tunai: from = cash -> ke [B]
+  const setorMatch = lower.match(/(?:setor\s+tunai|nabung|masuk(?:in)?\s+ke\s+tabungan)\s*(?:[\d\.,\w\s]+?)?\s*(?:ke|di)\s+([a-z0-9\s]+)/i);
+  if (!fromHint && setorMatch) {
+    fromHint = "cash";
+    toHint = cleanAccountHint(setorMatch[1]);
+  }
+
+  // D. Pola "dari [A] ke [B]"
+  const dariKeMatch = lower.match(/(?:dari|from)\s+([a-z0-9\s]+?)\s+(?:ke|to)\s+([a-z0-9\s]+)/i);
+  if (!fromHint && dariKeMatch) {
+    fromHint = cleanAccountHint(dariKeMatch[1]);
+    toHint = cleanAccountHint(dariKeMatch[2]);
+  }
+
+  // E. Pola "ke [B] dari [A]"
+  const keDariMatch = lower.match(/(?:ke|to)\s+([a-z0-9\s]+?)\s+(?:dari|from)\s+([a-z0-9\s]+)/i);
+  if (!fromHint && keDariMatch) {
+    toHint = cleanAccountHint(keDariMatch[1]);
+    fromHint = cleanAccountHint(keDariMatch[2]);
+  }
+
+  // F. Pola "transfer [A] ke [B]"
+  const transferABMatch = lower.match(/(?:transfer|pindahin|geser\s+saldo|mutasi)\s*(?:[\d\.,\w\s]+?)?\s*([a-z0-9\s]+?)\s+(?:ke|to)\s+([a-z0-9\s]+)/i);
+  if (!fromHint && transferABMatch) {
+    const rawA = cleanAccountHint(transferABMatch[1]);
+    const rawB = cleanAccountHint(transferABMatch[2]);
+    if (rawA && rawB) {
+      fromHint = rawA;
+      toHint = rawB;
+    }
+  }
+
+  // G. Pola single "transfer ke [B]" atau "top up [B]"
+  const transferKeMatch = lower.match(/(?:transfer|top\s*up|pindah(?:in)?|kirim|masukin)\s*(?:[\d\.,\w\s]+?)?\s*(?:ke|to)\s+([a-z0-9\s]+)/i);
+  if (!fromHint && !toHint && transferKeMatch) {
+    toHint = cleanAccountHint(transferKeMatch[1]);
+  }
+
+  // H. Pola single "transfer dari [A]"
+  const transferDariMatch = lower.match(/(?:transfer|pindah(?:in)?|tarik)\s*(?:[\d\.,\w\s]+?)?\s*(?:dari|from)\s+([a-z0-9\s]+)/i);
+  if (!fromHint && !toHint && transferDariMatch) {
+    fromHint = cleanAccountHint(transferDariMatch[1]);
+  }
+
+  // I. Pola single "pake [A]" / "ke [A]" umum
+  if (!fromHint && !toHint) {
+    const singleAccountMatch = lower.match(/(?:pake|pakai|lewat|melalui|dengan|dari|akun)\s+([a-z0-9\s]+)/i);
+    if (singleAccountMatch) {
+      fromHint = cleanAccountHint(singleAccountMatch[1]);
+    } else {
+      fromHint = lower;
+    }
   }
 
   if (!userAccounts || userAccounts.length === 0) {
-    return { accountHint: fromHint };
+    return {
+      accountHint: fromHint || "cash",
+      toAccountHint: toHint || undefined,
+    };
   }
 
-  // 2. Cari akun asal (source account) dengan skor tertinggi
+  // 2. Pencocokan akun asal (source account)
   let bestAcc: AccountItem | null = null;
-  let maxScore = 0;
+  let maxScore = -1;
 
   for (const acc of userAccounts) {
-    const sc = matchAccountScore(transferMatch ? fromHint : lower, acc);
+    const sc = matchAccountScore(fromHint || lower, acc);
     if (sc > maxScore) {
       maxScore = sc;
       bestAcc = acc;
     }
   }
 
-  // 3. Cari akun tujuan jika ada (transfer)
+  // Fallback akun asal jika tidak ada skor positif
+  if (!bestAcc || maxScore <= 0) {
+    bestAcc =
+      userAccounts.find((a) => a.name.toLowerCase() === "cash") ||
+      userAccounts.find((a) => a.name.toLowerCase().includes("kas")) ||
+      userAccounts[0];
+  }
+
+  // 3. Pencocokan akun tujuan (toAccount) untuk transaksi transfer
   let matchedToAccountId: string | undefined;
-  if (toHint) {
+  let finalToAccountHint = toHint;
+
+  if (isTransferTx) {
     let bestToAcc: AccountItem | null = null;
-    let maxToScore = 0;
-    for (const acc of userAccounts) {
-      if (bestAcc && acc.id === bestAcc.id) continue;
-      const sc = matchAccountScore(toHint, acc);
-      if (sc > maxToScore) {
-        maxToScore = sc;
-        bestToAcc = acc;
+    let maxToScore = -1;
+
+    if (toHint) {
+      for (const acc of userAccounts) {
+        if (bestAcc && acc.id === bestAcc.id) continue;
+        const sc = matchAccountScore(toHint, acc);
+        if (sc > maxToScore) {
+          maxToScore = sc;
+          bestToAcc = acc;
+        }
       }
     }
+
+    // Jika tidak ada akun tujuan spesifik atau skor 0, pilih akun kedua user yang berbeda dari akun asal
+    if (!bestToAcc) {
+      bestToAcc = userAccounts.find((a) => a.id !== bestAcc!.id) || null;
+    }
+
     if (bestToAcc) {
       matchedToAccountId = bestToAcc.id;
-      toHint = bestToAcc.name;
+      finalToAccountHint = bestToAcc.name;
     }
   }
 
-  // 4. Fallback jika tidak ada penyebutan eksplisit akun yang cocok
-  const fallback =
-    userAccounts.find((a) => a.name.toLowerCase() === "cash") ||
-    userAccounts.find((a) => a.name.toLowerCase().includes("kas")) ||
-    userAccounts[0];
-
-  const finalMatched = bestAcc || fallback;
-
   return {
-    accountHint: finalMatched.name,
-    matchedAccountId: finalMatched.id,
-    toAccountHint: toHint || undefined,
+    accountHint: bestAcc.name,
+    matchedAccountId: bestAcc.id,
+    toAccountHint: finalToAccountHint || undefined,
     matchedToAccountId,
   };
 }

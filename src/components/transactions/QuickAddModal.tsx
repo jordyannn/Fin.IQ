@@ -48,6 +48,11 @@ export function QuickAddModal() {
     setTxType(newType);
     if (newType === "transfer") {
       setCategoryId("");
+      if (!toAccountId && accountsData?.accounts && accountsData.accounts.length > 1) {
+        const fromId = accountId || accountsData.accounts[0].id;
+        const otherAcc = accountsData.accounts.find((a) => a.id !== fromId);
+        if (otherAcc) setToAccountId(otherAcc.id);
+      }
     } else {
       const currentCat = categoriesList?.find((c) => c.id === categoryId);
       if (!currentCat || currentCat.kind !== newType) {
@@ -93,24 +98,30 @@ export function QuickAddModal() {
       if (foundAcc) setAccountId(foundAcc.id);
     }
 
-    if (result.matchedToAccountId) {
-      setToAccountId(result.matchedToAccountId);
-    }
-
-    if (result.matchedCategoryId) {
-      setCategoryId(result.matchedCategoryId);
-    } else if (categoriesList) {
-      const foundCat = categoriesList
-        .filter((c) => c.kind === result.txType)
-        .find((c) =>
-          c.name.toLowerCase().includes(result.categoryHint.toLowerCase()) ||
-          result.categoryHint.toLowerCase().includes(c.name.toLowerCase())
-        );
-      if (foundCat) {
-        setCategoryId(foundCat.id);
-      } else {
-        const fallbackCat = categoriesList.find((c) => c.kind === result.txType);
-        if (fallbackCat) setCategoryId(fallbackCat.id);
+    if (result.txType === "transfer") {
+      if (result.matchedToAccountId) {
+        setToAccountId(result.matchedToAccountId);
+      } else if (accountsData?.accounts) {
+        const fromId = result.matchedAccountId || accountId || accountsData.accounts[0]?.id;
+        const fallbackTo = accountsData.accounts.find((a) => a.id !== fromId);
+        if (fallbackTo) setToAccountId(fallbackTo.id);
+      }
+    } else {
+      if (result.matchedCategoryId) {
+        setCategoryId(result.matchedCategoryId);
+      } else if (categoriesList) {
+        const foundCat = categoriesList
+          .filter((c) => c.kind === result.txType)
+          .find((c) =>
+            c.name.toLowerCase().includes(result.categoryHint.toLowerCase()) ||
+            result.categoryHint.toLowerCase().includes(c.name.toLowerCase())
+          );
+        if (foundCat) {
+          setCategoryId(foundCat.id);
+        } else {
+          const fallbackCat = categoriesList.find((c) => c.kind === result.txType);
+          if (fallbackCat) setCategoryId(fallbackCat.id);
+        }
       }
     }
 
@@ -148,24 +159,30 @@ export function QuickAddModal() {
         if (foundAcc) setAccountId(foundAcc.id);
       }
 
-      if (data.matchedToAccountId) {
-        setToAccountId(data.matchedToAccountId);
-      }
-
-      if (data.matchedCategoryId) {
-        setCategoryId(data.matchedCategoryId);
-      } else if (categoriesList) {
-        const foundCat = categoriesList
-          .filter((c) => c.kind === data.txType)
-          .find((c) =>
-            c.name.toLowerCase().includes(data.categoryHint.toLowerCase()) ||
-            data.categoryHint.toLowerCase().includes(c.name.toLowerCase())
-          );
-        if (foundCat) {
-          setCategoryId(foundCat.id);
-        } else {
-          const fallbackCat = categoriesList.find((c) => c.kind === data.txType);
-          if (fallbackCat) setCategoryId(fallbackCat.id);
+      if (data.txType === "transfer") {
+        if (data.matchedToAccountId) {
+          setToAccountId(data.matchedToAccountId);
+        } else if (accountsData?.accounts) {
+          const fromId = data.matchedAccountId || accountId || accountsData.accounts[0]?.id;
+          const fallbackTo = accountsData.accounts.find((a) => a.id !== fromId);
+          if (fallbackTo) setToAccountId(fallbackTo.id);
+        }
+      } else {
+        if (data.matchedCategoryId) {
+          setCategoryId(data.matchedCategoryId);
+        } else if (categoriesList) {
+          const foundCat = categoriesList
+            .filter((c) => c.kind === data.txType)
+            .find((c) =>
+              c.name.toLowerCase().includes(data.categoryHint.toLowerCase()) ||
+              data.categoryHint.toLowerCase().includes(c.name.toLowerCase())
+            );
+          if (foundCat) {
+            setCategoryId(foundCat.id);
+          } else {
+            const fallbackCat = categoriesList.find((c) => c.kind === data.txType);
+            if (fallbackCat) setCategoryId(fallbackCat.id);
+          }
         }
       }
     },
@@ -195,6 +212,7 @@ export function QuickAddModal() {
     setAmount("");
     setHappenedAt("");
     setNote("");
+    setToAccountId("");
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -211,6 +229,17 @@ export function QuickAddModal() {
     if (!selectedAcc) {
       alert("Harap pilih akun transaksi");
       return;
+    }
+
+    if (txType === "transfer") {
+      if (!toAccountId) {
+        alert("Harap pilih akun tujuan untuk transfer");
+        return;
+      }
+      if (selectedAcc === toAccountId) {
+        alert("Akun asal dan akun tujuan transfer tidak boleh sama");
+        return;
+      }
     }
 
     setIsSubmitting(true);
