@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { detectCategory } from "@/lib/nlp-parser";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import {
@@ -28,6 +29,9 @@ import {
   Trash2,
   Plus,
   Loader2,
+  Filter,
+  Check,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -200,6 +204,160 @@ function normalizeTxType(raw: string): "expense" | "income" | "transfer" {
   return "expense";
 }
 
+interface ParsedFileTxItem {
+  id: string;
+  rowNumber: number;
+  happenedAt: string;
+  txType: "expense" | "income" | "transfer";
+  amount: number;
+  categoryName: string;
+  isNlpDetected?: boolean;
+  accountName: string;
+  toAccountName?: string | null;
+  note: string;
+  tags: string[];
+}
+
+const STANDARD_CATEGORIES = [
+  "Makanan & Minuman",
+  "Kopi & Minuman",
+  "Restoran & Kuliner",
+  "Transportasi",
+  "Bahan Bakar & SPBU",
+  "Belanja",
+  "Supermarket & Minimarket",
+  "Tagihan & Utilitas",
+  "Pulsa & Paket Data",
+  "Kebutuhan Rumah",
+  "Kesehatan & Medis",
+  "Hiburan & Rekreasi",
+  "Pendidikan & Karir",
+  "Gaji & Pendapatan",
+  "Bonus & THR",
+  "Hasil Bisnis & Dagang",
+  "Pekerjaan Sampingan / Freelance",
+  "Hadiah & Rezeki",
+  "Investasi & Dividen",
+  "Transfer Saldo",
+  "Umum",
+];
+
+function generateParsedItems(
+  rows: string[][],
+  mapping: FieldMapping,
+  headers: string[],
+  categoriesList: Array<{ id: string; name: string; kind?: string; parentId?: string | null }>,
+  nlpEnabled: boolean,
+  fallbackCatName?: string,
+  existingItems?: ParsedFileTxItem[],
+  manualEditedRowIds?: Set<string>
+): ParsedFileTxItem[] {
+  const getCol = (row: string[], key: keyof FieldMapping) => {
+    const colName = mapping[key];
+    if (!colName) return "";
+    const colIdx = headers.indexOf(colName);
+    return colIdx !== -1 ? (row[colIdx] || "").trim() : "";
+  };
+
+  const existingMap = new Map<string, ParsedFileTxItem>();
+  if (existingItems) {
+    for (const item of existingItems) {
+      existingMap.set(item.id, item);
+    }
+  }
+
+  const items: ParsedFileTxItem[] = [];
+
+  for (let idx = 0; idx < rows.length; idx++) {
+    const row = rows[idx];
+    const rowId = `file-tx-${idx + 1}`;
+    const rowNumber = idx + 2;
+
+    const rawType = getCol(row, "tx_type");
+    const txType = normalizeTxType(rawType);
+    const amount = cleanAmount(getCol(row, "amount"));
+    const rawDate = getCol(row, "happened_at");
+    const isoDate = parseDateString(rawDate);
+    const rawCat = getCol(row, "category_name");
+    const subCat = getCol(row, "subcategory_name");
+    const rawFullCat = subCat ? `${rawCat} / ${subCat}` : rawCat;
+    const accName = getCol(row, "account_name") || getCol(row, "from_account_name") || "cash";
+    const toAccName = getCol(row, "to_account_name") || null;
+    const note = getCol(row, "note");
+    const tagsRaw = getCol(row, "tags");
+    const tagList = tagsRaw
+      ? tagsRaw.split(/[,;]/).map((t) => t.trim()).filter(Boolean)
+      : [];
+
+    // Check if previously manually edited by user
+    if (manualEditedRowIds && manualEditedRowIds.has(rowId) && existingMap.has(rowId)) {
+      const prev = existingMap.get(rowId)!;
+      items.push({
+        ...prev,
+        rowNumber,
+        happenedAt: isoDate,
+        txType,
+        amount,
+        accountName: accName,
+        toAccountName: toAccName,
+        note: note || "-",
+        tags: tagList,
+      });
+      continue;
+    }
+
+    let categoryName = rawFullCat ? rawFullCat.trim() : "";
+    let isNlpDetected = false;
+
+    const isGenericOrMissing =
+      !rawCat ||
+      /^(umum|lain-lain|lainnya|uncategorized|-|transaksi|mutasi|expense|income|pengeluaran|pemasukan)$/i.test(
+        rawCat.trim()
+      );
+
+    if (nlpEnabled && txType !== "transfer") {
+      const textToAnalyze = [note, rawCat].filter(Boolean).join(" ").trim();
+      if (textToAnalyze && (isGenericOrMissing || !rawCat)) {
+        const detected = detectCategory(textToAnalyze, txType, categoriesList);
+        if (detected.matchedCategoryId) {
+          const matched = categoriesList.find((c) => c.id === detected.matchedCategoryId);
+          if (matched) {
+            categoryName = matched.name;
+            isNlpDetected = true;
+          }
+        } else if (detected.categoryHint) {
+          categoryName = detected.categoryHint;
+          isNlpDetected = true;
+        }
+      }
+    }
+
+    if (!categoryName) {
+      if (fallbackCatName) {
+        categoryName = fallbackCatName;
+      } else {
+        categoryName = txType === "income" ? "Gaji & Pendapatan" : "Umum";
+      }
+    }
+
+    items.push({
+      id: rowId,
+      rowNumber,
+      happenedAt: isoDate,
+      txType,
+      amount,
+      categoryName,
+      isNlpDetected,
+      accountName: accName,
+      toAccountName: toAccName,
+      note: note || "-",
+      tags: tagList,
+    });
+  }
+
+  return items;
+}
+
 interface ScreenshotTxItem {
   id: string;
   txType: "expense" | "income" | "transfer";
@@ -292,6 +450,16 @@ export default function ImportPage() {
   const [fileSize, setFileSize] = useState(0);
   const [fileType, setFileType] = useState<"csv" | "excel">("csv");
   const [rawRows2D, setRawRows2D] = useState<string[][]>([]);
+
+  // NLP & Category Selection states for File Tab
+  const [fileTxs, setFileTxs] = useState<ParsedFileTxItem[]>([]);
+  const fileTxsRef = useRef<ParsedFileTxItem[]>([]);
+  fileTxsRef.current = fileTxs;
+  const [enableNlpCategory, setEnableNlpCategory] = useState(true);
+  const [previewLimit, setPreviewLimit] = useState<number>(25);
+  const [bulkCategory, setBulkCategory] = useState<string>("");
+  const [fallbackCategoryId, setFallbackCategoryId] = useState<string>("");
+  const manualEditedRowIdsRef = useRef<Set<string>>(new Set());
 
   // Mapping states
   const [headers, setHeaders] = useState<string[]>([]);
@@ -615,6 +783,7 @@ export default function ImportPage() {
 
       const suggested = autoSuggestMapping(detectedHeaders);
 
+      manualEditedRowIdsRef.current.clear();
       setHeaders(detectedHeaders);
       setRawRows2D(dataRows);
       setSuggestedMapping(suggested);
@@ -623,6 +792,8 @@ export default function ImportPage() {
     } catch (err: any) {
       alert(`Gagal membaca file: ${err.message || String(err)}`);
       setFileName("");
+      setFileTxs([]);
+      manualEditedRowIdsRef.current.clear();
     }
   };
 
@@ -637,10 +808,73 @@ export default function ImportPage() {
     if (file) processFile(file);
   };
 
-  // Compute stats and samples client-side from rawRows2D + currentMapping
-  const { stats, samples } = useMemo(() => {
+  // Sync fileTxs when rawRows2D, currentMapping, or categoriesData change
+  useEffect(() => {
     if (!currentMapping || rawRows2D.length === 0 || headers.length === 0) {
-      return { stats: null, samples: [] };
+      setFileTxs([]);
+      return;
+    }
+
+    const fallbackCat = fallbackCategoryId
+      ? categoriesData?.find((c) => c.id === fallbackCategoryId)?.name
+      : undefined;
+
+    const generated = generateParsedItems(
+      rawRows2D,
+      currentMapping,
+      headers,
+      categoriesData || [],
+      enableNlpCategory,
+      fallbackCat,
+      fileTxsRef.current,
+      manualEditedRowIdsRef.current
+    );
+    setFileTxs(generated);
+  }, [rawRows2D, currentMapping, headers, categoriesData, enableNlpCategory, fallbackCategoryId]);
+
+  // Handle single row category change
+  const handleUpdateRowCategory = (id: string, newCatName: string) => {
+    manualEditedRowIdsRef.current.add(id);
+    setFileTxs((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, categoryName: newCatName, isNlpDetected: false } : t))
+    );
+  };
+
+  // Bulk apply category to all rows
+  const handleApplyBulkCategory = () => {
+    if (!bulkCategory || fileTxs.length === 0) return;
+    setFileTxs((prev) =>
+      prev.map((t) => {
+        manualEditedRowIdsRef.current.add(t.id);
+        return { ...t, categoryName: bulkCategory, isNlpDetected: false };
+      })
+    );
+  };
+
+  // Re-run NLP categorization across all rows from description/note
+  const handleRerunNlp = () => {
+    if (!currentMapping || rawRows2D.length === 0) return;
+    manualEditedRowIdsRef.current.clear();
+    const fallbackCat = fallbackCategoryId
+      ? categoriesData?.find((c) => c.id === fallbackCategoryId)?.name
+      : undefined;
+    const generated = generateParsedItems(
+      rawRows2D,
+      currentMapping,
+      headers,
+      categoriesData || [],
+      true, // force NLP
+      fallbackCat,
+      [],
+      new Set()
+    );
+    setFileTxs(generated);
+  };
+
+  // Compute stats client-side from fileTxs
+  const stats = useMemo(() => {
+    if (fileTxs.length === 0) {
+      return null;
     }
 
     const existingAccountNames = new Set(
@@ -663,65 +897,24 @@ export default function ImportPage() {
     let minDate: string | null = null;
     let maxDate: string | null = null;
 
-    const sampleList: any[] = [];
+    for (const tx of fileTxs) {
+      if (tx.accountName) fileAccounts.add(tx.accountName);
+      if (tx.toAccountName) fileAccounts.add(tx.toAccountName);
+      if (tx.categoryName) fileCategories.add(tx.categoryName);
+      tx.tags.forEach((t) => fileTags.add(t));
 
-    const getCol = (row: string[], key: keyof FieldMapping) => {
-      const colName = currentMapping[key];
-      if (!colName) return "";
-      const colIdx = headers.indexOf(colName);
-      return colIdx !== -1 ? (row[colIdx] || "").trim() : "";
-    };
-
-    for (let idx = 0; idx < rawRows2D.length; idx++) {
-      const row = rawRows2D[idx];
-
-      const rawType = getCol(row, "tx_type");
-      const txType = normalizeTxType(rawType);
-      const amount = cleanAmount(getCol(row, "amount"));
-      const rawDate = getCol(row, "happened_at");
-      const isoDate = parseDateString(rawDate);
-      const catName = getCol(row, "category_name") || "Lain-lain";
-      const subCat = getCol(row, "subcategory_name");
-      const fullCat = subCat ? `${catName} / ${subCat}` : catName;
-      const accName = getCol(row, "account_name") || getCol(row, "from_account_name") || "cash";
-      const toAccName = getCol(row, "to_account_name");
-      const note = getCol(row, "note");
-      const tagsRaw = getCol(row, "tags");
-      const tagList = tagsRaw
-        ? tagsRaw.split(/[,;]/).map((t) => t.trim()).filter(Boolean)
-        : [];
-
-      if (accName) fileAccounts.add(accName);
-      if (toAccName) fileAccounts.add(toAccName);
-      if (catName) fileCategories.add(catName);
-      tagList.forEach((t) => fileTags.add(t));
-
-      if (txType === "expense") {
+      if (tx.txType === "expense") {
         expenseCount++;
-        expenseTotal += amount;
-      } else if (txType === "income") {
+        expenseTotal += tx.amount;
+      } else if (tx.txType === "income") {
         incomeCount++;
-        incomeTotal += amount;
+        incomeTotal += tx.amount;
       } else {
         transferCount++;
       }
 
-      if (!minDate || isoDate < minDate) minDate = isoDate;
-      if (!maxDate || isoDate > maxDate) maxDate = isoDate;
-
-      if (sampleList.length < 10) {
-        sampleList.push({
-          rowNumber: idx + 2,
-          happenedAt: isoDate,
-          txType,
-          amount,
-          categoryName: fullCat,
-          accountName: accName,
-          toAccountName: toAccName || null,
-          note: note || "-",
-          tags: tagList,
-        });
-      }
+      if (!minDate || tx.happenedAt < minDate) minDate = tx.happenedAt;
+      if (!maxDate || tx.happenedAt > maxDate) maxDate = tx.happenedAt;
     }
 
     const newAccounts: string[] = [];
@@ -745,84 +938,55 @@ export default function ImportPage() {
     }
 
     return {
-      stats: {
-        totalRows: rawRows2D.length,
-        timeRangeStart: minDate,
-        timeRangeEnd: maxDate,
-        totalSignedAmount: incomeTotal - expenseTotal,
-        byType: {
-          expenseCount,
-          expenseTotal,
-          incomeCount,
-          incomeTotal,
-          transferCount,
-        },
-        accounts: {
-          newNames: newAccounts,
-          matchedNames: matchedAccounts,
-        },
-        categories: {
-          newNames: newCategories,
-          matchedNames: matchedCategories,
-        },
-        tags: {
-          newNames: Array.from(fileTags),
-        },
+      totalRows: fileTxs.length,
+      timeRangeStart: minDate,
+      timeRangeEnd: maxDate,
+      totalSignedAmount: incomeTotal - expenseTotal,
+      byType: {
+        expenseCount,
+        expenseTotal,
+        incomeCount,
+        incomeTotal,
+        transferCount,
       },
-      samples: sampleList,
+      accounts: {
+        newNames: newAccounts,
+        matchedNames: matchedAccounts,
+      },
+      categories: {
+        newNames: newCategories,
+        matchedNames: matchedCategories,
+      },
+      tags: {
+        newNames: Array.from(fileTags),
+      },
     };
-  }, [currentMapping, rawRows2D, headers, accountsData, categoriesData]);
+  }, [fileTxs, accountsData, categoriesData]);
 
-  // Execute import
+  // Execute import using fileTxs with chosen / NLP-detected categories
   const handleExecuteImport = async () => {
-    if (!currentMapping || rawRows2D.length === 0) return;
+    if (fileTxs.length === 0) return;
 
-    const getCol = (row: string[], key: keyof FieldMapping) => {
-      const colName = currentMapping[key];
-      if (!colName) return "";
-      const colIdx = headers.indexOf(colName);
-      return colIdx !== -1 ? (row[colIdx] || "").trim() : "";
-    };
-
-    const itemsToImport: any[] = [];
-
-    for (const row of rawRows2D) {
-      const rawType = getCol(row, "tx_type");
-      const txType = normalizeTxType(rawType);
-      const amount = cleanAmount(getCol(row, "amount"));
-      if (amount <= 0) continue;
-
-      const rawDate = getCol(row, "happened_at");
-      const isoDate = parseDateString(rawDate);
-
-      let catName = getCol(row, "category_name") || "Umum";
-      const subCat = getCol(row, "subcategory_name");
-      if (subCat) catName = `${catName} / ${subCat}`;
-
-      const accName = getCol(row, "account_name") || getCol(row, "from_account_name") || "cash";
-      const toAccName = getCol(row, "to_account_name") || null;
-      const note = getCol(row, "note") || undefined;
-      const tagsRaw = getCol(row, "tags");
-      const tagList = tagsRaw
-        ? tagsRaw.split(/[,;]/).map((t) => t.trim()).filter(Boolean)
-        : [];
-
-      itemsToImport.push({
-        txType,
-        amount,
-        happenedAt: isoDate,
-        categoryName: catName,
-        accountName: accName,
-        toAccountName: toAccName || null,
-        note,
-        tags: tagList,
-      });
-    }
-
-    if (itemsToImport.length === 0) {
+    const validItems = fileTxs.filter((t) => t.amount > 0);
+    if (validItems.length === 0) {
       alert("Tidak ada transaksi valid dengan nominal > 0 yang dapat diimpor.");
       return;
     }
+
+    const fallbackCat = fallbackCategoryId
+      ? categoriesData?.find((c) => c.id === fallbackCategoryId)?.name
+      : undefined;
+
+    const itemsToImport = validItems.map((item) => ({
+      txType: item.txType,
+      amount: item.amount,
+      happenedAt: item.happenedAt,
+      categoryName: item.categoryName || fallbackCat || "Umum",
+      accountName: item.accountName || (defaultAccountId ? "cash" : item.accountName),
+      toAccountName: item.toAccountName || null,
+      note: item.note && item.note !== "-" ? item.note : undefined,
+      tags: item.tags,
+    }));
 
     setIsProcessing(true);
     setImportProgress({ done: 0, total: itemsToImport.length });
@@ -1061,6 +1225,8 @@ export default function ImportPage() {
                   onClick={() => {
                     setFileName("");
                     setRawRows2D([]);
+                    setFileTxs([]);
+                    manualEditedRowIdsRef.current.clear();
                   }}
                   className="text-xs text-muted-foreground hover:text-foreground"
                 >
@@ -1215,39 +1381,126 @@ export default function ImportPage() {
             </Card>
           </div>
 
-          {/* Sample 10 Transactions Table */}
-          <Card className="overflow-hidden">
-            <CardHeader className="py-3 px-5 border-b bg-muted/20 flex flex-row items-center justify-between">
-              <CardTitle className="text-xs uppercase font-bold tracking-wider text-muted-foreground">
-                Pratinjau Data (10 Transaksi Pertama)
-              </CardTitle>
-              <span className="text-[11px] text-muted-foreground">
-                Menampilkan {samples.length} dari {stats.totalRows} baris
-              </span>
+          {/* Sample / Interactive Transactions Preview Table */}
+          <Card className="overflow-hidden shadow-sm">
+            <CardHeader className="py-3 px-5 border-b bg-muted/20 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-xs uppercase font-bold tracking-wider text-muted-foreground">
+                    Pratinjau & Pilihan Kategori Transaksi
+                  </CardTitle>
+                  <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 flex items-center gap-1 font-semibold">
+                    <Sparkles className="h-3 w-3" />
+                    Auto-Kategori NLP Aktif
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  NLP membaca deskripsi / keterangan otomatis untuk menentukan kategori. Anda juga dapat memilih opsi kategori per baris atau menerapkan sekaligus.
+                </p>
+              </div>
+
+              <div className="flex items-center flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRerunNlp}
+                  className="text-xs gap-1.5 h-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 border-emerald-500/30"
+                  title="Jalankan ulang prediksi NLP untuk seluruh baris berdasarkan deskripsi"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Deteksi Ulang NLP
+                </Button>
+
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span>Tampilkan:</span>
+                  <select
+                    value={previewLimit}
+                    onChange={(e) => setPreviewLimit(Number(e.target.value))}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium focus:outline-none"
+                  >
+                    <option value={10}>10 Baris</option>
+                    <option value={25}>25 Baris</option>
+                    <option value={50}>50 Baris</option>
+                    <option value={0}>Semua ({fileTxs.length}) Baris</option>
+                  </select>
+                </div>
+              </div>
             </CardHeader>
+
+            {/* Quick Bulk Assignment Toolbar */}
+            <div className="px-5 py-2.5 bg-muted/10 border-b flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground font-medium">Terapkan Kategori ke Semua:</span>
+                <select
+                  value={bulkCategory}
+                  onChange={(e) => setBulkCategory(e.target.value)}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs w-48 focus:outline-none"
+                >
+                  <option value="">-- Pilih Kategori --</option>
+                  {categoriesData && categoriesData.length > 0 && (
+                    <optgroup label="Kategori Saya">
+                      {categoriesData.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <optgroup label="Kategori Standar">
+                    {STANDARD_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!bulkCategory}
+                  onClick={handleApplyBulkCategory}
+                  className="h-8 text-xs font-semibold"
+                >
+                  Terapkan
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={enableNlpCategory}
+                    onChange={(e) => setEnableNlpCategory(e.target.checked)}
+                    className="rounded border-input h-3.5 w-3.5 text-primary focus:ring-0 cursor-pointer"
+                  />
+                  <span>Gunakan NLP untuk Kategori Baru / Kosong</span>
+                </label>
+              </div>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
                 <thead className="bg-muted/40 text-[10px] uppercase text-muted-foreground font-semibold">
                   <tr>
-                    <th className="px-4 py-2.5">Baris</th>
-                    <th className="px-4 py-2.5">Waktu</th>
-                    <th className="px-4 py-2.5">Jenis</th>
-                    <th className="px-4 py-2.5 text-right">Nominal</th>
-                    <th className="px-4 py-2.5">Kategori</th>
-                    <th className="px-4 py-2.5">Akun</th>
-                    <th className="px-4 py-2.5">Keterangan</th>
+                    <th className="px-3 py-2.5 w-12 text-center">Baris</th>
+                    <th className="px-3 py-2.5 w-36">Waktu</th>
+                    <th className="px-3 py-2.5 w-28">Jenis</th>
+                    <th className="px-3 py-2.5 w-32 text-right">Nominal</th>
+                    <th className="px-3 py-2.5 w-52">Kategori (Pilih Opsi)</th>
+                    <th className="px-3 py-2.5 w-36">Akun</th>
+                    <th className="px-3 py-2.5">Keterangan / Deskripsi (Dibaca NLP)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {samples.map((tx, idx) => (
-                    <tr key={idx} className="hover:bg-muted/10">
-                      <td className="px-4 py-2 text-muted-foreground font-mono text-[11px]">
+                  {(previewLimit === 0 ? fileTxs : fileTxs.slice(0, previewLimit)).map((tx) => (
+                    <tr key={tx.id} className="hover:bg-muted/10 transition-colors">
+                      <td className="px-3 py-2 text-center text-muted-foreground font-mono text-[11px]">
                         L{tx.rowNumber}
                       </td>
-                      <td className="px-4 py-2 text-muted-foreground font-mono text-[11px]">
+                      <td className="px-3 py-2 text-muted-foreground font-mono text-[11px] whitespace-nowrap">
                         {formatDate(tx.happenedAt)}
                       </td>
-                      <td className="px-4 py-2">
+                      <td className="px-3 py-2">
                         <Badge
                           variant="secondary"
                           className={`text-[10px] px-2 py-0 ${
@@ -1266,7 +1519,7 @@ export default function ImportPage() {
                         </Badge>
                       </td>
                       <td
-                        className={`px-4 py-2 text-right font-bold tabular-nums ${
+                        className={`px-3 py-2 text-right font-bold tabular-nums whitespace-nowrap ${
                           tx.txType === "expense"
                             ? "text-rose-600"
                             : tx.txType === "income"
@@ -1277,13 +1530,73 @@ export default function ImportPage() {
                         {tx.txType === "expense" ? "-" : tx.txType === "income" ? "+" : ""}
                         {formatCurrency(tx.amount)}
                       </td>
-                      <td className="px-4 py-2 font-medium">{tx.categoryName}</td>
-                      <td className="px-4 py-2">
+
+                      {/* Interactive Category Selector with Options & NLP Badge */}
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col gap-1 min-w-[170px]">
+                          <select
+                            value={tx.categoryName}
+                            onChange={(e) => handleUpdateRowCategory(tx.id, e.target.value)}
+                            className="h-8 rounded-md border border-input bg-background px-2 text-xs font-semibold focus:outline-none w-full shadow-sm cursor-pointer hover:border-primary/60 transition-colors"
+                          >
+                            <option value="">-- Pilih Kategori --</option>
+                            {/* If current value is not in any predefined list, keep as unique option */}
+                            {tx.categoryName &&
+                              !categoriesData?.some(
+                                (c) => c.name.toLowerCase() === tx.categoryName.toLowerCase()
+                              ) &&
+                              !STANDARD_CATEGORIES.some(
+                                (s) => s.toLowerCase() === tx.categoryName.toLowerCase()
+                              ) && (
+                                <option value={tx.categoryName}>
+                                  {tx.categoryName} {tx.isNlpDetected ? "✨ (Prediksi NLP)" : "(File)"}
+                                </option>
+                              )}
+                            {categoriesData && categoriesData.length > 0 && (
+                              <optgroup label="Kategori Saya">
+                                {(tx.txType === "income"
+                                  ? categoriesData.filter((c) => !c.kind || c.kind === "income")
+                                  : categoriesData.filter((c) => !c.kind || c.kind === "expense")
+                                ).map((c) => (
+                                  <option key={c.id} value={c.name}>
+                                    {c.name}
+                                  </option>
+                                ))}
+                                {(tx.txType === "income"
+                                  ? categoriesData.filter((c) => c.kind === "expense")
+                                  : categoriesData.filter((c) => c.kind === "income")
+                                ).map((c) => (
+                                  <option key={c.id} value={c.name}>
+                                    {c.name}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            <optgroup label="Kategori Standar">
+                              {STANDARD_CATEGORIES.map((cat) => (
+                                <option key={cat} value={cat}>
+                                  {cat}
+                                </option>
+                              ))}
+                            </optgroup>
+                          </select>
+
+                          {tx.isNlpDetected && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded w-fit">
+                              <Sparkles className="h-2.5 w-2.5" />
+                              NLP AI
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-2 text-xs">
                         {tx.txType === "transfer" && tx.toAccountName
                           ? `${tx.accountName} → ${tx.toAccountName}`
                           : tx.accountName}
                       </td>
-                      <td className="px-4 py-2 text-muted-foreground truncate max-w-xs">
+
+                      <td className="px-3 py-2 text-muted-foreground truncate max-w-xs font-mono text-[11px]" title={tx.note}>
                         {tx.note}
                       </td>
                     </tr>
@@ -1291,6 +1604,19 @@ export default function ImportPage() {
                 </tbody>
               </table>
             </div>
+
+            {previewLimit !== 0 && previewLimit < fileTxs.length && (
+              <div className="py-2.5 px-4 bg-muted/20 border-t text-center text-xs text-muted-foreground">
+                Menampilkan {Math.min(previewLimit, fileTxs.length)} dari total {fileTxs.length} baris transaksi.{" "}
+                <button
+                  type="button"
+                  onClick={() => setPreviewLimit(0)}
+                  className="font-semibold text-primary hover:underline ml-1"
+                >
+                  Tampilkan Semua ({fileTxs.length}) Baris
+                </button>
+              </div>
+            )}
           </Card>
 
           {/* Step 3: Execution Settings Card */}
@@ -1298,7 +1624,7 @@ export default function ImportPage() {
             <h3 className="text-sm font-bold text-foreground mb-4">
               Pengaturan Impor & Eksekusi
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
               <div>
                 <label className="font-semibold text-foreground">Buku Kas Tujuan</label>
                 <select
@@ -1339,6 +1665,27 @@ export default function ImportPage() {
               </div>
 
               <div>
+                <label className="font-semibold text-foreground">
+                  Kategori Cadangan (Fallback)
+                </label>
+                <select
+                  value={fallbackCategoryId}
+                  onChange={(e) => setFallbackCategoryId(e.target.value)}
+                  className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                >
+                  <option value="">Otomatis (Umum / Deteksi NLP)</option>
+                  {categoriesData?.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.kind === "income" ? "Pemasukan" : "Pengeluaran"})
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                  Digunakan jika transaksi tidak memiliki kategori dan gagal dideteksi NLP.
+                </span>
+              </div>
+
+              <div>
                 <label className="font-semibold text-foreground">Strategi Duplikasi</label>
                 <select
                   value={dedupStrategy}
@@ -1371,6 +1718,8 @@ export default function ImportPage() {
                   onClick={() => {
                     setFileName("");
                     setRawRows2D([]);
+                    setFileTxs([]);
+                    manualEditedRowIdsRef.current.clear();
                   }}
                   className="w-1/2 sm:w-auto text-xs"
                 >
