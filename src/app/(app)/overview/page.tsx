@@ -698,13 +698,13 @@ export default function OverviewPage() {
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground text-[10px]">Masuk</span>
                       <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                        +{formatCurrency(m.income, "IDR", { compact: true })}
+                        +{formatCurrency(m.income)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground text-[10px]">Keluar</span>
                       <span className="text-rose-600 dark:text-rose-400 font-bold">
-                        -{formatCurrency(m.expense, "IDR", { compact: true })}
+                        -{formatCurrency(m.expense)}
                       </span>
                     </div>
                   </div>
@@ -719,7 +719,7 @@ export default function OverviewPage() {
                     }`}
                   >
                     <span className="text-[9px] uppercase tracking-wider font-semibold">Nett</span>
-                    <span>{formatCurrency(net, "IDR", { compact: true })}</span>
+                    <span>{formatCurrency(net)}</span>
                   </div>
                 </div>
               );

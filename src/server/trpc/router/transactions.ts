@@ -73,9 +73,43 @@ export const transactionsRouter = router({
         .limit(input.limit)
         .offset(input.offset);
 
+      // Agregasi eksak seluruh mutasi yang cocok dengan filter (tanpa terpotong limit paginasi)
+      const allMatching = await ctx.db
+        .select({
+          txType: transactions.txType,
+          amount: transactions.amount,
+          excludeFromStats: transactions.excludeFromStats,
+        })
+        .from(transactions)
+        .where(and(...conditions));
+
+      let totalIncome = 0;
+      let totalExpense = 0;
+      let statsIncome = 0;
+      let statsExpense = 0;
+
+      for (const t of allMatching) {
+        if (t.txType === "income") {
+          totalIncome += t.amount;
+          if (!t.excludeFromStats) statsIncome += t.amount;
+        } else if (t.txType === "expense") {
+          totalExpense += t.amount;
+          if (!t.excludeFromStats) statsExpense += t.amount;
+        }
+      }
+
       return {
         items,
         hasMore: items.length === input.limit,
+        summary: {
+          totalCount: allMatching.length,
+          income: totalIncome,
+          expense: totalExpense,
+          net: totalIncome - totalExpense,
+          statsIncome,
+          statsExpense,
+          statsNet: statsIncome - statsExpense,
+        },
       };
     }),
 

@@ -183,8 +183,17 @@ export default function TransactionsPage() {
     limit: 100,
   });
 
-  // Summary computed from currently filtered transactions
+  // Summary computed from backend aggregate query (or fallback to items)
   const summary = useMemo(() => {
+    if (txData?.summary) {
+      return {
+        count: txData.summary.totalCount,
+        income: txData.summary.income,
+        expense: txData.summary.expense,
+        net: txData.summary.net,
+      };
+    }
+
     let income = 0;
     let expense = 0;
 
@@ -199,7 +208,7 @@ export default function TransactionsPage() {
       expense,
       net: income - expense,
     };
-  }, [txData?.items]);
+  }, [txData?.summary, txData?.items]);
 
   const isCurrentMonthNow =
     currentMonth.getMonth() === new Date().getMonth() &&

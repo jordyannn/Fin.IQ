@@ -30,12 +30,12 @@ export const analyticsRouter = router({
         const [y, m] = periodStr.split("-");
         const yr = parseInt(y, 10);
         const mo = parseInt(m, 10);
-        startDate = new Date(yr, mo - 1, 1);
-        endDate = new Date(yr, mo, 0, 23, 59, 59);
+        startDate = new Date(yr, mo - 1, 1, 0, 0, 0, 0);
+        endDate = new Date(yr, mo, 0, 23, 59, 59, 999);
       } else if (scope === "year") {
         const yr = input?.period ? parseInt(input.period.split("-")[0], 10) : now.getFullYear();
-        startDate = new Date(yr, 0, 1);
-        endDate = new Date(yr, 11, 31, 23, 59, 59);
+        startDate = new Date(yr, 0, 1, 0, 0, 0, 0);
+        endDate = new Date(yr, 11, 31, 23, 59, 59, 999);
       }
 
       // Ambil transaksi untuk scope ini
@@ -175,12 +175,12 @@ export const analyticsRouter = router({
         const [y, m] = periodStr.split("-");
         const yr = parseInt(y, 10);
         const mo = parseInt(m, 10);
-        startDate = new Date(yr, mo - 1, 1);
-        endDate = new Date(yr, mo, 0, 23, 59, 59);
+        startDate = new Date(yr, mo - 1, 1, 0, 0, 0, 0);
+        endDate = new Date(yr, mo, 0, 23, 59, 59, 999);
       } else if (input.scope === "year") {
         const yr = input.period ? parseInt(input.period.split("-")[0], 10) : now.getFullYear();
-        startDate = new Date(yr, 0, 1);
-        endDate = new Date(yr, 11, 31, 23, 59, 59);
+        startDate = new Date(yr, 0, 1, 0, 0, 0, 0);
+        endDate = new Date(yr, 11, 31, 23, 59, 59, 999);
       }
 
       const conditions = [
@@ -242,8 +242,8 @@ export const analyticsRouter = router({
     .input(z.object({ year: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       const year = input.year || new Date().getFullYear();
-      const startDate = new Date(year, 0, 1);
-      const endDate = new Date(year, 11, 31, 23, 59, 59);
+      const startDate = new Date(year, 0, 1, 0, 0, 0, 0);
+      const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
 
       const txList = await ctx.db
         .select()
@@ -332,8 +332,8 @@ export const analyticsRouter = router({
     const totalBalance = userAccounts.reduce((sum, a) => sum + a.balance, 0);
 
     const now = new Date();
-    const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    const startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
     const monthTx = await ctx.db
       .select()
@@ -410,8 +410,8 @@ export const analyticsRouter = router({
       const now = new Date();
       const currentMonthStr = input?.month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
       const [year, month] = currentMonthStr.split("-");
-      const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-      const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59);
+      const startDate = new Date(parseInt(year), parseInt(month) - 1, 1, 0, 0, 0, 0);
+      const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59, 999);
 
       const txList = await ctx.db
         .select({

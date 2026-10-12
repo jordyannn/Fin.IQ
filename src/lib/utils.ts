@@ -26,16 +26,21 @@ export function formatCurrency(
         return `Rp ${(amount / 1_000).toFixed(0)} rb`;
       }
     }
+    const hasFractions = amount % 1 !== 0;
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
       currency: "IDR",
-      maximumFractionDigits: 0,
+      minimumFractionDigits: hasFractions ? 2 : 0,
+      maximumFractionDigits: hasFractions ? 2 : 0,
     }).format(amount);
   }
 
+  const hasFractions = amount % 1 !== 0;
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: currency,
+    minimumFractionDigits: hasFractions ? 2 : 0,
+    maximumFractionDigits: hasFractions ? 2 : 0,
   }).format(amount);
 }
 
