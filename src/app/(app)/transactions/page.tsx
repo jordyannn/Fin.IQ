@@ -28,16 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EditTransactionModal, type TransactionToEdit } from "@/components/transactions/EditTransactionModal";
-
-type DateFilterPreset =
-  | "this_month"
-  | "today"
-  | "last_7_days"
-  | "last_30_days"
-  | "last_month"
-  | "this_year"
-  | "all"
-  | "custom";
+import { DateFilterPreset, computeDateRange } from "@/lib/date-filters";
 
 export default function TransactionsPage() {
   const { openQuickAdd } = useUIStore();
@@ -75,100 +66,7 @@ export default function TransactionsPage() {
 
   // Date calculation
   const { dateFrom, dateTo, periodLabel } = useMemo(() => {
-    const now = new Date();
-
-    if (datePreset === "all") {
-      return { dateFrom: undefined, dateTo: undefined, periodLabel: "Semua Waktu" };
-    }
-
-    if (datePreset === "today") {
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      return {
-        dateFrom: start.toISOString(),
-        dateTo: end.toISOString(),
-        periodLabel: "Hari Ini",
-      };
-    }
-
-    if (datePreset === "last_7_days") {
-      const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      return {
-        dateFrom: start.toISOString(),
-        dateTo: end.toISOString(),
-        periodLabel: "7 Hari Terakhir",
-      };
-    }
-
-    if (datePreset === "last_30_days") {
-      const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      return {
-        dateFrom: start.toISOString(),
-        dateTo: end.toISOString(),
-        periodLabel: "30 Hari Terakhir",
-      };
-    }
-
-    if (datePreset === "this_month") {
-      const yr = currentMonth.getFullYear();
-      const mo = currentMonth.getMonth();
-      const start = new Date(yr, mo, 1, 0, 0, 0);
-      const end = new Date(yr, mo + 1, 0, 23, 59, 59, 999);
-      const label = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(currentMonth);
-      return {
-        dateFrom: start.toISOString(),
-        dateTo: end.toISOString(),
-        periodLabel: label,
-      };
-    }
-
-    if (datePreset === "last_month") {
-      const yr = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-      const mo = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
-      const start = new Date(yr, mo, 1, 0, 0, 0);
-      const end = new Date(yr, mo + 1, 0, 23, 59, 59, 999);
-      const label = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(start);
-      return {
-        dateFrom: start.toISOString(),
-        dateTo: end.toISOString(),
-        periodLabel: `Bulan Lalu (${label})`,
-      };
-    }
-
-    if (datePreset === "this_year") {
-      const yr = currentMonth.getFullYear();
-      const start = new Date(yr, 0, 1, 0, 0, 0);
-      const end = new Date(yr, 11, 31, 23, 59, 59, 999);
-      return {
-        dateFrom: start.toISOString(),
-        dateTo: end.toISOString(),
-        periodLabel: `Tahun ${yr}`,
-      };
-    }
-
-    if (datePreset === "custom") {
-      const start = customDateFrom ? new Date(`${customDateFrom}T00:00:00`).toISOString() : undefined;
-      const end = customDateTo ? new Date(`${customDateTo}T23:59:59.999`).toISOString() : undefined;
-      let label = "Kustom";
-      if (customDateFrom && customDateTo) {
-        label = `${customDateFrom} s/d ${customDateTo}`;
-      } else if (customDateFrom) {
-        label = `Dari ${customDateFrom}`;
-      } else if (customDateTo) {
-        label = `Sampai ${customDateTo}`;
-      }
-      return {
-        dateFrom: start,
-        dateTo: end,
-        periodLabel: label,
-      };
-    }
-
-    return { dateFrom: undefined, dateTo: undefined, periodLabel: "Semua Waktu" };
+    return computeDateRange(datePreset, currentMonth, customDateFrom, customDateTo);
   }, [datePreset, currentMonth, customDateFrom, customDateTo]);
 
   // Main Transaction Query with all filters

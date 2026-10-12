@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { DateFilterPreset, computeDateRange } from "@/lib/date-filters";
 import { useUIStore } from "@/store/ui.store";
 import {
   Wallet,
@@ -27,10 +28,13 @@ import {
   Receipt,
   Sparkles,
   ChevronRight as ChevronRightIcon,
+  RefreshCw,
+  RotateCcw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   CategoryDetailModal,
   type CategoryDetailTarget,
@@ -46,90 +50,88 @@ import {
   YAxis,
 } from "recharts";
 
-type HeroScope = "month" | "year" | "all";
-
 export default function OverviewPage() {
   const { openQuickAdd } = useUIStore();
-  const [scope, setScope] = useState<HeroScope>("month");
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [topCatScope, setTopCatScope] = useState<HeroScope>("month");
+  const utils = trpc.useUtils();
+
+  // Date Filter state - Disamakan dengan Transactions Page
+  const [datePreset, setDatePreset] = useState<DateFilterPreset>("this_month");
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const [customDateFrom, setCustomDateFrom] = useState<string>("");
+  const [customDateTo, setCustomDateTo] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<CategoryDetailTarget | null>(null);
 
-  // Format periode: YYYY-MM untuk month, YYYY untuk year
-  const periodStr =
-    scope === "month"
-      ? `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`
-      : `${currentDate.getFullYear()}`;
+  // Perhitungan rentang tanggal dan label periode
+  const { dateFrom, dateTo, periodLabel } = useMemo(() => {
+    return computeDateRange(datePreset, currentMonth, customDateFrom, customDateTo);
+  }, [datePreset, currentMonth, customDateFrom, customDateTo]);
 
-  // Periode terpisah untuk Category Ranks (agar tidak mismatch saat topCatScope != scope)
-  const catPeriodStr =
-    topCatScope === "month"
-      ? `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`
-      : `${currentDate.getFullYear()}`;
-
-  const catPeriodLabel =
-    topCatScope === "month"
-      ? new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(currentDate)
-      : `Tahun ${currentDate.getFullYear()}`;
-
-  // Rentang tanggal ISO untuk detail kategori
-  const catDateFrom =
-    topCatScope === "month"
-      ? new Date(currentDate.getFullYear(), currentDate.getMonth(), 1, 0, 0, 0).toISOString()
-      : new Date(currentDate.getFullYear(), 0, 1, 0, 0, 0).toISOString();
-
-  const catDateTo =
-    topCatScope === "month"
-      ? new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59, 999).toISOString()
-      : new Date(currentDate.getFullYear(), 11, 31, 23, 59, 59, 999).toISOString();
-
-  const periodLabel =
-    scope === "month"
-      ? new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(currentDate)
-      : String(currentDate.getFullYear());
+  const isCurrentMonthNow =
+    currentMonth.getMonth() === new Date().getMonth() &&
+    currentMonth.getFullYear() === new Date().getFullYear();
 
   const handlePrevPeriod = () => {
-    if (scope === "month") {
-      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-    } else {
-      setCurrentDate(new Date(currentDate.getFullYear() - 1, 0, 1));
-    }
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
   };
 
   const handleNextPeriod = () => {
-    if (scope === "month") {
-      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-    } else {
-      setCurrentDate(new Date(currentDate.getFullYear() + 1, 0, 1));
-    }
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
-  const handleResetPeriod = () => setCurrentDate(new Date());
+  const handleResetPeriod = () => setCurrentMonth(new Date());
 
-  // TRPC Queries
-  const { data: heroData, isLoading: isHeroLoading } = trpc.analytics.heroSummary.useQuery({
-    scope,
-    period: periodStr,
+  const handleResetAllFilters = () => {
+    setDatePreset("this_month");
+    setCurrentMonth(new Date());
+    setCustomDateFrom("");
+    setCustomDateTo("");
+  };
+
+  // TRPC Queries - Konsisten mengambil data sesuai dateFrom & dateTo
+  const {
+    data: heroData,
+    isLoading: isHeroLoading,
+    refetch: refetchHero,
+  } = trpc.analytics.heroSummary.useQuery({
+    scope: datePreset as any,
+    dateFrom,
+    dateTo,
   });
 
   const { data: assetData } = trpc.analytics.assetComposition.useQuery();
   const { data: trendData } = trpc.analytics.monthlyTrend.useQuery({ monthsCount: 6 });
-  const { data: expenseRanks } = trpc.analytics.categoryRanks.useQuery({
-    scope: topCatScope,
+  const { data: expenseRanks, refetch: refetchExpense } = trpc.analytics.categoryRanks.useQuery({
+    scope: datePreset as any,
     kind: "expense",
-    period: catPeriodStr,
+    dateFrom,
+    dateTo,
   });
-  const { data: incomeRanks } = trpc.analytics.categoryRanks.useQuery({
-    scope: topCatScope,
+  const { data: incomeRanks, refetch: refetchIncome } = trpc.analytics.categoryRanks.useQuery({
+    scope: datePreset as any,
     kind: "income",
-    period: catPeriodStr,
+    dateFrom,
+    dateTo,
   });
   const { data: heatmapData } = trpc.analytics.yearHeatmap.useQuery({
-    year: currentDate.getFullYear(),
+    year: currentMonth.getFullYear(),
   });
   const { data: recentTxData } = trpc.transactions.list.useQuery({
     limit: 5,
   });
+
+  const handleRefreshAll = () => {
+    refetchHero();
+    refetchExpense();
+    refetchIncome();
+    utils.analytics.invalidate();
+    utils.transactions.invalidate();
+  };
+
+  const isAnyFilterActive =
+    datePreset !== "this_month" ||
+    !isCurrentMonthNow ||
+    Boolean(customDateFrom) ||
+    Boolean(customDateTo);
 
   return (
     <div className="flex flex-col gap-5 sm:gap-6 max-w-6xl mx-auto pb-4">
@@ -140,71 +142,149 @@ export default function OverviewPage() {
         {/* Latar Aksen Mint Halus di Pojok Kanan Atas */}
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-primary/5 blur-3xl pointer-events-none" />
 
-        {/* Baris Atas: Sakelar Periode & Pemilih Tanggal */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
-          <div className="flex items-center gap-1 rounded-2xl bg-muted/60 p-1 text-xs font-semibold self-start sm:self-auto">
-            <button
-              onClick={() => setScope("month")}
-              className={`rounded-xl px-3 py-1.5 transition-all ${
-                scope === "month"
-                  ? "bg-background text-foreground shadow-xs font-bold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Bulan Ini
-            </button>
-            <button
-              onClick={() => setScope("year")}
-              className={`rounded-xl px-3 py-1.5 transition-all ${
-                scope === "year"
-                  ? "bg-background text-foreground shadow-xs font-bold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Tahun Ini
-            </button>
-            <button
-              onClick={() => setScope("all")}
-              className={`rounded-xl px-3 py-1.5 transition-all ${
-                scope === "all"
-                  ? "bg-background text-foreground shadow-xs font-bold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Semua
-            </button>
+        {/* Baris Atas: Toolbar Periode & Pemilih Tanggal (Disamakan dengan Halaman Transaksi) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Preset Waktu Dropdown */}
+            <div className="flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <select
+                value={datePreset}
+                onChange={(e) => setDatePreset(e.target.value as DateFilterPreset)}
+                className="h-8 rounded-xl border border-input bg-background px-2.5 text-xs font-semibold shadow-xs focus:outline-none"
+              >
+                <option value="this_month">Bulan Ini</option>
+                <option value="today">Hari Ini</option>
+                <option value="last_7_days">7 Hari Terakhir</option>
+                <option value="last_30_days">30 Hari Terakhir</option>
+                <option value="last_month">Bulan Lalu</option>
+                <option value="this_year">Tahun Ini</option>
+                <option value="all">Semua Waktu</option>
+                <option value="custom">Kustom Tanggal</option>
+              </select>
+            </div>
+
+            {/* Navigasi Periode Bulan (saat Bulan Ini aktif) */}
+            {datePreset === "this_month" && (
+              <div className="flex items-center gap-1 rounded-xl border border-input bg-background/80 px-1 py-0.5">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={handlePrevPeriod}
+                  title="Bulan sebelumnya"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <span className="px-1.5 text-xs font-semibold capitalize min-w-[90px] text-center select-none">
+                  {periodLabel}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={handleNextPeriod}
+                  title="Bulan berikutnya"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+                {!isCurrentMonthNow && (
+                  <button
+                    onClick={handleResetPeriod}
+                    className="px-1.5 py-0.5 text-[10px] font-medium text-primary hover:underline"
+                    title="Kembali ke bulan saat ini"
+                  >
+                    Bulan Ini
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Custom Date Pickers */}
+            {datePreset === "custom" && (
+              <div className="flex items-center gap-1.5">
+                <Input
+                  type="date"
+                  value={customDateFrom}
+                  onChange={(e) => setCustomDateFrom(e.target.value)}
+                  className="h-8 text-xs w-32 px-2 rounded-xl"
+                  placeholder="Dari"
+                />
+                <span className="text-muted-foreground text-[11px]">-</span>
+                <Input
+                  type="date"
+                  value={customDateTo}
+                  onChange={(e) => setCustomDateTo(e.target.value)}
+                  className="h-8 text-xs w-32 px-2 rounded-xl"
+                  placeholder="Sampai"
+                />
+              </div>
+            )}
           </div>
 
-          {/* Navigasi Periode Bulan/Tahun */}
-          {scope !== "all" && (
-            <div className="flex items-center gap-1.5 self-end sm:self-auto">
+          {/* Tombol Perbarui & Reset Filter */}
+          <div className="flex items-center gap-1.5 ml-auto">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleRefreshAll}
+              className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground"
+              title="Perbarui data overview"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </Button>
+
+            {isAnyFilterActive && (
               <Button
-                variant="outline"
-                size="icon"
-                onClick={handlePrevPeriod}
-                className="h-8 w-8 rounded-xl border-border/70 hover:bg-muted"
-                aria-label="Periode sebelumnya"
+                variant="ghost"
+                size="sm"
+                onClick={handleResetAllFilters}
+                className="h-8 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 gap-1.5 px-2.5 rounded-xl"
+                title="Reset semua filter ke Bulan Ini"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reset Filter
               </Button>
-              <button
-                onClick={handleResetPeriod}
-                className="text-xs font-bold px-3 py-1.5 rounded-xl hover:bg-muted/70 transition-colors min-w-32 text-center text-foreground"
-                title="Kembali ke periode sekarang"
-              >
-                {periodLabel}
-              </button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleNextPeriod}
-                className="h-8 w-8 rounded-xl border-border/70 hover:bg-muted"
-                aria-label="Periode berikutnya"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Ringkasan Arus Kas / KPI Bar (Sama Persis dengan Halaman Transaksi) */}
+        <div className="pt-3 pb-3 border-b border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="font-semibold text-[11px] bg-background">
+              {heroData?.periodTxCount ?? 0} Transaksi
+            </Badge>
+            <span className="text-muted-foreground text-[11px]">
+              Rentang: <span className="font-medium text-foreground">{periodLabel}</span>
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 font-medium text-[11px] sm:text-xs">
+            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+              <TrendingUp className="h-3.5 w-3.5 shrink-0" />
+              <span>Masuk:</span>
+              <span className="font-bold">{formatCurrency(heroData?.income || 0)}</span>
             </div>
-          )}
+            <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
+              <TrendingDown className="h-3.5 w-3.5 shrink-0" />
+              <span>Keluar:</span>
+              <span className="font-bold">{formatCurrency(heroData?.expense || 0)}</span>
+            </div>
+            <div
+              className={`flex items-center gap-1.5 font-bold ${
+                (heroData?.balance || 0) >= 0
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-rose-600 dark:text-rose-400"
+              }`}
+            >
+              <span>Arus Kas:</span>
+              <span>
+                {(heroData?.balance || 0) > 0 ? "+" : ""}
+                {formatCurrency(heroData?.balance || 0)}
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Baris Tengah: Saldo Utama & Sparkline */}
@@ -320,7 +400,7 @@ export default function OverviewPage() {
                 Kurva Arus Kas Periode Ini
               </span>
               <span className="text-[11px] font-semibold text-primary">
-                {heroData?.totalTxCount || 0} transaksi
+                {heroData?.periodTxCount ?? heroData?.totalTxCount ?? 0} transaksi
               </span>
             </div>
 
@@ -649,7 +729,7 @@ export default function OverviewPage() {
               </div>
               <div>
                 <h3 className="font-extrabold text-sm text-foreground">
-                  Aktivitas Bulanan {currentDate.getFullYear()}
+                  Aktivitas Bulanan {currentMonth.getFullYear()}
                 </h3>
                 <p className="text-[11px] text-muted-foreground">
                   Arus kas & intensitas transaksi per bulan (klik bulan untuk filter cepat)
@@ -666,17 +746,16 @@ export default function OverviewPage() {
             {heatmapData.map((m) => {
               const net = m.income - m.expense;
               const isSelectedMonth =
-                scope === "month" &&
-                currentDate.getMonth() === m.monthIndex &&
-                currentDate.getFullYear() === (heatmapData[0] ? currentDate.getFullYear() : new Date().getFullYear());
+                datePreset === "this_month" &&
+                currentMonth.getMonth() === m.monthIndex &&
+                currentMonth.getFullYear() === currentMonth.getFullYear();
 
               return (
                 <div
                   key={m.monthIndex}
                   onClick={() => {
-                    setCurrentDate(new Date(currentDate.getFullYear(), m.monthIndex, 1));
-                    setScope("month");
-                    setTopCatScope("month");
+                    setCurrentMonth(new Date(currentMonth.getFullYear(), m.monthIndex, 1));
+                    setDatePreset("this_month");
                   }}
                   className={`flex flex-col gap-2 p-3 rounded-2xl border transition-all cursor-pointer text-left group shadow-xs ${
                     isSelectedMonth
@@ -738,27 +817,8 @@ export default function OverviewPage() {
             Kategori Terbanyak
           </h3>
 
-          <div className="flex rounded-xl bg-muted/60 p-1 text-xs font-semibold">
-            <button
-              onClick={() => setTopCatScope("month")}
-              className={`px-3 py-1 rounded-lg transition-all ${
-                topCatScope === "month"
-                  ? "bg-background text-foreground shadow-xs font-bold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Bulan Ini
-            </button>
-            <button
-              onClick={() => setTopCatScope("year")}
-              className={`px-3 py-1 rounded-lg transition-all ${
-                topCatScope === "year"
-                  ? "bg-background text-foreground shadow-xs font-bold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Tahun Ini
-            </button>
+          <div className="text-xs text-muted-foreground font-semibold">
+            Rentang: <strong className="text-foreground font-bold">{periodLabel}</strong>
           </div>
         </div>
 
@@ -877,14 +937,14 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      {/* Modal Detail Kategori (Filtered by Month / Year) */}
+      {/* Modal Detail Kategori (Filtered by Selected Period) */}
       <CategoryDetailModal
         isOpen={!!selectedCategory}
         onClose={() => setSelectedCategory(null)}
         category={selectedCategory}
-        periodLabel={catPeriodLabel}
-        dateFrom={catDateFrom}
-        dateTo={catDateTo}
+        periodLabel={periodLabel}
+        dateFrom={dateFrom || ""}
+        dateTo={dateTo || ""}
       />
     </div>
   );
