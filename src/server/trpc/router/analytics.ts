@@ -12,7 +12,7 @@ export const analyticsRouter = router({
     .input(
       z
         .object({
-          scope: z.enum(["month", "year", "all", "today", "last_7_days", "last_30_days", "last_month", "custom"]).default("month"),
+          scope: z.string().optional().default("this_month"),
           period: z.string().optional(), // misal "2026-03" atau "2026"
           dateFrom: z.string().optional(),
           dateTo: z.string().optional(),
@@ -20,7 +20,7 @@ export const analyticsRouter = router({
         .optional()
     )
     .query(async ({ ctx, input }) => {
-      const scope = input?.scope || "month";
+      const scope = input?.scope || "this_month";
       const now = new Date();
 
       // Hitung rentang tanggal
@@ -35,14 +35,14 @@ export const analyticsRouter = router({
       }
 
       if (!startDate && !endDate && scope !== "all") {
-        if (scope === "month") {
+        if (scope === "month" || scope === "this_month") {
           const periodStr = input?.period || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
           const [y, m] = periodStr.split("-");
           const yr = parseInt(y, 10);
           const mo = parseInt(m, 10);
           startDate = new Date(yr, mo - 1, 1, 0, 0, 0, 0);
           endDate = new Date(yr, mo, 0, 23, 59, 59, 999);
-        } else if (scope === "year") {
+        } else if (scope === "year" || scope === "this_year") {
           const yr = input?.period ? parseInt(input.period.split("-")[0], 10) : now.getFullYear();
           startDate = new Date(yr, 0, 1, 0, 0, 0, 0);
           endDate = new Date(yr, 11, 31, 23, 59, 59, 999);
@@ -184,7 +184,7 @@ export const analyticsRouter = router({
   categoryRanks: protectedProcedure
     .input(
       z.object({
-        scope: z.enum(["month", "year", "all", "today", "last_7_days", "last_30_days", "last_month", "custom"]).default("month"),
+        scope: z.string().optional().default("this_month"),
         kind: z.enum(["expense", "income"]).default("expense"),
         period: z.string().optional(),
         dateFrom: z.string().optional(),
@@ -204,14 +204,14 @@ export const analyticsRouter = router({
       }
 
       if (!startDate && !endDate && input.scope !== "all") {
-        if (input.scope === "month") {
+        if (input.scope === "month" || input.scope === "this_month") {
           const periodStr = input.period || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
           const [y, m] = periodStr.split("-");
           const yr = parseInt(y, 10);
           const mo = parseInt(m, 10);
           startDate = new Date(yr, mo - 1, 1, 0, 0, 0, 0);
           endDate = new Date(yr, mo, 0, 23, 59, 59, 999);
-        } else if (input.scope === "year") {
+        } else if (input.scope === "year" || input.scope === "this_year") {
           const yr = input.period ? parseInt(input.period.split("-")[0], 10) : now.getFullYear();
           startDate = new Date(yr, 0, 1, 0, 0, 0, 0);
           endDate = new Date(yr, 11, 31, 23, 59, 59, 999);
@@ -287,7 +287,6 @@ export const analyticsRouter = router({
         .where(
           and(
             eq(transactions.userId, ctx.userId),
-            eq(transactions.excludeFromStats, false),
             gte(transactions.happenedAt, startDate),
             lte(transactions.happenedAt, endDate)
           )
@@ -421,7 +420,6 @@ export const analyticsRouter = router({
         .where(
           and(
             eq(transactions.userId, ctx.userId),
-            eq(transactions.excludeFromStats, false),
             gte(transactions.happenedAt, startDate)
           )
         );
@@ -462,7 +460,6 @@ export const analyticsRouter = router({
           and(
             eq(transactions.userId, ctx.userId),
             eq(transactions.txType, input?.kind || "expense"),
-            eq(transactions.excludeFromStats, false),
             gte(transactions.happenedAt, startDate),
             lte(transactions.happenedAt, endDate)
           )

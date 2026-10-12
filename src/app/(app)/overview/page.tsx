@@ -87,13 +87,23 @@ export default function OverviewPage() {
     setCustomDateTo("");
   };
 
-  // TRPC Queries - Konsisten mengambil data sesuai dateFrom & dateTo
+  // TRPC Queries - Mengambil data transaksi yang SAMA PERSIS dengan Halaman Transaksi
+  const {
+    data: txListData,
+    isLoading: isTxLoading,
+    refetch: refetchTxList,
+  } = trpc.transactions.list.useQuery({
+    dateFrom,
+    dateTo,
+    limit: 100,
+  });
+
   const {
     data: heroData,
     isLoading: isHeroLoading,
     refetch: refetchHero,
   } = trpc.analytics.heroSummary.useQuery({
-    scope: datePreset as any,
+    scope: datePreset,
     dateFrom,
     dateTo,
   });
@@ -101,13 +111,13 @@ export default function OverviewPage() {
   const { data: assetData } = trpc.analytics.assetComposition.useQuery();
   const { data: trendData } = trpc.analytics.monthlyTrend.useQuery({ monthsCount: 6 });
   const { data: expenseRanks, refetch: refetchExpense } = trpc.analytics.categoryRanks.useQuery({
-    scope: datePreset as any,
+    scope: datePreset,
     kind: "expense",
     dateFrom,
     dateTo,
   });
   const { data: incomeRanks, refetch: refetchIncome } = trpc.analytics.categoryRanks.useQuery({
-    scope: datePreset as any,
+    scope: datePreset,
     kind: "income",
     dateFrom,
     dateTo,
@@ -119,7 +129,136 @@ export default function OverviewPage() {
     limit: 5,
   });
 
+  // Summary identik dengan halaman Transaksi
+  const summary = useMemo(() => {
+    if (txListData?.summary) {
+      return {
+        count: txListData.summary.totalCount,
+        income: txListData.summary.income,
+        expense: txListData.summary.expense,
+        net: txListData.summary.net,
+      };
+    }
+    if (heroData) {
+      return {
+        count: heroData.periodTxCount,
+        income: heroData.income,
+        expense: heroData.expense,
+        net: heroData.balance,
+      };
+    }
+    return {
+      count: 0,
+      income: 0,
+      expense: 0,
+      net: 0,
+    };
+  }, [txListData?.summary, heroData]);
+
+  // Sparkline kurva saldo akumulatif
+  const sparklineData = useMemo(() => {
+    if (heroData?.sparkline && heroData.sparkline.length > 0) {
+      return heroData.sparkline;
+    }
+    if (!txListData?.items || txListData.items.length === 0) return [];
+    const reversed = [...txListData.items].reverse();
+    let running = 0;
+    return reversed.map((tx, idx) => {
+      if (tx.txType === "income") running += tx.amount;
+      if (tx.txType === "expense") running -= tx.amount;
+      return {
+        idx: idx + 1,
+        date: new Date(tx.happenedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" }),
+        running,
+      };
+    });
+  }, [heroData?.sparkline, txListData?.items]);
+
+  // Statistik habit konsistensi
+  const habitStats = useMemo(() => {
+    const expense = summary.expense;
+    const count = summary.count;
+    const daysInScope = dateFrom && dateTo
+      ? Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / (1000 * 60 * 60 * 24)))
+      : 30;
+    const dailyAvg = heroData?.dailyAvgExpense ?? Math.round(expense / daysInScope);
+    const txPerDay = heroData?.txPerDay ?? (count / daysInScope).toFixed(1);
+    const daysSinceFirst = heroData?.daysSinceFirstTx ?? 1;
+    return {
+      dailyAvg,
+      txPerDay,
+      daysSinceFirst,
+    };
+  }, [summary, dateFrom, dateTo, heroData]);
+
+  // Ranking Kategori dengan fallback otomatis dari txListData
+  const effectiveExpenseRanks = useMemo(() => {
+    if (expenseRanks?.ranks && expenseRanks.ranks.length > 0) {
+      return expenseRanks;
+    }
+    if (!txListData?.items || txListData.items.length === 0) {
+      return { grandTotal: 0, ranks: [] };
+    }
+    const map = new Map<string, { id: string; name: string; icon: string | null; total: number; count: number }>();
+    let grandTotal = 0;
+    for (const item of txListData.items) {
+      if (item.txType === "expense") {
+        const catId = item.categoryId || "uncategorized";
+        const catName = item.categoryName || "Lainnya";
+        grandTotal += item.amount;
+        const cur = map.get(catId) || { id: catId, name: catName, icon: null, total: 0, count: 0 };
+        cur.total += item.amount;
+        cur.count += 1;
+        map.set(catId, cur);
+      }
+    }
+    const ranks = Array.from(map.values())
+      .map((r) => ({
+        ...r,
+        percent: grandTotal > 0 ? Math.round((r.total / grandTotal) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total);
+    return { grandTotal, ranks };
+  }, [expenseRanks, txListData?.items]);
+
+  const effectiveIncomeRanks = useMemo(() => {
+    if (incomeRanks?.ranks && incomeRanks.ranks.length > 0) {
+      return incomeRanks;
+    }
+    if (!txListData?.items || txListData.items.length === 0) {
+      return { grandTotal: 0, ranks: [] };
+    }
+    const map = new Map<string, { id: string; name: string; icon: string | null; total: number; count: number }>();
+    let grandTotal = 0;
+    for (const item of txListData.items) {
+      if (item.txType === "income") {
+        const catId = item.categoryId || "uncategorized";
+        const catName = item.categoryName || "Lainnya";
+        grandTotal += item.amount;
+        const cur = map.get(catId) || { id: catId, name: catName, icon: null, total: 0, count: 0 };
+        cur.total += item.amount;
+        cur.count += 1;
+        map.set(catId, cur);
+      }
+    }
+    const ranks = Array.from(map.values())
+      .map((r) => ({
+        ...r,
+        percent: grandTotal > 0 ? Math.round((r.total / grandTotal) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total);
+    return { grandTotal, ranks };
+  }, [incomeRanks, txListData?.items]);
+
+  const recentDisplayList = useMemo(() => {
+    if (txListData?.items && txListData.items.length > 0) {
+      return txListData.items.slice(0, 5);
+    }
+    return recentTxData?.items?.slice(0, 5) || [];
+  }, [txListData?.items, recentTxData?.items]);
+
   const handleRefreshAll = () => {
+    refetchTxList();
     refetchHero();
     refetchExpense();
     refetchIncome();
@@ -253,7 +392,7 @@ export default function OverviewPage() {
         <div className="pt-3 pb-3 border-b border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="font-semibold text-[11px] bg-background">
-              {heroData?.periodTxCount ?? 0} Transaksi
+              {summary.count} Transaksi
             </Badge>
             <span className="text-muted-foreground text-[11px]">
               Rentang: <span className="font-medium text-foreground">{periodLabel}</span>
@@ -264,24 +403,24 @@ export default function OverviewPage() {
             <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
               <TrendingUp className="h-3.5 w-3.5 shrink-0" />
               <span>Masuk:</span>
-              <span className="font-bold">{formatCurrency(heroData?.income || 0)}</span>
+              <span className="font-bold">{formatCurrency(summary.income)}</span>
             </div>
             <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
               <TrendingDown className="h-3.5 w-3.5 shrink-0" />
               <span>Keluar:</span>
-              <span className="font-bold">{formatCurrency(heroData?.expense || 0)}</span>
+              <span className="font-bold">{formatCurrency(summary.expense)}</span>
             </div>
             <div
               className={`flex items-center gap-1.5 font-bold ${
-                (heroData?.balance || 0) >= 0
+                summary.net >= 0
                   ? "text-emerald-600 dark:text-emerald-400"
                   : "text-rose-600 dark:text-rose-400"
               }`}
             >
               <span>Arus Kas:</span>
               <span>
-                {(heroData?.balance || 0) > 0 ? "+" : ""}
-                {formatCurrency(heroData?.balance || 0)}
+                {summary.net > 0 ? "+" : ""}
+                {formatCurrency(summary.net)}
               </span>
             </div>
           </div>
@@ -297,17 +436,17 @@ export default function OverviewPage() {
                   <Sparkles className="h-3.5 w-3.5 text-primary" />
                   Arus Kas Bersih ({periodLabel})
                 </span>
-                {(heroData?.balance || 0) > 0 && (
+                {summary.net > 0 && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
                     Surplus
                   </span>
                 )}
-                {(heroData?.balance || 0) < 0 && (
+                {summary.net < 0 && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 border border-rose-500/20">
                     Defisit
                   </span>
                 )}
-                {(heroData?.balance || 0) === 0 && (
+                {summary.net === 0 && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted text-muted-foreground">
                     Seimbang
                   </span>
@@ -316,18 +455,18 @@ export default function OverviewPage() {
 
               <div
                 className={`text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight mt-1.5 ${
-                  (heroData?.balance || 0) > 0
+                  summary.net > 0
                     ? "text-emerald-600 dark:text-emerald-400"
-                    : (heroData?.balance || 0) < 0
+                    : summary.net < 0
                     ? "text-rose-600 dark:text-rose-400"
                     : "text-foreground"
                 }`}
               >
-                {isHeroLoading
+                {isHeroLoading && isTxLoading
                   ? "..."
-                  : (heroData?.balance || 0) > 0
-                  ? `+${formatCurrency(heroData?.balance || 0)}`
-                  : formatCurrency(heroData?.balance || 0)}
+                  : summary.net > 0
+                  ? `+${formatCurrency(summary.net)}`
+                  : formatCurrency(summary.net)}
               </div>
 
               <p className="text-[11px] text-muted-foreground mt-1">
@@ -350,7 +489,7 @@ export default function OverviewPage() {
                   <TrendingUp className="h-3.5 w-3.5" /> Pemasukan
                 </span>
                 <span className="text-base sm:text-lg font-extrabold text-foreground mt-1">
-                  {formatCurrency(heroData?.income || 0)}
+                  {formatCurrency(summary.income)}
                 </span>
               </div>
 
@@ -359,7 +498,7 @@ export default function OverviewPage() {
                   <TrendingDown className="h-3.5 w-3.5" /> Pengeluaran
                 </span>
                 <span className="text-base sm:text-lg font-extrabold text-foreground mt-1">
-                  {formatCurrency(heroData?.expense || 0)}
+                  {formatCurrency(summary.expense)}
                 </span>
               </div>
             </div>
@@ -400,14 +539,14 @@ export default function OverviewPage() {
                 Kurva Arus Kas Periode Ini
               </span>
               <span className="text-[11px] font-semibold text-primary">
-                {heroData?.periodTxCount ?? heroData?.totalTxCount ?? 0} transaksi
+                {summary.count} transaksi
               </span>
             </div>
 
-            {heroData?.sparkline && heroData.sparkline.length > 0 ? (
+            {sparklineData.length > 0 ? (
               <div className="h-36 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={heroData.sparkline}>
+                  <AreaChart data={sparklineData}>
                     <defs>
                       <linearGradient id="balanceGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#00B569" stopOpacity={0.35} />
@@ -458,7 +597,7 @@ export default function OverviewPage() {
               Rata-rata Pengeluaran
             </div>
             <div className="text-base font-extrabold text-foreground truncate">
-              {formatCurrency(heroData?.dailyAvgExpense || 0)} / hari
+              {formatCurrency(habitStats.dailyAvg)} / hari
             </div>
           </div>
         </Card>
@@ -472,7 +611,7 @@ export default function OverviewPage() {
               Frekuensi Pencatatan
             </div>
             <div className="text-base font-extrabold text-foreground truncate">
-              {heroData?.txPerDay || 0} transaksi / hari
+              {habitStats.txPerDay} transaksi / hari
             </div>
           </div>
         </Card>
@@ -486,7 +625,7 @@ export default function OverviewPage() {
               Konsistensi Catatan
             </div>
             <div className="text-base font-extrabold text-foreground truncate">
-              {heroData?.daysSinceFirstTx || 1} Hari Berjalan
+              {habitStats.daysSinceFirst} Hari Berjalan
             </div>
           </div>
         </Card>
@@ -651,7 +790,7 @@ export default function OverviewPage() {
         </div>
 
         <div className="divide-y divide-border/60">
-          {recentTxData?.items?.slice(0, 5).map((tx) => {
+          {recentDisplayList.map((tx: any) => {
             const isExpense = tx.txType === "expense";
             const isIncome = tx.txType === "income";
 
@@ -709,7 +848,7 @@ export default function OverviewPage() {
             );
           })}
 
-          {(!recentTxData?.items || recentTxData.items.length === 0) && (
+          {recentDisplayList.length === 0 && (
             <div className="py-8 text-center text-xs text-muted-foreground">
               Belum ada transaksi tercatat. Klik <strong>+ Catat Transaksi</strong> untuk memulai.
             </div>
@@ -830,12 +969,12 @@ export default function OverviewPage() {
                 <TrendingDown className="h-3.5 w-3.5" /> Pengeluaran Teratas
               </span>
               <span className="text-xs font-bold text-foreground">
-                Total: {formatCurrency(expenseRanks?.grandTotal || 0)}
+                Total: {formatCurrency(effectiveExpenseRanks?.grandTotal || 0)}
               </span>
             </div>
 
             <div className="flex flex-col gap-2">
-              {expenseRanks?.ranks?.slice(0, 5).map((rank, idx) => (
+              {effectiveExpenseRanks?.ranks?.slice(0, 5).map((rank, idx) => (
                 <button
                   key={rank.id}
                   type="button"
@@ -871,7 +1010,7 @@ export default function OverviewPage() {
                 </button>
               ))}
 
-              {(!expenseRanks?.ranks || expenseRanks.ranks.length === 0) && (
+              {(!effectiveExpenseRanks?.ranks || effectiveExpenseRanks.ranks.length === 0) && (
                 <div className="py-6 text-center text-xs text-muted-foreground">
                   Belum ada pengeluaran di cakupan ini.
                 </div>
@@ -886,12 +1025,12 @@ export default function OverviewPage() {
                 <TrendingUp className="h-3.5 w-3.5" /> Pemasukan Teratas
               </span>
               <span className="text-xs font-bold text-foreground">
-                Total: {formatCurrency(incomeRanks?.grandTotal || 0)}
+                Total: {formatCurrency(effectiveIncomeRanks?.grandTotal || 0)}
               </span>
             </div>
 
             <div className="flex flex-col gap-2">
-              {incomeRanks?.ranks?.slice(0, 5).map((rank, idx) => (
+              {effectiveIncomeRanks?.ranks?.slice(0, 5).map((rank, idx) => (
                 <button
                   key={rank.id}
                   type="button"
@@ -927,7 +1066,7 @@ export default function OverviewPage() {
                 </button>
               ))}
 
-              {(!incomeRanks?.ranks || incomeRanks.ranks.length === 0) && (
+              {(!effectiveIncomeRanks?.ranks || effectiveIncomeRanks.ranks.length === 0) && (
                 <div className="py-6 text-center text-xs text-muted-foreground">
                   Belum ada pemasukan di cakupan ini.
                 </div>
