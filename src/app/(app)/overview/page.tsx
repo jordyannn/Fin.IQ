@@ -95,7 +95,7 @@ export default function OverviewPage() {
   } = trpc.transactions.list.useQuery({
     dateFrom,
     dateTo,
-    limit: 100,
+    limit: 500,
   });
 
   const {
@@ -129,7 +129,7 @@ export default function OverviewPage() {
     limit: 5,
   });
 
-  // Summary identik dengan halaman Transaksi
+  // Summary identik dengan halaman Transaksi dan Arus Kas Bersih
   const summary = useMemo(() => {
     if (txListData?.summary) {
       return {
@@ -155,107 +155,168 @@ export default function OverviewPage() {
     };
   }, [txListData?.summary, heroData]);
 
-  // Sparkline kurva saldo akumulatif
+  // Sparkline kurva saldo akumulatif (dimulai dari 0 hingga exact summary.net)
   const sparklineData = useMemo(() => {
-    if (heroData?.sparkline && heroData.sparkline.length > 0) {
+    if (!summary.count) return [];
+
+    let list: Array<{ happenedAt: Date | string; amount: number; txType: string }> = [];
+    if (txListData?.items && txListData.items.length > 0) {
+      list = [...txListData.items].reverse();
+    } else if (heroData?.sparkline && heroData.sparkline.length > 0) {
       return heroData.sparkline;
     }
-    if (!txListData?.items || txListData.items.length === 0) return [];
-    const reversed = [...txListData.items].reverse();
+
+    if (list.length === 0) return [];
+
     let running = 0;
-    return reversed.map((tx, idx) => {
+    const points: Array<{ idx: number; date: string; running: number }> = [
+      {
+        idx: 0,
+        date: "Mulai",
+        running: 0,
+      },
+    ];
+
+    list.forEach((tx, idx) => {
       if (tx.txType === "income") running += tx.amount;
       if (tx.txType === "expense") running -= tx.amount;
-      return {
+      points.push({
         idx: idx + 1,
         date: new Date(tx.happenedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" }),
         running,
-      };
+      });
     });
-  }, [heroData?.sparkline, txListData?.items]);
 
-  // Statistik habit konsistensi
+    if (points.length > 1 && points[points.length - 1].running !== summary.net) {
+      points[points.length - 1].running = summary.net;
+    }
+
+    return points;
+  }, [txListData?.items, heroData?.sparkline, summary.count, summary.net]);
+
+  // Statistik habit konsistensi (dihitung langsung dari data Arus Kas Bersih)
   const habitStats = useMemo(() => {
     const expense = summary.expense;
     const count = summary.count;
     const daysInScope = dateFrom && dateTo
       ? Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / (1000 * 60 * 60 * 24)))
+      : datePreset === "this_year"
+      ? 365
+      : datePreset === "all"
+      ? Math.max(1, heroData?.daysSinceFirstTx || 30)
       : 30;
-    const dailyAvg = heroData?.dailyAvgExpense ?? Math.round(expense / daysInScope);
-    const txPerDay = heroData?.txPerDay ?? (count / daysInScope).toFixed(1);
+
+    const dailyAvg = Math.round(expense / Math.max(1, daysInScope));
+    const txPerDay = (count / Math.max(1, daysInScope)).toFixed(1);
     const daysSinceFirst = heroData?.daysSinceFirstTx ?? 1;
+
     return {
       dailyAvg,
       txPerDay,
       daysSinceFirst,
     };
-  }, [summary, dateFrom, dateTo, heroData]);
+  }, [summary.expense, summary.count, dateFrom, dateTo, datePreset, heroData?.daysSinceFirstTx]);
 
-  // Ranking Kategori dengan fallback otomatis dari txListData
-  const effectiveExpenseRanks = useMemo(() => {
-    if (expenseRanks?.ranks && expenseRanks.ranks.length > 0) {
-      return expenseRanks;
-    }
-    if (!txListData?.items || txListData.items.length === 0) {
-      return { grandTotal: 0, ranks: [] };
-    }
-    const map = new Map<string, { id: string; name: string; icon: string | null; total: number; count: number }>();
-    let grandTotal = 0;
-    for (const item of txListData.items) {
-      if (item.txType === "expense") {
-        const catId = item.categoryId || "uncategorized";
-        const catName = item.categoryName || "Lainnya";
-        grandTotal += item.amount;
-        const cur = map.get(catId) || { id: catId, name: catName, icon: null, total: 0, count: 0 };
-        cur.total += item.amount;
-        cur.count += 1;
-        map.set(catId, cur);
+  // Sinkronisasi data tren bulanan dengan data summary Arus Kas Bersih
+  const synchronizedTrendData = useMemo(() => {
+    if (!trendData || trendData.length === 0) return [];
+    const selectedMonthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, "0")}`;
+    return trendData.map((m) => {
+      if (datePreset === "this_month" && m.monthKey === selectedMonthKey) {
+        return {
+          ...m,
+          income: summary.income,
+          expense: summary.expense,
+          net: summary.net,
+        };
       }
+      return m;
+    });
+  }, [trendData, datePreset, currentMonth, summary]);
+
+  // Sinkronisasi data aktivitas heatmap tahunan dengan data summary Arus Kas Bersih
+  const synchronizedHeatmapData = useMemo(() => {
+    if (!heatmapData || heatmapData.length === 0) return [];
+    return heatmapData.map((m) => {
+      const isSelectedMonth =
+        datePreset === "this_month" &&
+        currentMonth.getMonth() === m.monthIndex;
+
+      if (isSelectedMonth) {
+        return {
+          ...m,
+          income: summary.income,
+          expense: summary.expense,
+          txCount: summary.count,
+        };
+      }
+      return m;
+    });
+  }, [heatmapData, datePreset, currentMonth, summary]);
+
+  // Ranking Kategori dengan total disamakan persis dengan Arus Kas Bersih
+  const effectiveExpenseRanks = useMemo(() => {
+    const grandTotal = summary.expense;
+    let ranks: Array<{ id: string; name: string; icon: string | null; total: number; count: number; percent?: number }> =
+      expenseRanks?.ranks ? [...expenseRanks.ranks] : [];
+
+    if (ranks.length === 0 && txListData?.items) {
+      const map = new Map<string, { id: string; name: string; icon: string | null; total: number; count: number }>();
+      for (const item of txListData.items) {
+        if (item.txType === "expense") {
+          const catId = item.categoryId || "uncategorized";
+          const catName = item.categoryName || "Lainnya";
+          const cur = map.get(catId) || { id: catId, name: catName, icon: null, total: 0, count: 0 };
+          cur.total += item.amount;
+          cur.count += 1;
+          map.set(catId, cur);
+        }
+      }
+      ranks = Array.from(map.values()).sort((a, b) => b.total - a.total);
     }
-    const ranks = Array.from(map.values())
-      .map((r) => ({
-        ...r,
-        percent: grandTotal > 0 ? Math.round((r.total / grandTotal) * 100) : 0,
-      }))
-      .sort((a, b) => b.total - a.total);
-    return { grandTotal, ranks };
-  }, [expenseRanks, txListData?.items]);
+
+    const formattedRanks = ranks.map((r) => ({
+      ...r,
+      percent: grandTotal > 0 ? Math.round((r.total / grandTotal) * 100) : 0,
+    }));
+
+    return { grandTotal, ranks: formattedRanks };
+  }, [expenseRanks?.ranks, txListData?.items, summary.expense]);
 
   const effectiveIncomeRanks = useMemo(() => {
-    if (incomeRanks?.ranks && incomeRanks.ranks.length > 0) {
-      return incomeRanks;
-    }
-    if (!txListData?.items || txListData.items.length === 0) {
-      return { grandTotal: 0, ranks: [] };
-    }
-    const map = new Map<string, { id: string; name: string; icon: string | null; total: number; count: number }>();
-    let grandTotal = 0;
-    for (const item of txListData.items) {
-      if (item.txType === "income") {
-        const catId = item.categoryId || "uncategorized";
-        const catName = item.categoryName || "Lainnya";
-        grandTotal += item.amount;
-        const cur = map.get(catId) || { id: catId, name: catName, icon: null, total: 0, count: 0 };
-        cur.total += item.amount;
-        cur.count += 1;
-        map.set(catId, cur);
+    const grandTotal = summary.income;
+    let ranks: Array<{ id: string; name: string; icon: string | null; total: number; count: number; percent?: number }> =
+      incomeRanks?.ranks ? [...incomeRanks.ranks] : [];
+
+    if (ranks.length === 0 && txListData?.items) {
+      const map = new Map<string, { id: string; name: string; icon: string | null; total: number; count: number }>();
+      for (const item of txListData.items) {
+        if (item.txType === "income") {
+          const catId = item.categoryId || "uncategorized";
+          const catName = item.categoryName || "Lainnya";
+          const cur = map.get(catId) || { id: catId, name: catName, icon: null, total: 0, count: 0 };
+          cur.total += item.amount;
+          cur.count += 1;
+          map.set(catId, cur);
+        }
       }
+      ranks = Array.from(map.values()).sort((a, b) => b.total - a.total);
     }
-    const ranks = Array.from(map.values())
-      .map((r) => ({
-        ...r,
-        percent: grandTotal > 0 ? Math.round((r.total / grandTotal) * 100) : 0,
-      }))
-      .sort((a, b) => b.total - a.total);
-    return { grandTotal, ranks };
-  }, [incomeRanks, txListData?.items]);
+
+    const formattedRanks = ranks.map((r) => ({
+      ...r,
+      percent: grandTotal > 0 ? Math.round((r.total / grandTotal) * 100) : 0,
+    }));
+
+    return { grandTotal, ranks: formattedRanks };
+  }, [incomeRanks?.ranks, txListData?.items, summary.income]);
 
   const recentDisplayList = useMemo(() => {
     if (txListData?.items && txListData.items.length > 0) {
       return txListData.items.slice(0, 5);
     }
-    return recentTxData?.items?.slice(0, 5) || [];
-  }, [txListData?.items, recentTxData?.items]);
+    return [];
+  }, [txListData?.items]);
 
   const handleRefreshAll = () => {
     refetchTxList();
@@ -538,8 +599,8 @@ export default function OverviewPage() {
               <span className="text-[11px] uppercase font-bold text-muted-foreground tracking-wider">
                 Kurva Arus Kas Periode Ini
               </span>
-              <span className="text-[11px] font-semibold text-primary">
-                {summary.count} transaksi
+              <span className={`text-[11px] font-bold ${summary.net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                {summary.count} tx • {summary.net > 0 ? "+" : ""}{formatCurrency(summary.net)}
               </span>
             </div>
 
@@ -548,13 +609,17 @@ export default function OverviewPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={sparklineData}>
                     <defs>
-                      <linearGradient id="balanceGrad" x1="0" y1="0" x2="0" y2="1">
+                      <linearGradient id="balanceGradPos" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#00B569" stopOpacity={0.35} />
                         <stop offset="95%" stopColor="#00B569" stopOpacity={0.0} />
                       </linearGradient>
+                      <linearGradient id="balanceGradNeg" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#EF4444" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#EF4444" stopOpacity={0.0} />
+                      </linearGradient>
                     </defs>
                     <Tooltip
-                      formatter={(val: any) => [formatCurrency(val), "Arus Kas"]}
+                      formatter={(val: any) => [formatCurrency(val), "Arus Kas Bersih"]}
                       labelFormatter={(label, payload) => payload?.[0]?.payload?.date || ""}
                       contentStyle={{
                         backgroundColor: "var(--card)",
@@ -567,10 +632,10 @@ export default function OverviewPage() {
                     <Area
                       type="monotone"
                       dataKey="running"
-                      stroke="#00B569"
+                      stroke={summary.net >= 0 ? "#00B569" : "#EF4444"}
                       strokeWidth={2.5}
                       fillOpacity={1}
-                      fill="url(#balanceGrad)"
+                      fill={summary.net >= 0 ? "url(#balanceGradPos)" : "url(#balanceGradNeg)"}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -741,7 +806,7 @@ export default function OverviewPage() {
 
             <div className="h-56 sm:h-64 w-full pt-2">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={trendData || []}>
+                <BarChart data={synchronizedTrendData}>
                   <XAxis dataKey="label" fontSize={11} stroke="#888888" />
                   <YAxis
                     fontSize={10}
@@ -749,13 +814,37 @@ export default function OverviewPage() {
                     tickFormatter={(v) => `${(v / 1000000).toFixed(1)}jt`}
                   />
                   <Tooltip
-                    formatter={(val: any) => formatCurrency(val)}
-                    contentStyle={{
-                      backgroundColor: "var(--card)",
-                      borderColor: "var(--border)",
-                      fontSize: "11px",
-                      borderRadius: "12px",
-                      fontWeight: "600",
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const inc = (payload.find((p) => p.dataKey === "income")?.value as number) || 0;
+                      const exp = (payload.find((p) => p.dataKey === "expense")?.value as number) || 0;
+                      const net = inc - exp;
+                      return (
+                        <div className="rounded-xl border border-border bg-card p-2.5 shadow-md text-xs flex flex-col gap-1 min-w-[150px]">
+                          <div className="font-extrabold text-foreground pb-1 border-b border-border/60">
+                            {label}
+                          </div>
+                          <div className="flex items-center justify-between gap-3 text-emerald-600 dark:text-emerald-400 font-semibold">
+                            <span>Masuk:</span>
+                            <span>+{formatCurrency(inc)}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 text-rose-600 dark:text-rose-400 font-semibold">
+                            <span>Keluar:</span>
+                            <span>-{formatCurrency(exp)}</span>
+                          </div>
+                          <div
+                            className={`flex items-center justify-between gap-3 font-extrabold pt-1 border-t border-border/60 ${
+                              net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                            }`}
+                          >
+                            <span>Arus Kas Bersih:</span>
+                            <span>
+                              {net > 0 ? "+" : ""}
+                              {formatCurrency(net)}
+                            </span>
+                          </div>
+                        </div>
+                      );
                     }}
                   />
                   <Bar dataKey="income" name="Pemasukan" fill="#00B569" radius={[6, 6, 0, 0]} />
@@ -850,7 +939,7 @@ export default function OverviewPage() {
 
           {recentDisplayList.length === 0 && (
             <div className="py-8 text-center text-xs text-muted-foreground">
-              Belum ada transaksi tercatat. Klik <strong>+ Catat Transaksi</strong> untuk memulai.
+              Belum ada transaksi tercatat di periode <strong>{periodLabel}</strong>. Klik <strong>+ Catat Transaksi</strong> untuk memulai.
             </div>
           )}
         </div>
@@ -882,12 +971,11 @@ export default function OverviewPage() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {heatmapData.map((m) => {
+            {synchronizedHeatmapData.map((m) => {
               const net = m.income - m.expense;
               const isSelectedMonth =
                 datePreset === "this_month" &&
-                currentMonth.getMonth() === m.monthIndex &&
-                currentMonth.getFullYear() === currentMonth.getFullYear();
+                currentMonth.getMonth() === m.monthIndex;
 
               return (
                 <div

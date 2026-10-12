@@ -278,8 +278,8 @@ export const analyticsRouter = router({
     .input(z.object({ year: z.number().optional() }))
     .query(async ({ ctx, input }) => {
       const year = input.year || new Date().getFullYear();
-      const startDate = new Date(year, 0, 1, 0, 0, 0, 0);
-      const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+      const startDate = new Date(Date.UTC(year, 0, 1, -7, 0, 0, 0));
+      const endDate = new Date(Date.UTC(year, 11, 31, 16, 59, 59, 999));
 
       const txList = await ctx.db
         .select()
@@ -294,7 +294,7 @@ export const analyticsRouter = router({
 
       // Siapkan 12 bulan
       const months = Array.from({ length: 12 }).map((_, i) => {
-        const d = new Date(year, i, 1);
+        const d = new Date(Date.UTC(year, i, 1));
         const name = new Intl.DateTimeFormat("id-ID", { month: "short" }).format(d);
         return {
           monthIndex: i,
@@ -306,7 +306,8 @@ export const analyticsRouter = router({
       });
 
       for (const tx of txList) {
-        const m = new Date(tx.happenedAt).getMonth();
+        const d = new Date(tx.happenedAt.getTime() + 7 * 3600000);
+        const m = d.getUTCMonth();
         if (months[m]) {
           if (tx.txType === "expense") months[m].expense += tx.amount;
           if (tx.txType === "income") months[m].income += tx.amount;
@@ -404,29 +405,29 @@ export const analyticsRouter = router({
     .query(async ({ ctx, input }) => {
       const count = input?.monthsCount || 6;
       const months = [];
-      const now = new Date();
+      const nowWib = new Date(Date.now() + 7 * 3600000);
 
       for (let i = count - 1; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const d = new Date(Date.UTC(nowWib.getUTCFullYear(), nowWib.getUTCMonth() - i, 1));
+        const monthKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
         const label = new Intl.DateTimeFormat("id-ID", { month: "short" }).format(d);
         months.push({ monthKey, label, income: 0, expense: 0, net: 0 });
       }
 
-      const startDate = new Date(now.getFullYear(), now.getMonth() - (count - 1), 1);
+      const startD = new Date(Date.UTC(nowWib.getUTCFullYear(), nowWib.getUTCMonth() - (count - 1), 1, -7, 0, 0, 0));
       const rows = await ctx.db
         .select()
         .from(transactions)
         .where(
           and(
             eq(transactions.userId, ctx.userId),
-            gte(transactions.happenedAt, startDate)
+            gte(transactions.happenedAt, startD)
           )
         );
 
       for (const tx of rows) {
-        const d = new Date(tx.happenedAt);
-        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const d = new Date(tx.happenedAt.getTime() + 7 * 3600000);
+        const monthKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
         const target = months.find((m) => m.monthKey === monthKey);
         if (target) {
           if (tx.txType === "income") target.income += tx.amount;
