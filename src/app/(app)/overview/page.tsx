@@ -209,20 +209,58 @@ export default function OverviewPage() {
 
         {/* Baris Tengah: Saldo Utama & Sparkline */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-5 items-center">
-          {/* Kolom Kiri: Angka Saldo Bersih & Kartu Arus Kas */}
+          {/* Kolom Kiri: Arus Kas Bersih (Pemasukan - Pengeluaran Sesuai Periode) */}
           <div className="lg:col-span-7 flex flex-col gap-4">
             <div>
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
-                Total Saldo Bersih
-              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  Arus Kas Bersih ({periodLabel})
+                </span>
+                {(heroData?.balance || 0) > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                    Surplus
+                  </span>
+                )}
+                {(heroData?.balance || 0) < 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 border border-rose-500/20">
+                    Defisit
+                  </span>
+                )}
+                {(heroData?.balance || 0) === 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted text-muted-foreground">
+                    Seimbang
+                  </span>
+                )}
+              </div>
+
               <div
                 className={`text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight mt-1.5 ${
-                  (heroData?.totalNetWorth || 0) >= 0 ? "text-foreground" : "text-rose-600"
+                  (heroData?.balance || 0) > 0
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : (heroData?.balance || 0) < 0
+                    ? "text-rose-600 dark:text-rose-400"
+                    : "text-foreground"
                 }`}
               >
-                {isHeroLoading ? "..." : formatCurrency(heroData?.totalNetWorth || 0)}
+                {isHeroLoading
+                  ? "..."
+                  : (heroData?.balance || 0) > 0
+                  ? `+${formatCurrency(heroData?.balance || 0)}`
+                  : formatCurrency(heroData?.balance || 0)}
               </div>
+
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Perbandingan pemasukan dikurangi pengeluaran periode ini
+                {heroData?.totalNetWorth !== undefined && (
+                  <span>
+                    {" "}• Total saldo seluruh rekening:{" "}
+                    <span className="font-semibold text-foreground">
+                      {formatCurrency(heroData.totalNetWorth)}
+                    </span>
+                  </span>
+                )}
+              </p>
             </div>
 
             {/* Kartu Pemasukan & Pengeluaran Berdampingan */}
@@ -275,11 +313,11 @@ export default function OverviewPage() {
             </div>
           </div>
 
-          {/* Kolom Kanan: Area Chart / Sparkline Pertumbuhan Saldo */}
+          {/* Kolom Kanan: Area Chart / Sparkline Pertumbuhan Arus Kas */}
           <div className="lg:col-span-5 h-44 sm:h-52 w-full flex flex-col justify-between p-2 rounded-2xl bg-muted/20 border border-border/40">
             <div className="flex items-center justify-between px-2 pt-1">
               <span className="text-[11px] uppercase font-bold text-muted-foreground tracking-wider">
-                Kurva Akumulasi Saldo
+                Kurva Arus Kas Periode Ini
               </span>
               <span className="text-[11px] font-semibold text-primary">
                 {heroData?.totalTxCount || 0} transaksi
@@ -297,7 +335,7 @@ export default function OverviewPage() {
                       </linearGradient>
                     </defs>
                     <Tooltip
-                      formatter={(val: any) => [formatCurrency(val), "Saldo"]}
+                      formatter={(val: any) => [formatCurrency(val), "Arus Kas"]}
                       labelFormatter={(label, payload) => payload?.[0]?.payload?.date || ""}
                       contentStyle={{
                         backgroundColor: "var(--card)",
