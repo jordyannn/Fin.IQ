@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
@@ -17,6 +17,11 @@ import {
   TrendingUp,
   TrendingDown,
   Pencil,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,24 +29,214 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EditTransactionModal, type TransactionToEdit } from "@/components/transactions/EditTransactionModal";
 
+type DateFilterPreset =
+  | "this_month"
+  | "today"
+  | "last_7_days"
+  | "last_30_days"
+  | "last_month"
+  | "this_year"
+  | "all"
+  | "custom";
+
 export default function TransactionsPage() {
   const { openQuickAdd } = useUIStore();
   const utils = trpc.useUtils();
 
+  // Filters state
   const [search, setSearch] = useState("");
   const [selectedType, setSelectedType] = useState<"expense" | "income" | "transfer" | undefined>(undefined);
   const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(undefined);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(undefined);
+  const [selectedLedgerId, setSelectedLedgerId] = useState<string | undefined>(undefined);
+
+  // Date Filter state
+  const [datePreset, setDatePreset] = useState<DateFilterPreset>("this_month");
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const [customDateFrom, setCustomDateFrom] = useState<string>("");
+  const [customDateTo, setCustomDateTo] = useState<string>("");
+
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editingTx, setEditingTx] = useState<TransactionToEdit | null>(null);
 
   // Queries
   const { data: accountsData } = trpc.accounts.list.useQuery();
+  const { data: categoriesData } = trpc.categories.list.useQuery();
+  const { data: ledgersData } = trpc.ledgers.list.useQuery();
+
+  const expenseCategories = useMemo(
+    () => categoriesData?.filter((c) => c.kind === "expense") || [],
+    [categoriesData]
+  );
+  const incomeCategories = useMemo(
+    () => categoriesData?.filter((c) => c.kind === "income") || [],
+    [categoriesData]
+  );
+
+  // Date calculation
+  const { dateFrom, dateTo, periodLabel } = useMemo(() => {
+    const now = new Date();
+
+    if (datePreset === "all") {
+      return { dateFrom: undefined, dateTo: undefined, periodLabel: "Semua Waktu" };
+    }
+
+    if (datePreset === "today") {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      return {
+        dateFrom: start.toISOString(),
+        dateTo: end.toISOString(),
+        periodLabel: "Hari Ini",
+      };
+    }
+
+    if (datePreset === "last_7_days") {
+      const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      return {
+        dateFrom: start.toISOString(),
+        dateTo: end.toISOString(),
+        periodLabel: "7 Hari Terakhir",
+      };
+    }
+
+    if (datePreset === "last_30_days") {
+      const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      return {
+        dateFrom: start.toISOString(),
+        dateTo: end.toISOString(),
+        periodLabel: "30 Hari Terakhir",
+      };
+    }
+
+    if (datePreset === "this_month") {
+      const yr = currentMonth.getFullYear();
+      const mo = currentMonth.getMonth();
+      const start = new Date(yr, mo, 1, 0, 0, 0);
+      const end = new Date(yr, mo + 1, 0, 23, 59, 59, 999);
+      const label = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(currentMonth);
+      return {
+        dateFrom: start.toISOString(),
+        dateTo: end.toISOString(),
+        periodLabel: label,
+      };
+    }
+
+    if (datePreset === "last_month") {
+      const yr = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+      const mo = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+      const start = new Date(yr, mo, 1, 0, 0, 0);
+      const end = new Date(yr, mo + 1, 0, 23, 59, 59, 999);
+      const label = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(start);
+      return {
+        dateFrom: start.toISOString(),
+        dateTo: end.toISOString(),
+        periodLabel: `Bulan Lalu (${label})`,
+      };
+    }
+
+    if (datePreset === "this_year") {
+      const yr = currentMonth.getFullYear();
+      const start = new Date(yr, 0, 1, 0, 0, 0);
+      const end = new Date(yr, 11, 31, 23, 59, 59, 999);
+      return {
+        dateFrom: start.toISOString(),
+        dateTo: end.toISOString(),
+        periodLabel: `Tahun ${yr}`,
+      };
+    }
+
+    if (datePreset === "custom") {
+      const start = customDateFrom ? new Date(`${customDateFrom}T00:00:00`).toISOString() : undefined;
+      const end = customDateTo ? new Date(`${customDateTo}T23:59:59.999`).toISOString() : undefined;
+      let label = "Kustom";
+      if (customDateFrom && customDateTo) {
+        label = `${customDateFrom} s/d ${customDateTo}`;
+      } else if (customDateFrom) {
+        label = `Dari ${customDateFrom}`;
+      } else if (customDateTo) {
+        label = `Sampai ${customDateTo}`;
+      }
+      return {
+        dateFrom: start,
+        dateTo: end,
+        periodLabel: label,
+      };
+    }
+
+    return { dateFrom: undefined, dateTo: undefined, periodLabel: "Semua Waktu" };
+  }, [datePreset, currentMonth, customDateFrom, customDateTo]);
+
+  // Main Transaction Query with all filters
   const { data: txData, isLoading, refetch } = trpc.transactions.list.useQuery({
     search: search.trim() || undefined,
     txType: selectedType,
     accountId: selectedAccountId || undefined,
+    categoryId: selectedCategoryId || undefined,
+    ledgerId: selectedLedgerId || undefined,
+    dateFrom,
+    dateTo,
     limit: 100,
   });
+
+  // Summary computed from currently filtered transactions
+  const summary = useMemo(() => {
+    let income = 0;
+    let expense = 0;
+
+    for (const item of txData?.items || []) {
+      if (item.txType === "income") income += item.amount;
+      if (item.txType === "expense") expense += item.amount;
+    }
+
+    return {
+      count: txData?.items?.length || 0,
+      income,
+      expense,
+      net: income - expense,
+    };
+  }, [txData?.items]);
+
+  const isCurrentMonthNow =
+    currentMonth.getMonth() === new Date().getMonth() &&
+    currentMonth.getFullYear() === new Date().getFullYear();
+
+  const isAnyFilterActive =
+    Boolean(search.trim()) ||
+    selectedType !== undefined ||
+    Boolean(selectedAccountId) ||
+    Boolean(selectedCategoryId) ||
+    Boolean(selectedLedgerId) ||
+    datePreset !== "this_month" ||
+    !isCurrentMonthNow ||
+    Boolean(customDateFrom) ||
+    Boolean(customDateTo);
+
+  const handleResetAllFilters = () => {
+    setSearch("");
+    setSelectedType(undefined);
+    setSelectedAccountId(undefined);
+    setSelectedCategoryId(undefined);
+    setSelectedLedgerId(undefined);
+    setDatePreset("this_month");
+    setCustomDateFrom("");
+    setCustomDateTo("");
+    setCurrentMonth(new Date());
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  };
+  const handleNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  };
+  const handleResetMonth = () => {
+    setCurrentMonth(new Date());
+  };
 
   // Mutations
   const deleteMutation = trpc.transactions.delete.useMutation({
@@ -152,81 +347,280 @@ export default function TransactionsPage() {
       </div>
 
       {/* Filter and Search Toolbar */}
-      <Card className="p-4">
-        <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
+      <Card className="p-4 space-y-3.5 shadow-sm">
+        {/* Row 1: Search & Type Pills */}
+        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
           {/* Search Input */}
-          <div className="relative w-full md:w-72">
+          <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Cari catatan transaksi..."
+              placeholder="Cari catatan, merchant, keterangan..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 text-xs h-9"
+              className="pl-9 pr-8 text-xs h-9"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded"
+                title="Hapus pencarian"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
 
-          {/* Filter Pills */}
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            {/* Tipe Selector */}
-            <div className="flex items-center rounded-lg bg-muted p-1 text-xs">
-              <button
-                onClick={() => setSelectedType(undefined)}
-                className={`px-3 py-1 rounded-md font-medium transition-all ${
-                  selectedType === undefined ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
-                }`}
-              >
-                Semua
-              </button>
-              <button
-                onClick={() => setSelectedType("expense")}
-                className={`px-3 py-1 rounded-md font-medium transition-all ${
-                  selectedType === "expense" ? "bg-rose-600 text-white shadow-sm" : "text-muted-foreground"
-                }`}
-              >
-                Pengeluaran
-              </button>
-              <button
-                onClick={() => setSelectedType("income")}
-                className={`px-3 py-1 rounded-md font-medium transition-all ${
-                  selectedType === "income" ? "bg-emerald-600 text-white shadow-sm" : "text-muted-foreground"
-                }`}
-              >
-                Pemasukan
-              </button>
-              <button
-                onClick={() => setSelectedType("transfer")}
-                className={`px-3 py-1 rounded-md font-medium transition-all ${
-                  selectedType === "transfer" ? "bg-blue-600 text-white shadow-sm" : "text-muted-foreground"
-                }`}
-              >
-                Transfer
-              </button>
-            </div>
-
-            {/* Account Selector */}
-            <select
-              value={selectedAccountId || ""}
-              onChange={(e) => setSelectedAccountId(e.target.value || undefined)}
-              className="h-9 rounded-md border border-input bg-background px-3 py-1 text-xs font-medium shadow-sm focus:outline-none"
+          {/* Tipe Selector Pills */}
+          <div className="flex items-center rounded-lg bg-muted p-1 text-xs self-start md:self-auto overflow-x-auto max-w-full">
+            <button
+              onClick={() => setSelectedType(undefined)}
+              className={`px-3 py-1 rounded-md font-medium transition-all whitespace-nowrap ${
+                selectedType === undefined
+                  ? "bg-background text-foreground shadow-sm font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
             >
-              <option value="">Semua Akun (Cash, Blu, Dana)</option>
-              {accountsData?.accounts?.map((acc) => (
-                <option key={acc.id} value={acc.id}>
-                  {acc.name.toUpperCase()}
+              Semua
+            </button>
+            <button
+              onClick={() => setSelectedType("expense")}
+              className={`px-3 py-1 rounded-md font-medium transition-all whitespace-nowrap ${
+                selectedType === "expense"
+                  ? "bg-rose-600 text-white shadow-sm font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Pengeluaran
+            </button>
+            <button
+              onClick={() => setSelectedType("income")}
+              className={`px-3 py-1 rounded-md font-medium transition-all whitespace-nowrap ${
+                selectedType === "income"
+                  ? "bg-emerald-600 text-white shadow-sm font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Pemasukan
+            </button>
+            <button
+              onClick={() => setSelectedType("transfer")}
+              className={`px-3 py-1 rounded-md font-medium transition-all whitespace-nowrap ${
+                selectedType === "transfer"
+                  ? "bg-blue-600 text-white shadow-sm font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Transfer
+            </button>
+          </div>
+        </div>
+
+        {/* Row 2: Deep Filters (Waktu, Buku Kas, Akun, Kategori, Reset) */}
+        <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+          {/* Preset Waktu */}
+          <div className="flex items-center gap-1.5">
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <select
+              value={datePreset}
+              onChange={(e) => setDatePreset(e.target.value as DateFilterPreset)}
+              className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium shadow-sm focus:outline-none"
+            >
+              <option value="this_month">Bulan Ini</option>
+              <option value="today">Hari Ini</option>
+              <option value="last_7_days">7 Hari Terakhir</option>
+              <option value="last_30_days">30 Hari Terakhir</option>
+              <option value="last_month">Bulan Lalu</option>
+              <option value="this_year">Tahun Ini</option>
+              <option value="all">Semua Waktu</option>
+              <option value="custom">Kustom Tanggal</option>
+            </select>
+          </div>
+
+          {/* Month Switcher (when this_month is selected) */}
+          {datePreset === "this_month" && (
+            <div className="flex items-center gap-1 rounded-md border border-input bg-background/80 px-1 py-0.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                onClick={handlePrevMonth}
+                title="Bulan sebelumnya"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <span className="px-1.5 text-xs font-semibold capitalize min-w-[90px] text-center select-none">
+                {periodLabel}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                onClick={handleNextMonth}
+                title="Bulan berikutnya"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+              {!isCurrentMonthNow && (
+                <button
+                  onClick={handleResetMonth}
+                  className="px-1.5 py-0.5 text-[10px] font-medium text-primary hover:underline"
+                  title="Kembali ke bulan saat ini"
+                >
+                  Bulan Ini
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Custom Date Pickers */}
+          {datePreset === "custom" && (
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="date"
+                value={customDateFrom}
+                onChange={(e) => setCustomDateFrom(e.target.value)}
+                className="h-8 text-xs w-32 px-2"
+                placeholder="Dari"
+              />
+              <span className="text-muted-foreground text-[11px]">-</span>
+              <Input
+                type="date"
+                value={customDateTo}
+                onChange={(e) => setCustomDateTo(e.target.value)}
+                className="h-8 text-xs w-32 px-2"
+                placeholder="Sampai"
+              />
+            </div>
+          )}
+
+          {/* Ledger / Buku Kas Selector */}
+          {ledgersData && ledgersData.length > 0 && (
+            <select
+              value={selectedLedgerId || ""}
+              onChange={(e) => setSelectedLedgerId(e.target.value || undefined)}
+              className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium shadow-sm focus:outline-none"
+            >
+              <option value="">Semua Buku Kas</option>
+              {ledgersData.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
                 </option>
               ))}
             </select>
+          )}
 
-            <Button variant="ghost" size="icon" onClick={() => refetch()} className="h-9 w-9 text-muted-foreground">
-              <RefreshCw className="h-4 w-4" />
+          {/* Account Selector */}
+          <select
+            value={selectedAccountId || ""}
+            onChange={(e) => setSelectedAccountId(e.target.value || undefined)}
+            className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium shadow-sm focus:outline-none"
+          >
+            <option value="">Semua Akun</option>
+            {accountsData?.accounts?.map((acc) => (
+              <option key={acc.id} value={acc.id}>
+                {acc.name.toUpperCase()}
+              </option>
+            ))}
+          </select>
+
+          {/* Category Selector */}
+          <select
+            value={selectedCategoryId || ""}
+            onChange={(e) => setSelectedCategoryId(e.target.value || undefined)}
+            className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium shadow-sm focus:outline-none"
+          >
+            <option value="">Semua Kategori</option>
+            <option value="uncategorized">Belum Berkategori</option>
+            {expenseCategories.length > 0 && (
+              <optgroup label="Pengeluaran">
+                {expenseCategories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {incomeCategories.length > 0 && (
+              <optgroup label="Pemasukan">
+                {incomeCategories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+
+          {/* Refresh & Reset Button */}
+          <div className="flex items-center gap-1 ml-auto">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => refetch()}
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              title="Perbarui data"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
             </Button>
+
+            {isAnyFilterActive && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleResetAllFilters}
+                className="h-8 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 gap-1.5 px-2.5"
+                title="Reset semua filter ke default"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reset Filter
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Row 3: Summary KPI / Ringkasan Arus Kas */}
+        <div className="pt-2.5 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="font-semibold text-[11px] bg-background">
+              {summary.count} Transaksi
+            </Badge>
+            <span className="text-muted-foreground text-[11px]">
+              Rentang: <span className="font-medium text-foreground">{periodLabel}</span>
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 font-medium text-[11px] sm:text-xs">
+            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+              <TrendingUp className="h-3.5 w-3.5 shrink-0" />
+              <span>Masuk:</span>
+              <span className="font-bold">{formatCurrency(summary.income)}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
+              <TrendingDown className="h-3.5 w-3.5 shrink-0" />
+              <span>Keluar:</span>
+              <span className="font-bold">{formatCurrency(summary.expense)}</span>
+            </div>
+            <div
+              className={`flex items-center gap-1.5 font-bold ${
+                summary.net >= 0
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-rose-600 dark:text-rose-400"
+              }`}
+            >
+              <span>Arus Kas:</span>
+              <span>
+                {summary.net > 0 ? "+" : ""}
+                {formatCurrency(summary.net)}
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Batch selection bar */}
         {selectedIds.length > 0 && (
-          <div className="mt-3 flex items-center justify-between rounded-lg bg-primary/10 px-3 py-2 border border-primary/20 text-xs">
+          <div className="mt-2 flex items-center justify-between rounded-lg bg-primary/10 px-3 py-2 border border-primary/20 text-xs">
             <span className="font-semibold text-primary">
               {selectedIds.length} transaksi terpilih
             </span>
@@ -346,8 +740,19 @@ export default function TransactionsPage() {
         })}
 
         {(!txData?.items || txData.items.length === 0) && (
-          <Card className="p-8 text-center text-xs text-muted-foreground rounded-2xl">
-            {isLoading ? "Memuat transaksi..." : "Tidak ada transaksi yang cocok dengan filter."}
+          <Card className="p-8 text-center text-xs text-muted-foreground rounded-2xl flex flex-col items-center justify-center gap-2.5">
+            <span>{isLoading ? "Memuat transaksi..." : "Tidak ada transaksi yang cocok dengan filter."}</span>
+            {!isLoading && isAnyFilterActive && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetAllFilters}
+                className="h-7 text-xs gap-1.5 text-rose-500 hover:text-rose-600"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reset Semua Filter
+              </Button>
+            )}
           </Card>
         )}
       </div>
@@ -455,7 +860,20 @@ export default function TransactionsPage() {
               {(!txData?.items || txData.items.length === 0) && (
                 <tr>
                   <td colSpan={7} className="p-12 text-center text-muted-foreground">
-                    {isLoading ? "Memuat transaksi..." : "Tidak ada transaksi yang cocok dengan filter."}
+                    <div className="flex flex-col items-center justify-center gap-2.5">
+                      <span>{isLoading ? "Memuat transaksi..." : "Tidak ada transaksi yang cocok dengan filter."}</span>
+                      {!isLoading && isAnyFilterActive && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleResetAllFilters}
+                          className="h-7 text-xs gap-1.5 text-rose-500 hover:text-rose-600"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Reset Semua Filter
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )}
