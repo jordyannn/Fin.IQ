@@ -14,11 +14,55 @@ import {
   Layers,
   X,
   Tag,
+  Utensils,
+  Coffee,
+  Cookie,
+  Car,
+  ShoppingBag,
+  ShoppingCart,
+  Zap,
+  PiggyBank,
+  Heart,
+  Activity,
+  GraduationCap,
+  Gamepad2,
+  TrendingUp,
+  CreditCard,
+  Banknote,
+  Briefcase,
+  Wallet,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+
+function renderCategoryIcon(iconName?: string | null) {
+  const norm = iconName?.toLowerCase().trim();
+  switch (norm) {
+    case "utensils": return <Utensils className="h-4 w-4" />;
+    case "coffee": return <Coffee className="h-4 w-4" />;
+    case "cookie": return <Cookie className="h-4 w-4" />;
+    case "car": return <Car className="h-4 w-4" />;
+    case "shoppingbag": case "shopping-bag": return <ShoppingBag className="h-4 w-4" />;
+    case "shoppingcart": case "shopping-cart": return <ShoppingCart className="h-4 w-4" />;
+    case "zap": return <Zap className="h-4 w-4" />;
+    case "piggybank": case "piggy-bank": return <PiggyBank className="h-4 w-4" />;
+    case "heart": return <Heart className="h-4 w-4" />;
+    case "sparkles": return <Sparkles className="h-4 w-4" />;
+    case "activity": return <Activity className="h-4 w-4" />;
+    case "graduationcap": case "graduation-cap": return <GraduationCap className="h-4 w-4" />;
+    case "gamepad2": case "gamepad": return <Gamepad2 className="h-4 w-4" />;
+    case "trendingup": case "trending-up": return <TrendingUp className="h-4 w-4" />;
+    case "creditcard": case "credit-card": return <CreditCard className="h-4 w-4" />;
+    case "banknote": return <Banknote className="h-4 w-4" />;
+    case "briefcase": return <Briefcase className="h-4 w-4" />;
+    case "wallet": return <Wallet className="h-4 w-4" />;
+    case "layers": return <Layers className="h-4 w-4" />;
+    default: return <Tag className="h-4 w-4" />;
+  }
+}
 
 export default function CategoriesPage() {
   const utils = trpc.useUtils();
@@ -102,7 +146,7 @@ export default function CategoriesPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Kategori Transaksi</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Kelola {categoriesList?.length || 0} kategori lengkap standar BeeCount-Cloud untuk pelaporan dan budgeting cerdas.
+            Kelola {categoriesList?.length || 0} kategori aktif Anda untuk pelaporan dan budgeting cerdas yang konsisten.
           </p>
         </div>
 
@@ -219,14 +263,16 @@ export default function CategoriesPage() {
                       : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                   }`}
                 >
-                  <Tag className="h-4 w-4" />
+                  {renderCategoryIcon(parent.icon)}
                 </div>
                 <div>
                   <CardTitle className="text-sm font-bold text-foreground">
                     {parent.name}
                   </CardTitle>
                   <span className="text-[10px] text-muted-foreground">
-                    {subcategories.length} subkategori
+                    {subcategories.length > 0
+                      ? `${subcategories.length} subkategori`
+                      : `Kategori ${kind === "expense" ? "Pengeluaran" : "Pemasukan"}`}
                   </span>
                 </div>
               </div>
@@ -246,7 +292,7 @@ export default function CategoriesPage() {
                   onClick={() => {
                     if (
                       confirm(
-                        `Hapus grup kategori '${parent.name}' beserta seluruh subkategorinya?`
+                        `Hapus kategori '${parent.name}'?`
                       )
                     ) {
                       deleteMutation.mutate({ id: parent.id });
@@ -284,9 +330,12 @@ export default function CategoriesPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-[11px] text-muted-foreground italic py-1">
-                  Belum ada subkategori khusus dalam grup ini.
-                </p>
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground py-0.5">
+                  <Badge variant="outline" className="text-[10px] font-normal px-2 py-0.5 border-dashed">
+                    Kategori Utama
+                  </Badge>
+                  <span className="text-[11px] text-muted-foreground/80">Aktif & terhubung dengan catatan transaksi</span>
+                </div>
               )}
             </CardContent>
           </Card>

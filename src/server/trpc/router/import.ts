@@ -52,6 +52,8 @@ function fuzzyMatchAccount(rawName: string | undefined, userAccounts: { id: stri
   return rawName.trim();
 }
 
+import { CANONICAL_CATEGORY_MAP } from "@/lib/nlp-parser";
+
 function fuzzyMatchCategory(
   rawName: string | undefined,
   userCategories: { id: string; name: string; kind?: string }[]
@@ -63,14 +65,24 @@ function fuzzyMatchCategory(
   const exact = userCategories.find((c) => c.name.toLowerCase().trim() === clean);
   if (exact) return exact.name;
 
-  // 2. Substring match
+  // 2. Canonical dictionary match (e.g. "makanan & minuman" / "restoran" -> "Dining", "transportasi" -> "Transport")
+  const canonicalName = CANONICAL_CATEGORY_MAP[clean];
+  if (canonicalName) {
+    const matchedCanonical = userCategories.find(
+      (c) => c.name.toLowerCase().trim() === canonicalName.toLowerCase()
+    );
+    if (matchedCanonical) return matchedCanonical.name;
+  }
+
+  // 3. Substring match
   const sub = userCategories.find((c) => {
     const cName = c.name.toLowerCase().trim();
     return cName.includes(clean) || clean.includes(cName);
   });
   if (sub) return sub.name;
 
-  return rawName.trim();
+  // 4. Fallback to existing user category
+  return userCategories[0]?.name || "Umum";
 }
 
 export const importRouter = router({
@@ -126,7 +138,7 @@ export const importRouter = router({
       const accountNamesStr = userAccounts.map((a) => a.name).join(", ") || "Kas Tunai, BCA, GoPay";
       const categoryNamesStr =
         userCategories.map((c) => c.name).join(", ") ||
-        "Makanan & Minuman, Belanja, Transportasi, Tagihan & Utilitas, Hiburan, Gaji, Transfer, Umum";
+        "Dining, Beverage, Snacks, Transport, Daily Goods, Shopping, Utilities, Saving, Family, Beauty, Health, Education, entertain, invest job, paylater, Salary, Part time, Allowance, Umum";
 
       for (let i = 0; i < input.images.length; i++) {
         const img = input.images[i];
@@ -165,7 +177,7 @@ ATURAN EKSTRAKSI PENTING:
    - Jika jam dan menit tertera di mutasi (misal 09:07 WIB), sertakan jam tersebut dalam format 24 jam. Jika jam tidak tertera, gunakan jam 12:00:00 ("YYYY-MM-DDT12:00:00").
    - Jika tahun tidak tertera di gambar, gunakan tahun ${currentYear}.
 4. categoryName:
-   - Kategori yang paling tepat dalam bahasa Indonesia. Cocokkan dengan salah satu daftar kategori pengguna di atas bila relevan.
+   - WAJIB pilih dan cocokkan HANYA dari salah satu daftar kategori pengguna berikut: [${categoryNamesStr}]. Jangan gunakan nama kategori di luar daftar tersebut.
 5. accountName:
    - Nama bank atau e-wallet asal transaksi (misal: "blu", "BCA", "Mandiri", "GoPay", "DANA", "ShopeePay"). Utamakan yang ada di daftar akun pengguna.
 6. toAccountName:
@@ -390,6 +402,17 @@ ATURAN EKSTRAKSI PENTING:
             .trim() || "Umum";
 
         let matchedCat = categoryMap.get(cleanCatName.toLowerCase());
+        if (!matchedCat) {
+          const resolvedName = fuzzyMatchCategory(cleanCatName, userCategories);
+          matchedCat = categoryMap.get(resolvedName.toLowerCase());
+        }
+        if (!matchedCat && userCategories.length > 0) {
+          // Fallback ke kategori user yang sesuai jenis transaksi
+          const fallbackCat = userCategories.find(
+            (c) => c.kind === (item.txType === "income" ? "income" : "expense")
+          ) || userCategories[0];
+          matchedCat = fallbackCat;
+        }
         if (!matchedCat) {
           const newCatId = crypto.randomUUID();
           const newCat = {

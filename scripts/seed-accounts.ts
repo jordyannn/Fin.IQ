@@ -20,14 +20,25 @@ const seedAccounts: SeedAccount[] = [
 ];
 
 const defaultCategories = [
-  { name: "Makanan & Minuman", kind: "expense", icon: "utensils" },
-  { name: "Transportasi", kind: "expense", icon: "car" },
-  { name: "Belanja", kind: "expense", icon: "shopping-bag" },
-  { name: "Tagihan & Utilitas", kind: "expense", icon: "receipt" },
-  { name: "Hiburan", kind: "expense", icon: "film" },
-  { name: "Gaji & Pendapatan", kind: "income", icon: "banknote" },
-  { name: "Bonus & Hadiah", kind: "income", icon: "gift" },
-  { name: "Investasi", kind: "income", icon: "trending-up" },
+  { name: "Dining", kind: "expense", icon: "Utensils" },
+  { name: "Beverage", kind: "expense", icon: "Coffee" },
+  { name: "Snacks", kind: "expense", icon: "Cookie" },
+  { name: "Transport", kind: "expense", icon: "Car" },
+  { name: "Daily Goods", kind: "expense", icon: "ShoppingBag" },
+  { name: "Shopping", kind: "expense", icon: "ShoppingCart" },
+  { name: "Utilities", kind: "expense", icon: "Zap" },
+  { name: "Saving", kind: "expense", icon: "PiggyBank" },
+  { name: "Family", kind: "expense", icon: "Heart" },
+  { name: "Beauty", kind: "expense", icon: "Sparkles" },
+  { name: "Health", kind: "expense", icon: "Activity" },
+  { name: "Education", kind: "expense", icon: "GraduationCap" },
+  { name: "entertain", kind: "expense", icon: "Gamepad2" },
+  { name: "invest job", kind: "expense", icon: "TrendingUp" },
+  { name: "paylater", kind: "expense", icon: "CreditCard" },
+  { name: "Salary", kind: "income", icon: "Banknote" },
+  { name: "Part time", kind: "income", icon: "Briefcase" },
+  { name: "Allowance", kind: "income", icon: "Wallet" },
+  { name: "Umum", kind: "income", icon: "Layers" },
 ];
 
 async function main() {

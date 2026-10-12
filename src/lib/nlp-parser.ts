@@ -354,6 +354,132 @@ const DETAILED_CATEGORY_KEYWORDS: Record<string, string[]> = {
 };
 
 /**
+ * Pemetaan semantik taksonomi / frasa Indonesia ke 19 kategori baku pengguna Fin.IQ
+ */
+export const CANONICAL_CATEGORY_MAP: Record<string, string> = {
+  // Expense
+  "makanan & minuman": "Dining",
+  "makan harian": "Dining",
+  "restoran": "Dining",
+  "makanan cepat saji": "Dining",
+  "pizza & western": "Dining",
+  "makanan": "Dining",
+  "kue & bakery": "Snacks",
+  "es krim & dessert": "Snacks",
+  "snack": "Snacks",
+  "snacks": "Snacks",
+  "cemilan": "Snacks",
+  "kopi & minuman": "Beverage",
+  "bar & minuman": "Beverage",
+  "kopi": "Beverage",
+  "minuman": "Beverage",
+  "beverage": "Beverage",
+  "transportasi": "Transport",
+  "transport": "Transport",
+  "bahan bakar & spbu": "Transport",
+  "bensin": "Transport",
+  "spbu": "Transport",
+  "mobil pribadi": "Transport",
+  "bus & angkot": "Transport",
+  "kereta & mrt / krl": "Transport",
+  "taksi & ojek online": "Transport",
+  "grab": "Transport",
+  "gojek": "Transport",
+  "tiket pesawat": "Transport",
+  "kereta api jarak jauh": "Transport",
+  "sepeda": "Transport",
+  "parkir & tol": "Transport",
+  "belanja & belanjaan": "Shopping",
+  "belanja": "Shopping",
+  "belanja online": "Shopping",
+  "mall & pusat belanja": "Shopping",
+  "pakaian & busana": "Shopping",
+  "aksesoris & jam tangan": "Shopping",
+  "perhiasan": "Shopping",
+  "shopping": "Shopping",
+  "supermarket & minimarket": "Daily Goods",
+  "toko kelontong": "Daily Goods",
+  "kebutuhan rumah": "Daily Goods",
+  "perabot & rumah tangga": "Daily Goods",
+  "kebersihan & alat cuci": "Daily Goods",
+  "perbaikan & tukang": "Daily Goods",
+  "laundry & cuci baju": "Daily Goods",
+  "daily goods": "Daily Goods",
+  "tagihan & utilitas": "Utilities",
+  "tagihan & finansial": "Utilities",
+  "tagihan listrik & air": "Utilities",
+  "listrik": "Utilities",
+  "air": "Utilities",
+  "internet & wifi": "Utilities",
+  "wifi": "Utilities",
+  "pulsa & paket data": "Utilities",
+  "pulsa": "Utilities",
+  "biaya administrasi bank": "Utilities",
+  "utilities": "Utilities",
+  "kebutuhan bayi & anak": "Family",
+  "hewan peliharaan": "Family",
+  "keluarga": "Family",
+  "family": "Family",
+  "kesehatan & medis": "Health",
+  "obat & apotek": "Health",
+  "klinik & dokter": "Health",
+  "rumah sakit & rawat": "Health",
+  "gym & fitness": "Health",
+  "konseling & mental": "Health",
+  "health": "Health",
+  "skincare & perawatan": "Beauty",
+  "salon & spa": "Beauty",
+  "potong rambut": "Beauty",
+  "beauty": "Beauty",
+  "hiburan & rekreasi": "entertain",
+  "hiburan": "entertain",
+  "film & bioskop": "entertain",
+  "musik & konser": "entertain",
+  "game & voucher": "entertain",
+  "liburan & wisata": "entertain",
+  "seni & hobi": "entertain",
+  "fotografi": "entertain",
+  "sepak bola & olahraga": "entertain",
+  "entertain": "entertain",
+  "pendidikan & karir": "Education",
+  "sekolah & kuliah": "Education",
+  "kursus bahasa & skill": "Education",
+  "buku & referensi": "Education",
+  "education": "Education",
+  "komputer & perangkat": "Daily Goods",
+  "alat kantor & riset": "Daily Goods",
+  "tabungan": "Saving",
+  "saving": "Saving",
+  "paylater": "paylater",
+  "cicilan": "paylater",
+  "investasi": "invest job",
+  "invest job": "invest job",
+  // Income
+  "gaji & pendapatan": "Salary",
+  "gaji pokok bulanan": "Salary",
+  "gaji & penghasilan kerja": "Salary",
+  "gaji": "Salary",
+  "uang lembur": "Salary",
+  "salary": "Salary",
+  "pekerjaan sampingan / freelance": "Part time",
+  "part time": "Part time",
+  "insentif & komisi": "Part time",
+  "freelance": "Part time",
+  "bonus kerja & thr": "Allowance",
+  "hadiah & rezeki": "Allowance",
+  "kado & hadiah acara": "Allowance",
+  "angpao & hadiah tunai": "Allowance",
+  "uang jajan": "Allowance",
+  "allowance": "Allowance",
+  "keuntungan saham & reksa dana": "invest job",
+  "dividen & bagi hasil": "invest job",
+  "bunga tabungan & deposito": "Saving",
+  "pemasukan lainnya": "Umum",
+  "pendapatan lain-lain": "Umum",
+  "umum": "Umum",
+};
+
+/**
  * Deteksi dan cocokkan kategori menggunakan seluruh objek yang dibicarakan
  * Menyesuaikan dengan seluruh database kategori yang tersedia (parent & subkategori)
  */
@@ -371,7 +497,7 @@ export function detectCategory(
 
   // Jika userCategories tidak tersedia
   if (!userCategories || userCategories.length === 0) {
-    return { categoryHint: txType === "income" ? "Hadiah & Rezeki" : "Makanan & Minuman" };
+    return { categoryHint: txType === "income" ? "Umum" : "Dining" };
   }
 
   // Filter kategori sesuai jenis transaksi (expense/income) dan bersihkan teks mandarin jika ada
@@ -447,6 +573,20 @@ export function detectCategory(
   if (bestDatasetEntry && maxDatasetScore > 0) {
     const targetSubLower = bestDatasetEntry.sub.toLowerCase();
     const targetParentLower = bestDatasetEntry.parent.toLowerCase();
+
+    // Prioritas 0: Cek pemetaan kanonikal ke kategori baku (e.g. "Restoran" -> "Dining", "Bahan Bakar" -> "Transport")
+    const canonicalNameFromSub = CANONICAL_CATEGORY_MAP[targetSubLower];
+    const canonicalNameFromParent = CANONICAL_CATEGORY_MAP[targetParentLower];
+    const canonicalTarget = canonicalNameFromSub || canonicalNameFromParent;
+
+    if (canonicalTarget) {
+      const matchedCanonical = targetCats.find(
+        (c) => c.cleanName.toLowerCase() === canonicalTarget.toLowerCase()
+      );
+      if (matchedCanonical) {
+        return { categoryHint: matchedCanonical.name, matchedCategoryId: matchedCanonical.id };
+      }
+    }
 
     // Prioritas 1: Cocok persis dengan Subkategori dataset
     const exactSubCat = targetCats.find(
@@ -528,16 +668,16 @@ export function detectCategory(
     return { categoryHint: bestDirectCat.name, matchedCategoryId: bestDirectCat.id };
   }
 
-  // 4. Default Fallback teraman
+  // 4. Default Fallback teraman (sesuai 19 kategori konsisten)
   const fallback =
     targetCats.find((c) =>
       txType === "income"
-        ? c.cleanName.toLowerCase().includes("hadiah") ||
-          c.cleanName.toLowerCase().includes("rezeki") ||
-          c.cleanName.toLowerCase().includes("gaji") ||
-          c.cleanName.toLowerCase().includes("lain")
-        : c.cleanName.toLowerCase().includes("makan") ||
-          c.cleanName.toLowerCase().includes("lain")
+        ? c.cleanName.toLowerCase() === "umum" ||
+          c.cleanName.toLowerCase() === "allowance" ||
+          c.cleanName.toLowerCase() === "salary"
+        : c.cleanName.toLowerCase() === "dining" ||
+          c.cleanName.toLowerCase() === "daily goods" ||
+          c.cleanName.toLowerCase() === "umum"
     ) || targetCats[0];
 
   return { categoryHint: fallback.name, matchedCategoryId: fallback.id };

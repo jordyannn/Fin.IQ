@@ -142,12 +142,25 @@ export const authRouter = router({
 
       // Seed starter categories
       const starterCategories = [
-        { name: "Makanan & Minuman", kind: "expense", icon: "Utensils" },
-        { name: "Transportasi", kind: "expense", icon: "Car" },
-        { name: "Belanja & Kebutuhan", kind: "expense", icon: "ShoppingBag" },
-        { name: "Tagihan & Utilitas", kind: "expense", icon: "Receipt" },
-        { name: "Gaji & Pendapatan", kind: "income", icon: "Briefcase" },
-        { name: "Bonus & Investasi", kind: "income", icon: "TrendingUp" },
+        { name: "Dining", kind: "expense" as const, icon: "Utensils" },
+        { name: "Beverage", kind: "expense" as const, icon: "Coffee" },
+        { name: "Snacks", kind: "expense" as const, icon: "Cookie" },
+        { name: "Transport", kind: "expense" as const, icon: "Car" },
+        { name: "Daily Goods", kind: "expense" as const, icon: "ShoppingBag" },
+        { name: "Shopping", kind: "expense" as const, icon: "ShoppingCart" },
+        { name: "Utilities", kind: "expense" as const, icon: "Zap" },
+        { name: "Saving", kind: "expense" as const, icon: "PiggyBank" },
+        { name: "Family", kind: "expense" as const, icon: "Heart" },
+        { name: "Beauty", kind: "expense" as const, icon: "Sparkles" },
+        { name: "Health", kind: "expense" as const, icon: "Activity" },
+        { name: "Education", kind: "expense" as const, icon: "GraduationCap" },
+        { name: "entertain", kind: "expense" as const, icon: "Gamepad2" },
+        { name: "invest job", kind: "expense" as const, icon: "TrendingUp" },
+        { name: "paylater", kind: "expense" as const, icon: "CreditCard" },
+        { name: "Salary", kind: "income" as const, icon: "Banknote" },
+        { name: "Part time", kind: "income" as const, icon: "Briefcase" },
+        { name: "Allowance", kind: "income" as const, icon: "Wallet" },
+        { name: "Umum", kind: "income" as const, icon: "Layers" },
       ];
 
       for (const cat of starterCategories) {

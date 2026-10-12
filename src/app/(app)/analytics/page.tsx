@@ -10,9 +10,53 @@ import {
   TrendingDown,
   Calendar,
   Layers,
+  Utensils,
+  Coffee,
+  Cookie,
+  Car,
+  ShoppingBag,
+  ShoppingCart,
+  Zap,
+  PiggyBank,
+  Heart,
+  Sparkles,
+  Activity,
+  GraduationCap,
+  Gamepad2,
+  CreditCard,
+  Banknote,
+  Briefcase,
+  Wallet,
+  Tag,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+
+function renderCategoryIcon(iconName?: string | null) {
+  const norm = iconName?.toLowerCase().trim();
+  switch (norm) {
+    case "utensils": return <Utensils className="h-3.5 w-3.5" />;
+    case "coffee": return <Coffee className="h-3.5 w-3.5" />;
+    case "cookie": return <Cookie className="h-3.5 w-3.5" />;
+    case "car": return <Car className="h-3.5 w-3.5" />;
+    case "shoppingbag": case "shopping-bag": return <ShoppingBag className="h-3.5 w-3.5" />;
+    case "shoppingcart": case "shopping-cart": return <ShoppingCart className="h-3.5 w-3.5" />;
+    case "zap": return <Zap className="h-3.5 w-3.5" />;
+    case "piggybank": case "piggy-bank": return <PiggyBank className="h-3.5 w-3.5" />;
+    case "heart": return <Heart className="h-3.5 w-3.5" />;
+    case "sparkles": return <Sparkles className="h-3.5 w-3.5" />;
+    case "activity": return <Activity className="h-3.5 w-3.5" />;
+    case "graduationcap": case "graduation-cap": return <GraduationCap className="h-3.5 w-3.5" />;
+    case "gamepad2": case "gamepad": return <Gamepad2 className="h-3.5 w-3.5" />;
+    case "trendingup": case "trending-up": return <TrendingUp className="h-3.5 w-3.5" />;
+    case "creditcard": case "credit-card": return <CreditCard className="h-3.5 w-3.5" />;
+    case "banknote": return <Banknote className="h-3.5 w-3.5" />;
+    case "briefcase": return <Briefcase className="h-3.5 w-3.5" />;
+    case "wallet": return <Wallet className="h-3.5 w-3.5" />;
+    case "layers": return <Layers className="h-3.5 w-3.5" />;
+    default: return <Tag className="h-3.5 w-3.5" />;
+  }
+}
 
 export default function AnalyticsPage() {
   const [kind, setKind] = useState<"expense" | "income">("expense");
@@ -111,7 +155,12 @@ export default function AnalyticsPage() {
               {categoryData?.map((cat) => (
                 <div key={cat.categoryId || cat.categoryName} className="flex flex-col gap-1 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-foreground">{cat.categoryName}</span>
+                    <span className="font-medium text-foreground flex items-center gap-1.5">
+                      <span className={`p-1 rounded-md ${kind === "expense" ? "bg-rose-500/10 text-rose-600 dark:text-rose-400" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>
+                        {renderCategoryIcon(cat.categoryIcon)}
+                      </span>
+                      {cat.categoryName}
+                    </span>
                     <span className="font-bold">{formatCurrency(cat.total)} ({cat.percent}%)</span>
                   </div>
 
