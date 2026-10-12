@@ -15,6 +15,7 @@
     "import:transactions": "tsx scripts/import-transactions.ts"
   },
   "dependencies": {
+    "@google/genai": "^2.28.0",
     "@hookform/resolvers": "^3.9.1",
     "@libsql/client": "^0.18.0",
     "@neondatabase/serverless": "^0.10.4",

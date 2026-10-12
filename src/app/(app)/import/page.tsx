@@ -23,6 +23,11 @@ import {
   Sparkles,
   X,
   ExternalLink,
+  Camera,
+  ImagePlus,
+  Trash2,
+  Plus,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -195,10 +200,92 @@ function normalizeTxType(raw: string): "expense" | "income" | "transfer" {
   return "expense";
 }
 
+interface ScreenshotTxItem {
+  id: string;
+  txType: "expense" | "income" | "transfer";
+  amount: number;
+  happenedAt: string;
+  categoryName: string;
+  accountName: string;
+  toAccountName?: string | null;
+  note: string;
+  sourceImageIndex?: number;
+}
+
+function toDatetimeLocalString(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch {
+    return "";
+  }
+}
+
+async function compressImageToBase64(
+  file: File,
+  maxWidth = 1600,
+  quality = 0.85
+): Promise<{ base64: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (readerEvent) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth || height > maxWidth) {
+          if (width > height) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxWidth) / height);
+            height = maxWidth;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          const rawBase64 = (readerEvent.target?.result as string) || "";
+          const clean = rawBase64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
+          resolve({ base64: clean, mimeType: file.type || "image/jpeg" });
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        const base64 = dataUrl.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
+        resolve({ base64, mimeType: "image/jpeg" });
+      };
+      img.onerror = () => reject(new Error("Gagal memuat file gambar untuk optimasi."));
+      img.src = readerEvent.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error("Gagal membaca file gambar."));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function ImportPage() {
   const router = useRouter();
   const utils = trpc.useUtils();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<"file" | "screenshot">("file");
+
+  // Screenshot states
+  const [screenshotFiles, setScreenshotFiles] = useState<File[]>([]);
+  const [screenshotPreviews, setScreenshotPreviews] = useState<string[]>([]);
+  const [screenshotTxs, setScreenshotTxs] = useState<ScreenshotTxItem[]>([]);
+  const [isParsingScreenshot, setIsParsingScreenshot] = useState(false);
+  const [screenshotParseProgress, setScreenshotParseProgress] = useState("");
+  const [screenshotError, setScreenshotError] = useState<string | null>(null);
+  const screenshotInputRef = useRef<HTMLInputElement>(null);
 
   // File states
   const [fileName, setFileName] = useState("");
@@ -232,7 +319,9 @@ export default function ImportPage() {
   const { data: accountsData } = trpc.accounts.list.useQuery();
   const { data: categoriesData } = trpc.categories.list.useQuery();
 
-  // Mutation
+  // Mutations
+  const parseScreenshotMutation = trpc.import.parseScreenshot.useMutation();
+
   const executeBatchMutation = trpc.import.executeBatch.useMutation({
     onSuccess: (data) => {
       utils.transactions.invalidate();
@@ -248,6 +337,220 @@ export default function ImportPage() {
       alert(`Gagal mengeksekusi impor: ${err.message}`);
     },
   });
+
+  // Screenshot handlers
+  const handleScreenshotSelect = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const newFiles = Array.from(files).filter((f) =>
+      /\.(png|jpe?g|webp|bmp|gif)$/i.test(f.name)
+    );
+    if (newFiles.length === 0) {
+      alert("Format file tidak didukung. Silakan pilih gambar PNG, JPG, JPEG, atau WEBP.");
+      return;
+    }
+
+    const combined = [...screenshotFiles, ...newFiles].slice(0, 10);
+    setScreenshotFiles(combined);
+
+    const previews: string[] = [];
+    combined.forEach((file) => {
+      previews.push(URL.createObjectURL(file));
+    });
+    setScreenshotPreviews(previews);
+    setScreenshotError(null);
+  };
+
+  const handleRemoveScreenshot = (index: number) => {
+    const updatedFiles = screenshotFiles.filter((_, i) => i !== index);
+    setScreenshotFiles(updatedFiles);
+    const updatedPreviews = screenshotPreviews.filter((_, i) => i !== index);
+    setScreenshotPreviews(updatedPreviews);
+  };
+
+  const handleProcessScreenshots = async () => {
+    if (screenshotFiles.length === 0) return;
+
+    setIsParsingScreenshot(true);
+    setScreenshotParseProgress(`Menyiapkan ${screenshotFiles.length} gambar...`);
+    setScreenshotError(null);
+
+    try {
+      const preparedImages: Array<{ base64: string; mimeType: string }> = [];
+      for (let i = 0; i < screenshotFiles.length; i++) {
+        setScreenshotParseProgress(
+          `Mengoptimalkan gambar ${i + 1} dari ${screenshotFiles.length}...`
+        );
+        const compressed = await compressImageToBase64(screenshotFiles[i]);
+        preparedImages.push(compressed);
+      }
+
+      setScreenshotParseProgress("Gemini AI Vision sedang menganalisis transaksi di gambar...");
+
+      const result = await parseScreenshotMutation.mutateAsync({
+        images: preparedImages,
+      });
+
+      if (!result.transactions || result.transactions.length === 0) {
+        setScreenshotError(
+          "Tidak ditemukan transaksi yang jelas di gambar tersebut. Pastikan teks mutasi rekening atau struk terlihat tajam dan terbaca."
+        );
+        setIsParsingScreenshot(false);
+        return;
+      }
+
+      const items: ScreenshotTxItem[] = result.transactions.map((tx, idx) => ({
+        id: `sc-tx-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
+        txType: tx.txType,
+        amount: tx.amount,
+        happenedAt: tx.happenedAt,
+        categoryName: tx.categoryName,
+        accountName: tx.accountName,
+        toAccountName: tx.toAccountName,
+        note: tx.note,
+        sourceImageIndex: tx.sourceImageIndex,
+      }));
+
+      setScreenshotTxs(items);
+    } catch (err: any) {
+      console.error("Error OCR Screenshot:", err);
+      setScreenshotError(err.message || "Gagal memproses screenshot.");
+    } finally {
+      setIsParsingScreenshot(false);
+      setScreenshotParseProgress("");
+    }
+  };
+
+  const handleDeleteScreenshotTx = (id: string) => {
+    setScreenshotTxs((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleUpdateScreenshotTx = (id: string, updates: Partial<ScreenshotTxItem>) => {
+    setScreenshotTxs((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...updates } : item))
+    );
+  };
+
+  const handleAddManualScreenshotTx = () => {
+    const defaultAcc = accountsData?.accounts?.[0]?.name || "Kas Tunai";
+    const defaultCat = categoriesData?.[0]?.name || "Umum";
+    const newTx: ScreenshotTxItem = {
+      id: `manual-tx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      txType: "expense",
+      amount: 10000,
+      happenedAt: new Date().toISOString(),
+      categoryName: defaultCat,
+      accountName: defaultAcc,
+      toAccountName: null,
+      note: "Catatan transaksi",
+    };
+    setScreenshotTxs((prev) => [newTx, ...prev]);
+  };
+
+  const handleResetScreenshot = () => {
+    setScreenshotFiles([]);
+    setScreenshotPreviews([]);
+    setScreenshotTxs([]);
+    setScreenshotError(null);
+  };
+
+  const handleExecuteScreenshotImport = async () => {
+    if (screenshotTxs.length === 0) return;
+
+    const validItems = screenshotTxs.filter((t) => t.amount > 0);
+    if (validItems.length === 0) {
+      alert("Semua transaksi memiliki nominal 0. Harap periksa nominal transaksi.");
+      return;
+    }
+
+    setIsProcessing(true);
+    setImportProgress({ done: 0, total: validItems.length });
+
+    const chunkSize = 100;
+    let totalCreated = 0;
+    let totalSkipped = 0;
+    const allAccountsCreated: string[] = [];
+    const allCategoriesCreated: string[] = [];
+
+    const payloadItems = validItems.map((item) => ({
+      txType: item.txType,
+      amount: item.amount,
+      happenedAt: item.happenedAt,
+      categoryName: item.categoryName || "Umum",
+      accountName: item.accountName || (defaultAccountId ? "cash" : item.accountName),
+      toAccountName: item.toAccountName || null,
+      note: item.note || undefined,
+      tags: ["ocr-screenshot"],
+    }));
+
+    try {
+      for (let i = 0; i < payloadItems.length; i += chunkSize) {
+        const slice = payloadItems.slice(i, i + chunkSize);
+        setImportProgress({
+          done: i,
+          total: payloadItems.length,
+        });
+
+        const res = await utils.client.import.executeBatch.mutate({
+          items: slice,
+          targetLedgerId: targetLedgerId || undefined,
+          defaultAccountId: defaultAccountId || undefined,
+          dedupStrategy,
+          autoTag: autoTag.trim() || undefined,
+        });
+
+        totalCreated += res.createdCount;
+        totalSkipped += res.skippedCount;
+        if (res.accountsCreated) allAccountsCreated.push(...res.accountsCreated);
+        if (res.categoriesCreated) allCategoriesCreated.push(...res.categoriesCreated);
+      }
+
+      utils.transactions.invalidate();
+      utils.accounts.invalidate();
+      utils.analytics.invalidate();
+      utils.categories.invalidate();
+
+      setImportResult({
+        createdCount: totalCreated,
+        skippedCount: totalSkipped,
+        accountsCreated: Array.from(new Set(allAccountsCreated)),
+        categoriesCreated: Array.from(new Set(allCategoriesCreated)),
+      });
+      setIsSuccessOpen(true);
+    } catch (err: any) {
+      alert(`Gagal mengeksekusi impor: ${err.message || String(err)}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const screenshotStats = useMemo(() => {
+    let expenseTotal = 0;
+    let incomeTotal = 0;
+    let expenseCount = 0;
+    let incomeCount = 0;
+    let transferCount = 0;
+
+    for (const tx of screenshotTxs) {
+      if (tx.txType === "expense") {
+        expenseCount++;
+        expenseTotal += tx.amount;
+      } else if (tx.txType === "income") {
+        incomeCount++;
+        incomeTotal += tx.amount;
+      } else {
+        transferCount++;
+      }
+    }
+
+    return {
+      totalCount: screenshotTxs.length,
+      expenseCount,
+      expenseTotal,
+      incomeCount,
+      incomeTotal,
+      transferCount,
+    };
+  }, [screenshotTxs]);
 
   // Client-side file processing
   const processFile = async (file: File) => {
@@ -608,23 +911,63 @@ export default function ImportPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Impor Transaksi</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Impor mutasi riwayat keuangan langsung dari file CSV atau Excel dengan pemetaan pintar.
+              {activeTab === "file"
+                ? "Impor mutasi riwayat keuangan langsung dari file CSV atau Excel dengan pemetaan pintar."
+                : "Ekstrak transaksi dari screenshot mutasi rekening, e-wallet, atau struk belanja fisik dengan AI Vision."}
             </p>
           </div>
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleDownloadTemplate}
-          className="text-xs gap-1.5 self-start sm:self-auto"
-        >
-          <Download className="h-3.5 w-3.5" />
-          Download Template CSV
-        </Button>
+        {activeTab === "file" && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownloadTemplate}
+            className="text-xs gap-1.5 self-start sm:self-auto"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download Template CSV
+          </Button>
+        )}
       </div>
 
-      {/* Step 1: Upload / Drop Zone (jika belum ada file) */}
+      {/* Mode Selector Tabs */}
+      <div className="flex gap-1.5 p-1.5 bg-muted/50 rounded-2xl w-fit border border-border/40">
+        <button
+          type="button"
+          onClick={() => setActiveTab("file")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === "file"
+              ? "bg-card shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+          File CSV / Excel
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("screenshot")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === "screenshot"
+              ? "bg-card shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Camera className="h-4 w-4 text-emerald-500" />
+          Screenshot / Gambar
+          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+            AI Vision
+          </span>
+        </button>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* TAB 1: CSV / Excel Import Flow */}
+      {/* ========================================================================= */}
+      {activeTab === "file" && (
+        <>
+          {/* Step 1: Upload / Drop Zone (jika belum ada file) */}
       {!fileName && (
         <Card className="border-dashed border-2 bg-card/60 transition-all hover:bg-card">
           <CardContent
@@ -1048,6 +1391,595 @@ export default function ImportPage() {
               </div>
             </div>
           </Card>
+        </div>
+      )}
+        </>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 2: Screenshot / OCR Vision Import Flow */}
+      {/* ========================================================================= */}
+      {activeTab === "screenshot" && (
+        <div className="space-y-6 animate-in fade-in">
+          {/* Hidden image input */}
+          <input
+            ref={screenshotInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/jpg,image/webp"
+            multiple
+            onChange={(e) => handleScreenshotSelect(e.target.files)}
+            className="hidden"
+          />
+
+          {/* When no transactions parsed yet */}
+          {screenshotTxs.length === 0 && (
+            <>
+              {/* Image Drop Zone when 0 files selected */}
+              {screenshotFiles.length === 0 && (
+                <Card className="border-dashed border-2 bg-card/60 transition-all hover:bg-card">
+                  <CardContent
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleScreenshotSelect(e.dataTransfer.files);
+                    }}
+                    className="flex flex-col items-center justify-center p-12 text-center cursor-pointer"
+                    onClick={() => screenshotInputRef.current?.click()}
+                  >
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 mb-4 shadow-sm">
+                      <ImagePlus className="h-8 w-8" />
+                    </div>
+                    <h3 className="text-base font-bold text-foreground">
+                      Pilih atau seret screenshot mutasi / struk ke sini
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-lg">
+                      Mendukung screenshot riwayat bank (blu, BCA, Mandiri, BRI, BNI), e-wallet (GoPay, OVO, DANA, ShopeePay), bukti transfer, atau foto struk kasir belanja fisik. AI Vision akan otomatis membaca nominal, tanggal, dan keterangannya.
+                    </p>
+
+                    <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
+                        <Camera className="h-3 w-3 text-emerald-500" /> Screenshot Bank (blu, BCA, Mandiri)
+                      </span>
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
+                        <Receipt className="h-3 w-3 text-emerald-500" /> Struk Belanja & Kasir Fisik
+                      </span>
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
+                        <Sparkles className="h-3 w-3 text-emerald-500" /> E-Wallet & QRIS
+                      </span>
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted text-muted-foreground">
+                        Maksimal 10 gambar sekaligus
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Uploaded images gallery & CTA */}
+              {screenshotFiles.length > 0 && (
+                <div className="space-y-4">
+                  <Card className="p-4 bg-card shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                      <div>
+                        <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                          <Camera className="h-4 w-4 text-emerald-500" />
+                          Screenshot Terpilih ({screenshotFiles.length} Gambar)
+                        </h3>
+                        <p className="text-[11px] text-muted-foreground">
+                          Pastikan gambar riwayat transaksi atau struk terlihat jelas dan angka nominal terbaca.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {screenshotFiles.length < 10 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => screenshotInputRef.current?.click()}
+                            disabled={isParsingScreenshot}
+                            className="text-xs gap-1.5"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Tambah Gambar
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleResetScreenshot}
+                          disabled={isParsingScreenshot}
+                          className="text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                        >
+                          Hapus Semua
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Image thumbnails grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                      {screenshotPreviews.map((url, idx) => (
+                        <div
+                          key={idx}
+                          className="group relative rounded-xl border bg-muted/20 overflow-hidden flex flex-col shadow-xs"
+                        >
+                          <div className="aspect-[3/4] w-full overflow-hidden bg-black/5 dark:bg-white/5 relative">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={url}
+                              alt={`Screenshot ${idx + 1}`}
+                              className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                            />
+                            {!isParsingScreenshot && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveScreenshot(idx)}
+                                className="absolute top-1.5 right-1.5 h-6 w-6 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-rose-600 transition-colors shadow-sm cursor-pointer"
+                                title="Hapus gambar ini"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                          <div className="p-2 text-[10px]">
+                            <div className="font-medium truncate text-foreground">
+                              {screenshotFiles[idx]?.name || `Gambar ${idx + 1}`}
+                            </div>
+                            <div className="text-muted-foreground text-[9px]">
+                              {((screenshotFiles[idx]?.size || 0) / 1024).toFixed(0)} KB
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+
+                  {/* Processing Status Banner */}
+                  {isParsingScreenshot && (
+                    <Card className="p-8 bg-emerald-500/5 border border-emerald-500/20 text-center space-y-3">
+                      <Loader2 className="h-9 w-9 animate-spin text-emerald-600 mx-auto" />
+                      <h4 className="text-sm font-bold text-foreground">
+                        {screenshotParseProgress || "Gemini AI Vision sedang menganalisis gambar..."}
+                      </h4>
+                      <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                        Membaca mutasi tanggal, nominal, jenis debit/kredit, nama bank/merchant, dan mencocokkan akun Anda secara otomatis.
+                      </p>
+                    </Card>
+                  )}
+
+                  {/* Error Banner */}
+                  {screenshotError && !isParsingScreenshot && (
+                    <div className="p-4 bg-rose-500/10 border border-rose-200 dark:border-rose-900 rounded-xl flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-rose-500 shrink-0 mt-0.5" />
+                      <div className="text-xs flex-1">
+                        <p className="font-semibold text-rose-600">Gagal Membaca Screenshot</p>
+                        <p className="text-muted-foreground mt-0.5">{screenshotError}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action CTA Button */}
+                  {!isParsingScreenshot && (
+                    <div className="flex items-center justify-end gap-3 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={handleResetScreenshot}
+                        className="text-xs"
+                      >
+                        Batal
+                      </Button>
+                      <Button
+                        onClick={handleProcessScreenshots}
+                        className="bg-primary hover:bg-primary/90 text-white font-semibold text-xs shadow-md gap-2"
+                      >
+                        <Sparkles className="h-4 w-4 text-emerald-200" />
+                        Baca Transaksi dengan AI Vision ({screenshotFiles.length} Gambar)
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* When transactions HAVE been parsed from Screenshot */}
+          {screenshotTxs.length > 0 && (
+            <div className="space-y-6">
+              {/* Top Bar with Reset Option */}
+              <Card className="p-4 bg-card shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
+                      <Sparkles className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-foreground">
+                          {screenshotTxs.length} Transaksi Terdeteksi oleh AI
+                        </span>
+                        <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                          {screenshotFiles.length} Gambar
+                        </Badge>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground">
+                        Data telah diekstrak. Anda dapat memeriksa, mengedit nominal, kategori, atau menghapus baris sebelum disimpan.
+                      </span>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleResetScreenshot}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Upload Gambar Lain
+                  </Button>
+                </div>
+              </Card>
+
+              {/* KPI Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <Card className="p-4 bg-card shadow-sm">
+                  <span className="text-[11px] text-muted-foreground font-medium">
+                    Total Transaksi
+                  </span>
+                  <div className="text-xl font-bold mt-1 text-foreground">
+                    {screenshotStats.totalCount}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                    Siap diimpor ke buku kas
+                  </span>
+                </Card>
+
+                <Card className="p-4 bg-card shadow-sm">
+                  <span className="text-[11px] text-rose-600 font-medium">Pengeluaran</span>
+                  <div className="text-xl font-bold mt-1 text-rose-600">
+                    -{formatCurrency(screenshotStats.expenseTotal)}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                    {screenshotStats.expenseCount} transaksi
+                  </span>
+                </Card>
+
+                <Card className="p-4 bg-card shadow-sm">
+                  <span className="text-[11px] text-emerald-600 font-medium">Pemasukan</span>
+                  <div className="text-xl font-bold mt-1 text-emerald-600">
+                    +{formatCurrency(screenshotStats.incomeTotal)}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                    {screenshotStats.incomeCount} transaksi
+                  </span>
+                </Card>
+
+                <Card className="p-4 bg-card shadow-sm">
+                  <span className="text-[11px] text-sky-600 font-medium">Transfer</span>
+                  <div className="text-xl font-bold mt-1 text-sky-600">
+                    {screenshotStats.transferCount}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                    Perpindahan saldo
+                  </span>
+                </Card>
+              </div>
+
+              {/* Editable Table */}
+              <Card className="overflow-hidden shadow-sm">
+                <CardHeader className="py-3 px-5 border-b bg-muted/20 flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xs uppercase font-bold tracking-wider text-muted-foreground">
+                      Pratinjau & Edit Transaksi Hasil Pembacaan AI
+                    </CardTitle>
+                    <span className="text-[11px] text-muted-foreground">
+                      Klik pada kolom untuk mengoreksi nominal, kategori, akun, atau keterangan secara langsung.
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddManualScreenshotTx}
+                    className="text-xs gap-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Tambah Baris Manual
+                  </Button>
+                </CardHeader>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-muted/40 text-[10px] uppercase text-muted-foreground font-semibold">
+                      <tr>
+                        <th className="px-3 py-2.5 w-10 text-center">#</th>
+                        <th className="px-3 py-2.5 w-44">Waktu</th>
+                        <th className="px-3 py-2.5 w-32">Jenis</th>
+                        <th className="px-3 py-2.5 w-36 text-right">Nominal (Rp)</th>
+                        <th className="px-3 py-2.5 w-40">Kategori</th>
+                        <th className="px-3 py-2.5 w-44">Akun</th>
+                        <th className="px-3 py-2.5">Keterangan / Merchant</th>
+                        <th className="px-3 py-2.5 w-12 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {screenshotTxs.map((tx, idx) => (
+                        <tr key={tx.id} className="hover:bg-muted/10 transition-colors">
+                          <td className="px-3 py-2 text-center text-muted-foreground font-mono text-[11px]">
+                            {idx + 1}
+                          </td>
+
+                          {/* Waktu */}
+                          <td className="px-3 py-2">
+                            <Input
+                              type="datetime-local"
+                              value={toDatetimeLocalString(tx.happenedAt)}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val) {
+                                  handleUpdateScreenshotTx(tx.id, {
+                                    happenedAt: new Date(val).toISOString(),
+                                  });
+                                }
+                              }}
+                              className="h-8 text-xs font-mono w-44 bg-background"
+                            />
+                          </td>
+
+                          {/* Jenis Transaksi */}
+                          <td className="px-3 py-2">
+                            <select
+                              value={tx.txType}
+                              onChange={(e) =>
+                                handleUpdateScreenshotTx(tx.id, {
+                                  txType: e.target.value as any,
+                                })
+                              }
+                              className={`h-8 rounded-md border border-input px-2 text-xs font-semibold focus:outline-none w-32 ${
+                                tx.txType === "expense"
+                                  ? "bg-rose-500/10 text-rose-600 border-rose-200"
+                                  : tx.txType === "income"
+                                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-200"
+                                  : "bg-sky-500/10 text-sky-600 border-sky-200"
+                              }`}
+                            >
+                              <option value="expense">Pengeluaran</option>
+                              <option value="income">Pemasukan</option>
+                              <option value="transfer">Transfer</option>
+                            </select>
+                          </td>
+
+                          {/* Nominal */}
+                          <td className="px-3 py-2 text-right">
+                            <Input
+                              type="number"
+                              min="0"
+                              step="1000"
+                              value={tx.amount || ""}
+                              onChange={(e) =>
+                                handleUpdateScreenshotTx(tx.id, {
+                                  amount: Math.max(0, Number(e.target.value)),
+                                })
+                              }
+                              className={`h-8 text-xs font-bold w-32 text-right bg-background ml-auto ${
+                                tx.txType === "expense"
+                                  ? "text-rose-600"
+                                  : tx.txType === "income"
+                                  ? "text-emerald-600"
+                                  : "text-sky-600"
+                              }`}
+                            />
+                          </td>
+
+                          {/* Kategori */}
+                          <td className="px-3 py-2">
+                            <Input
+                              type="text"
+                              list="ocr-category-datalist"
+                              value={tx.categoryName}
+                              onChange={(e) =>
+                                handleUpdateScreenshotTx(tx.id, {
+                                  categoryName: e.target.value,
+                                })
+                              }
+                              className="h-8 text-xs w-40 bg-background"
+                              placeholder="Pilih/ketik kategori"
+                            />
+                          </td>
+
+                          {/* Akun */}
+                          <td className="px-3 py-2">
+                            <div className="space-y-1">
+                              <select
+                                value={tx.accountName}
+                                onChange={(e) =>
+                                  handleUpdateScreenshotTx(tx.id, {
+                                    accountName: e.target.value,
+                                  })
+                                }
+                                className="h-8 rounded-md border border-input bg-background px-2 text-xs w-44 focus:outline-none"
+                              >
+                                {accountsData?.accounts?.map((acc) => (
+                                  <option key={acc.id} value={acc.name}>
+                                    {acc.name} ({acc.group})
+                                  </option>
+                                ))}
+                                {!accountsData?.accounts?.some(
+                                  (a) => a.name.toLowerCase() === tx.accountName.toLowerCase()
+                                ) && (
+                                  <option value={tx.accountName}>
+                                    + {tx.accountName} (buat baru)
+                                  </option>
+                                )}
+                              </select>
+
+                              {/* To Account if transfer */}
+                              {tx.txType === "transfer" && (
+                                <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                  <span>Ke:</span>
+                                  <select
+                                    value={tx.toAccountName || ""}
+                                    onChange={(e) =>
+                                      handleUpdateScreenshotTx(tx.id, {
+                                        toAccountName: e.target.value || null,
+                                      })
+                                    }
+                                    className="h-7 rounded-md border border-input bg-background px-2 text-[11px] w-36 focus:outline-none"
+                                  >
+                                    <option value="">-- Pilih Tujuan --</option>
+                                    {accountsData?.accounts?.map((acc) => (
+                                      <option key={acc.id} value={acc.name}>
+                                        {acc.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Keterangan */}
+                          <td className="px-3 py-2">
+                            <Input
+                              type="text"
+                              value={tx.note}
+                              onChange={(e) =>
+                                handleUpdateScreenshotTx(tx.id, {
+                                  note: e.target.value,
+                                })
+                              }
+                              className="h-8 text-xs bg-background min-w-[180px]"
+                              placeholder="Nama merchant atau deskripsi"
+                            />
+                          </td>
+
+                          {/* Aksi Hapus */}
+                          <td className="px-3 py-2 text-center">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteScreenshotTx(tx.id)}
+                              className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                              title="Hapus baris ini"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Datalist for categories */}
+                <datalist id="ocr-category-datalist">
+                  {categoriesData?.map((c) => (
+                    <option key={c.id} value={c.name} />
+                  ))}
+                  <option value="Makanan & Minuman" />
+                  <option value="Belanja" />
+                  <option value="Transportasi" />
+                  <option value="Tagihan & Utilitas" />
+                  <option value="Hiburan" />
+                  <option value="Kesehatan" />
+                  <option value="Gaji & Pendapatan" />
+                  <option value="Transfer Saldo" />
+                  <option value="Umum" />
+                </datalist>
+              </Card>
+
+              {/* Execution Settings Card */}
+              <Card className="p-6 bg-card border shadow-sm">
+                <h3 className="text-sm font-bold text-foreground mb-4">
+                  Pengaturan Impor & Eksekusi
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <label className="font-semibold text-foreground">Buku Kas Tujuan</label>
+                    <select
+                      value={targetLedgerId}
+                      onChange={(e) => setTargetLedgerId(e.target.value)}
+                      className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                    >
+                      <option value="">Buku Kas Utama (Default)</option>
+                      {(Array.isArray(ledgersData) ? ledgersData : (ledgersData as any)?.ledgers)?.map(
+                        (l: any) => (
+                          <option key={l.id} value={l.id}>
+                            {l.name}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-foreground">
+                      Akun Cadangan (Fallback)
+                    </label>
+                    <select
+                      value={defaultAccountId}
+                      onChange={(e) => setDefaultAccountId(e.target.value)}
+                      className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                    >
+                      <option value="">Otomatis dari data transaksi</option>
+                      {accountsData?.accounts?.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name} ({a.group})
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                      Digunakan jika transaksi tidak mencantumkan nama akun.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-foreground">Strategi Duplikasi</label>
+                    <select
+                      value={dedupStrategy}
+                      onChange={(e) => setDedupStrategy(e.target.value as any)}
+                      className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                    >
+                      <option value="skip_duplicates">Lewati Transaksi Duplikat (Dianjurkan)</option>
+                      <option value="insert_all">Impor Semua (Tanpa Cek Duplikat)</option>
+                    </select>
+                    <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                      Mencegah pencatatan ganda jika screenshot diproses ulang.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="w-full sm:w-72">
+                    <Input
+                      type="text"
+                      placeholder="Tambahkan tag otomatis (contoh: impor-ocr)"
+                      value={autoTag}
+                      onChange={(e) => setAutoTag(e.target.value)}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <Button
+                      variant="outline"
+                      onClick={handleResetScreenshot}
+                      className="w-1/2 sm:w-auto text-xs"
+                    >
+                      Batal
+                    </Button>
+                    <Button
+                      onClick={handleExecuteScreenshotImport}
+                      disabled={isProcessing || screenshotTxs.length === 0}
+                      className="w-1/2 sm:w-auto bg-primary hover:bg-primary/90 text-white font-semibold text-xs shadow-md gap-2"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      {isProcessing
+                        ? importProgress
+                          ? `Mengimpor ${importProgress.done} / ${importProgress.total}...`
+                          : "Sedang Memproses..."
+                        : `Mulai Impor ${screenshotTxs.length} Transaksi`}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
         </div>
       )}
 

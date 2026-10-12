@@ -1,9 +1,275 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
 import { accounts, categories, transactions, ledgers } from "../../db/schema";
 import { eq, sql } from "drizzle-orm";
+import { GoogleGenAI } from "@google/genai";
+
+function fuzzyMatchAccount(rawName: string | undefined, userAccounts: { id: string; name: string }[]): string {
+  if (!rawName || !rawName.trim()) {
+    return userAccounts[0]?.name || "Kas Tunai";
+  }
+  const clean = rawName.toLowerCase().trim();
+
+  // 1. Exact match
+  const exact = userAccounts.find((a) => a.name.toLowerCase().trim() === clean);
+  if (exact) return exact.name;
+
+  // 2. Substring match
+  const sub = userAccounts.find((a) => {
+    const aName = a.name.toLowerCase().trim();
+    return aName.includes(clean) || clean.includes(aName);
+  });
+  if (sub) return sub.name;
+
+  // 3. Known aliases in Indonesia
+  const aliases: Record<string, string[]> = {
+    blu: ["bca digital", "blubybcadigital", "blu bca"],
+    bca: ["bank central asia", "klikbca", "m-bca", "mbca"],
+    mandiri: ["livin", "livin' by mandiri", "bank mandiri"],
+    bri: ["brimo", "bank rakyat indonesia"],
+    bni: ["wondr", "bni mobile", "bank negara indonesia"],
+    gopay: ["go-pay", "gojek"],
+    ovo: ["ovo cash"],
+    dana: ["dompet dana"],
+    shopeepay: ["shopee pay", "spay", "shopee"],
+    cash: ["tunai", "kas tunai", "dompet"],
+    jago: ["bank jago", "kantong jago"],
+    seabank: ["sea bank", "sea"],
+  };
+
+  for (const [key, aliasList] of Object.entries(aliases)) {
+    if (clean.includes(key) || aliasList.some((al) => clean.includes(al))) {
+      const match = userAccounts.find((a) => {
+        const aName = a.name.toLowerCase();
+        return aName.includes(key) || aliasList.some((al) => aName.includes(al));
+      });
+      if (match) return match.name;
+    }
+  }
+
+  // Fallback to rawName as is
+  return rawName.trim();
+}
+
+function fuzzyMatchCategory(
+  rawName: string | undefined,
+  userCategories: { id: string; name: string; kind?: string }[]
+): string {
+  if (!rawName || !rawName.trim()) return "Umum";
+  const clean = rawName.toLowerCase().trim();
+
+  // 1. Exact match
+  const exact = userCategories.find((c) => c.name.toLowerCase().trim() === clean);
+  if (exact) return exact.name;
+
+  // 2. Substring match
+  const sub = userCategories.find((c) => {
+    const cName = c.name.toLowerCase().trim();
+    return cName.includes(clean) || clean.includes(cName);
+  });
+  if (sub) return sub.name;
+
+  return rawName.trim();
+}
 
 export const importRouter = router({
+  parseScreenshot: protectedProcedure
+    .input(
+      z.object({
+        images: z
+          .array(
+            z.object({
+              base64: z.string(),
+              mimeType: z.string().default("image/jpeg"),
+            })
+          )
+          .min(1)
+          .max(10),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "GEMINI_API_KEY belum dikonfigurasi di server (.env.local). Silakan dapatkan API key gratis di Google AI Studio (https://aistudio.google.com/apikey).",
+        });
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
+
+      // Ambil daftar akun & kategori user untuk kontekstualisasi prompt AI
+      const userAccounts = await ctx.db
+        .select({ id: accounts.id, name: accounts.name, group: accounts.group })
+        .from(accounts)
+        .where(eq(accounts.userId, ctx.userId));
+
+      const userCategories = await ctx.db
+        .select({ id: categories.id, name: categories.name, kind: categories.kind })
+        .from(categories)
+        .where(eq(categories.userId, ctx.userId));
+
+      const allExtracted: Array<{
+        txType: "expense" | "income" | "transfer";
+        amount: number;
+        happenedAt: string;
+        categoryName: string;
+        accountName: string;
+        toAccountName?: string | null;
+        note: string;
+        sourceImageIndex: number;
+      }> = [];
+
+      const currentYear = new Date().getFullYear();
+      const accountNamesStr = userAccounts.map((a) => a.name).join(", ") || "Kas Tunai, BCA, GoPay";
+      const categoryNamesStr =
+        userCategories.map((c) => c.name).join(", ") ||
+        "Makanan & Minuman, Belanja, Transportasi, Tagihan & Utilitas, Hiburan, Gaji, Transfer, Umum";
+
+      for (let i = 0; i < input.images.length; i++) {
+        const img = input.images[i];
+        const cleanBase64 = img.base64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
+
+        const prompt = `Kamu adalah sistem OCR dan analisis transaksi keuangan profesional untuk aplikasi Fin.IQ di Indonesia.
+Tugasmu adalah menganalisis gambar mutasi rekening, riwayat transaksi bank/e-wallet (seperti BCA, Mandiri, BRI, blu BCA, BNI, GoPay, OVO, DANA, ShopeePay, Jenius, Seabank, Jago), bukti transfer, atau foto struk belanja kasir fisik, lalu mengekstrak SEMUA data transaksi yang tertera di gambar menjadi format JSON array.
+
+Daftar akun pengguna di aplikasi: ${accountNamesStr}.
+Daftar kategori pengguna di aplikasi: ${categoryNamesStr}.
+
+FORMAT OUTPUT:
+Kembalikan HANYA JSON array dengan objek transaksi:
+[
+  {
+    "txType": "expense" | "income" | "transfer",
+    "amount": number,
+    "happenedAt": "YYYY-MM-DDTHH:mm:ss",
+    "categoryName": string,
+    "accountName": string,
+    "toAccountName": string | null,
+    "note": string
+  }
+]
+
+ATURAN EKSTRAKSI PENTING:
+1. txType:
+   - "expense": uang keluar, debit, tanda minus (-), pembayaran QRIS, belanja merchant, potongan biaya admin, transfer keluar.
+   - "income": uang masuk, kredit, tanda plus (+), gaji, cashback, refund, transfer masuk yang diterima.
+   - "transfer": perpindahan dana antar rekening atau top up e-wallet.
+2. amount:
+   - Angka nominal murni positif dalam Rupiah (integer / number), BUKAN string. Contoh: 50000, 125000.
+   - PERHATIKAN FORMAT INDONESIA: Tanda titik (.) adalah pemisah ribuan (Rp 50.000 = 50000, Rp 1.500.000 = 1500000). Jangan membaca titik sebagai desimal!
+3. happenedAt:
+   - Format tanggal ISO 8601 string: "YYYY-MM-DDTHH:mm:ss".
+   - Jika jam dan menit tertera di mutasi (misal 09:07 WIB), sertakan jam tersebut dalam format 24 jam. Jika jam tidak tertera, gunakan jam 12:00:00 ("YYYY-MM-DDT12:00:00").
+   - Jika tahun tidak tertera di gambar, gunakan tahun ${currentYear}.
+4. categoryName:
+   - Kategori yang paling tepat dalam bahasa Indonesia. Cocokkan dengan salah satu daftar kategori pengguna di atas bila relevan.
+5. accountName:
+   - Nama bank atau e-wallet asal transaksi (misal: "blu", "BCA", "Mandiri", "GoPay", "DANA", "ShopeePay"). Utamakan yang ada di daftar akun pengguna.
+6. toAccountName:
+   - Jika transaksi transfer/top up, isi nama bank/e-wallet/penerima tujuan. Jika bukan transfer, isi null.
+7. note:
+   - Keterangan ringkas transaksi, nama merchant, atau nama penerima/pengirim (misal: "Kopi Kenangan", "Transfer ke Budi", "Indomaret", "PLN Pascabayar", "Gaji Bulanan").
+8. Jika gambar adalah struk belanja fisik (misal Alfamart, Indomaret, restoran):
+   - Ambil Total Belanja akhir sebagai 1 transaksi expense.
+   - Isi note dengan nama toko/merchant.
+9. Jika TIDAK ADA transaksi yang ditemukan di gambar, kembalikan array kosong [].`;
+
+        try {
+          const response = await ai.models.generateContent({
+            model: "gemini-2.0-flash",
+            contents: [
+              {
+                inlineData: {
+                  data: cleanBase64,
+                  mimeType: img.mimeType || "image/jpeg",
+                },
+              },
+              {
+                text: prompt,
+              },
+            ],
+            config: {
+              responseMimeType: "application/json",
+            },
+          });
+
+          const rawText = response.text || "[]";
+          const jsonStr = rawText
+            .replace(/^```json\s*/i, "")
+            .replace(/^```\s*/i, "")
+            .replace(/\s*```$/i, "")
+            .trim();
+
+          let parsedItems: any[] = [];
+          try {
+            const parsed = JSON.parse(jsonStr);
+            parsedItems = Array.isArray(parsed) ? parsed : [parsed];
+          } catch (jsonErr) {
+            console.error("Gagal parse output JSON Gemini:", rawText, jsonErr);
+            continue;
+          }
+
+          for (const item of parsedItems) {
+            const rawAmount = Number(item.amount);
+            if (isNaN(rawAmount) || rawAmount <= 0) continue;
+
+            const txType: "expense" | "income" | "transfer" =
+              item.txType === "income" || item.txType === "transfer" ? item.txType : "expense";
+
+            let happenedAtStr = item.happenedAt;
+            if (!happenedAtStr || isNaN(new Date(happenedAtStr).getTime())) {
+              happenedAtStr = new Date().toISOString();
+            }
+
+            const matchedAccName = fuzzyMatchAccount(item.accountName, userAccounts);
+            const matchedToAccName =
+              txType === "transfer" && item.toAccountName
+                ? fuzzyMatchAccount(item.toAccountName, userAccounts)
+                : item.toAccountName || null;
+            const matchedCatName = fuzzyMatchCategory(item.categoryName, userCategories);
+
+            allExtracted.push({
+              txType,
+              amount: Math.round(rawAmount),
+              happenedAt: happenedAtStr,
+              categoryName: matchedCatName,
+              accountName: matchedAccName,
+              toAccountName: matchedToAccName,
+              note: (item.note || "").trim() || "Transaksi Screenshot",
+              sourceImageIndex: i,
+            });
+          }
+        } catch (genErr: any) {
+          console.error(`Error memproses gambar ${i + 1} dengan Gemini:`, genErr);
+          const errMsg = genErr?.message || String(genErr);
+          if (errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED")) {
+            throw new TRPCError({
+              code: "TOO_MANY_REQUESTS",
+              message: "Batas permintaan Gemini AI tercapai (Rate Limit). Silakan tunggu 1 menit lalu coba lagi.",
+            });
+          }
+          if (errMsg.includes("API_KEY_INVALID") || errMsg.includes("INVALID_ARGUMENT") || errMsg.includes("API key not valid")) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "API Key Gemini tidak valid. Silakan periksa kembali GEMINI_API_KEY di .env.local.",
+            });
+          }
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Gagal membaca screenshot: ${errMsg}`,
+          });
+        }
+      }
+
+      return {
+        transactions: allExtracted,
+        imageCount: input.images.length,
+      };
+    }),
+
   executeBatch: protectedProcedure
     .input(
       z.object({
