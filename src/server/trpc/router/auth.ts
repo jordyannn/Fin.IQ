@@ -145,7 +145,7 @@ export const authRouter = router({
         { name: "Dining", kind: "expense" as const, icon: "Utensils" },
         { name: "Beverage", kind: "expense" as const, icon: "Coffee" },
         { name: "Snacks", kind: "expense" as const, icon: "Cookie" },
-        { name: "Transport", kind: "expense" as const, icon: "Car" },
+        { name: "Transportasi", kind: "expense" as const, icon: "Car" },
         { name: "Daily Goods", kind: "expense" as const, icon: "ShoppingBag" },
         { name: "Shopping", kind: "expense" as const, icon: "ShoppingCart" },
         { name: "Utilities", kind: "expense" as const, icon: "Zap" },

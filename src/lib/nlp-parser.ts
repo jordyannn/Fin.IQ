@@ -374,21 +374,21 @@ export const CANONICAL_CATEGORY_MAP: Record<string, string> = {
   "kopi": "Beverage",
   "minuman": "Beverage",
   "beverage": "Beverage",
-  "transportasi": "Transport",
-  "transport": "Transport",
-  "bahan bakar & spbu": "Transport",
-  "bensin": "Transport",
-  "spbu": "Transport",
-  "mobil pribadi": "Transport",
-  "bus & angkot": "Transport",
-  "kereta & mrt / krl": "Transport",
-  "taksi & ojek online": "Transport",
-  "grab": "Transport",
-  "gojek": "Transport",
-  "tiket pesawat": "Transport",
-  "kereta api jarak jauh": "Transport",
-  "sepeda": "Transport",
-  "parkir & tol": "Transport",
+  "transportasi": "Transportasi",
+  "transport": "Transportasi",
+  "bahan bakar & spbu": "Transportasi",
+  "bensin": "Transportasi",
+  "spbu": "Transportasi",
+  "mobil pribadi": "Transportasi",
+  "bus & angkot": "Transportasi",
+  "kereta & mrt / krl": "Transportasi",
+  "taksi & ojek online": "Transportasi",
+  "grab": "Transportasi",
+  "gojek": "Transportasi",
+  "tiket pesawat": "Transportasi",
+  "kereta api jarak jauh": "Transportasi",
+  "sepeda": "Transportasi",
+  "parkir & tol": "Transportasi",
   "belanja & belanjaan": "Shopping",
   "belanja": "Shopping",
   "belanja online": "Shopping",
@@ -574,7 +574,7 @@ export function detectCategory(
     const targetSubLower = bestDatasetEntry.sub.toLowerCase();
     const targetParentLower = bestDatasetEntry.parent.toLowerCase();
 
-    // Prioritas 0: Cek pemetaan kanonikal ke kategori baku (e.g. "Restoran" -> "Dining", "Bahan Bakar" -> "Transport")
+    // Prioritas 0: Cek pemetaan kanonikal ke kategori baku (e.g. "Restoran" -> "Dining", "Bahan Bakar" -> "Transportasi")
     const canonicalNameFromSub = CANONICAL_CATEGORY_MAP[targetSubLower];
     const canonicalNameFromParent = CANONICAL_CATEGORY_MAP[targetParentLower];
     const canonicalTarget = canonicalNameFromSub || canonicalNameFromParent;

@@ -23,7 +23,7 @@ const defaultCategories = [
   { name: "Dining", kind: "expense", icon: "Utensils" },
   { name: "Beverage", kind: "expense", icon: "Coffee" },
   { name: "Snacks", kind: "expense", icon: "Cookie" },
-  { name: "Transport", kind: "expense", icon: "Car" },
+  { name: "Transportasi", kind: "expense", icon: "Car" },
   { name: "Daily Goods", kind: "expense", icon: "ShoppingBag" },
   { name: "Shopping", kind: "expense", icon: "ShoppingCart" },
   { name: "Utilities", kind: "expense", icon: "Zap" },

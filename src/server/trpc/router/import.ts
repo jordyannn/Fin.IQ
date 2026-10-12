@@ -65,7 +65,7 @@ function fuzzyMatchCategory(
   const exact = userCategories.find((c) => c.name.toLowerCase().trim() === clean);
   if (exact) return exact.name;
 
-  // 2. Canonical dictionary match (e.g. "makanan & minuman" / "restoran" -> "Dining", "transportasi" -> "Transport")
+  // 2. Canonical dictionary match (e.g. "makanan & minuman" / "restoran" -> "Dining", "transport" -> "Transportasi")
   const canonicalName = CANONICAL_CATEGORY_MAP[clean];
   if (canonicalName) {
     const matchedCanonical = userCategories.find(
@@ -138,7 +138,7 @@ export const importRouter = router({
       const accountNamesStr = userAccounts.map((a) => a.name).join(", ") || "Kas Tunai, BCA, GoPay";
       const categoryNamesStr =
         userCategories.map((c) => c.name).join(", ") ||
-        "Dining, Beverage, Snacks, Transport, Daily Goods, Shopping, Utilities, Saving, Family, Beauty, Health, Education, entertain, invest job, paylater, Salary, Part time, Allowance, Umum";
+        "Dining, Beverage, Snacks, Transportasi, Daily Goods, Shopping, Utilities, Saving, Family, Beauty, Health, Education, entertain, invest job, paylater, Salary, Part time, Allowance, Umum";
 
       for (let i = 0; i < input.images.length; i++) {
         const img = input.images[i];
