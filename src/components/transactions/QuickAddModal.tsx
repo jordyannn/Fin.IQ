@@ -437,97 +437,76 @@ export function QuickAddModal() {
           onChange={handleBillFileChange}
         />
 
-        {/* AI Assistant Dual Action Bar */}
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {/* Voice AI Button Card */}
-          <div className="flex items-center gap-2.5 rounded-xl border border-primary/20 bg-primary/5 p-2.5 transition-colors">
+        {/* AI Assistant Quick Input Toolbar */}
+        <div className="mt-4 rounded-xl border border-border/70 bg-muted/30 p-2.5">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span className="text-xs font-bold text-foreground">Asisten Input AI</span>
+            </div>
+            <span className="text-[10px] text-muted-foreground">Otomatis isi nominal & detail</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            {/* Dikte Suara */}
             <Button
               type="button"
-              variant={isListening ? "destructive" : isProcessing ? "secondary" : "default"}
-              size="icon"
+              variant={isListening ? "destructive" : "outline"}
+              size="sm"
               disabled={isProcessing || isScanningBill}
               onClick={isListening ? stopListening : startListening}
               className={cn(
-                "h-8 w-8 rounded-full shadow-sm shrink-0 transition-all",
-                isListening && "animate-pulse",
-                isProcessing && "bg-primary/20 text-primary border border-primary/40 animate-pulse"
+                "h-9 rounded-xl text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 transition-all shadow-2xs",
+                isListening && "animate-pulse bg-rose-500 text-white border-rose-500 hover:bg-rose-600",
+                isProcessing && "border-primary/40 text-primary animate-pulse"
               )}
+              title="Dikte transaksi lewat suara"
             >
               {isListening ? (
-                <MicOff className="h-3.5 w-3.5" />
+                <MicOff className="h-3.5 w-3.5 shrink-0" />
               ) : isProcessing ? (
-                <Sparkles className="h-3.5 w-3.5 animate-spin text-primary" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
               ) : (
-                <Mic className="h-3.5 w-3.5" />
+                <Mic className="h-3.5 w-3.5 text-primary shrink-0" />
               )}
+              <span className="truncate">{isListening ? "Berhenti" : isProcessing ? "Proses..." : "Dikte"}</span>
             </Button>
-            <div className="flex flex-col min-w-0">
-              <span className="text-xs font-semibold text-foreground truncate">
-                {isListening ? "Mendengarkan..." : isProcessing ? "Memproses..." : "Dikte Suara AI"}
-              </span>
-              <span className="text-[10px] text-muted-foreground truncate">
-                {isListening ? "Sebutkan transaksi" : "Tekan mic untuk bicara"}
-              </span>
-            </div>
-          </div>
 
-          {/* Bill / Receipt Scanner Button Card with Camera & Gallery */}
-          <div
-            className={cn(
-              "flex items-center justify-between gap-2 rounded-xl border border-border/80 bg-muted/40 p-2 transition-colors",
-              isScanningBill && "opacity-75 border-primary/40 bg-primary/5"
-            )}
-          >
-            <div
-              className="flex items-center gap-2 min-w-0 cursor-pointer"
-              onClick={() => {
-                if (!isScanningBill) setShowSourceChoiceModal(true);
-              }}
-              title="Pilih cara scan struk"
+            {/* Buka Kamera */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isScanningBill || isProcessing}
+              onClick={() => cameraInputRef.current?.click()}
+              className="h-9 rounded-xl text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 hover:text-primary transition-all shadow-2xs cursor-pointer"
+              title="Buka Kamera untuk foto struk atau mutasi"
             >
-              <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                {isScanningBill ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                ) : (
-                  <Receipt className="h-3.5 w-3.5" />
-                )}
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs font-semibold text-foreground truncate">
-                  {isScanningBill ? "Membaca..." : "AI Vision Struk"}
-                </span>
-                <span className="text-[10px] text-muted-foreground truncate">
-                  {isScanningBill ? "Gemini aktif" : "Kamera / Galeri"}
-                </span>
-              </div>
-            </div>
+              {isScanningBill ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+              ) : (
+                <Camera className="h-3.5 w-3.5 text-primary shrink-0" />
+              )}
+              <span className="truncate">Kamera</span>
+            </Button>
 
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={isScanningBill}
-                onClick={() => cameraInputRef.current?.click()}
-                className="h-7 px-2 text-[11px] rounded-lg gap-1 border-primary/20 text-primary hover:bg-primary/10 hover:border-primary/40 shadow-2xs"
-                title="Buka Kamera untuk foto struk"
-              >
-                <Camera className="h-3 w-3" />
-                <span>Kamera</span>
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={isScanningBill}
-                onClick={() => galleryInputRef.current?.click()}
-                className="h-7 px-2 text-[11px] rounded-lg gap-1 border-primary/20 text-primary hover:bg-primary/10 hover:border-primary/40 shadow-2xs"
-                title="Pilih dari Galeri foto"
-              >
-                <ImageIcon className="h-3 w-3" />
-                <span>Galeri</span>
-              </Button>
-            </div>
+            {/* Buka Galeri */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isScanningBill || isProcessing}
+              onClick={() => galleryInputRef.current?.click()}
+              className="h-9 rounded-xl text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 hover:text-primary transition-all shadow-2xs cursor-pointer"
+              title="Buka Galeri foto atau dokumen"
+            >
+              {isScanningBill ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+              ) : (
+                <ImageIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+              )}
+              <span className="truncate">Galeri</span>
+            </Button>
           </div>
         </div>
 
