@@ -30,10 +30,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EditTransactionModal, type TransactionToEdit } from "@/components/transactions/EditTransactionModal";
 import { DateFilterPreset, computeDateRange } from "@/lib/date-filters";
+import { useConfirm, useAlert } from "@/store/confirm.store";
 
 export default function TransactionsPage() {
   const { openQuickAdd, openQuickAddWithScan } = useUIStore();
   const utils = trpc.useUtils();
+  const confirm = useConfirm();
+  const alert = useAlert();
 
   // Filters state
   const [search, setSearch] = useState("");
@@ -164,15 +167,29 @@ export default function TransactionsPage() {
     },
   });
 
-  const handleDelete = (id: string) => {
-    if (confirm("Apakah Anda yakin ingin menghapus transaksi ini?")) {
+  const handleDelete = async (id: string) => {
+    const ok = await confirm({
+      title: "Hapus Transaksi?",
+      description: "Transaksi ini akan dihapus secara permanen dan saldo akun Anda akan disesuaikan otomatis.",
+      confirmText: "Hapus Transaksi",
+      variant: "destructive",
+      icon: "trash",
+    });
+    if (ok) {
       deleteMutation.mutate({ id });
     }
   };
 
-  const handleBatchDelete = () => {
+  const handleBatchDelete = async () => {
     if (selectedIds.length === 0) return;
-    if (confirm(`Hapus ${selectedIds.length} transaksi yang dipilih?`)) {
+    const ok = await confirm({
+      title: `Hapus ${selectedIds.length} Transaksi Terpilih?`,
+      description: `Apakah Anda yakin ingin menghapus ${selectedIds.length} transaksi sekaligus? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: `Hapus ${selectedIds.length} Transaksi`,
+      variant: "destructive",
+      icon: "trash",
+    });
+    if (ok) {
       batchDeleteMutation.mutate({ ids: selectedIds });
     }
   };
@@ -196,7 +213,12 @@ export default function TransactionsPage() {
   // Export CSV generator
   const handleExportCSV = () => {
     if (!txData?.items || txData.items.length === 0) {
-      alert("Tidak ada transaksi untuk diekspor.");
+      alert({
+        title: "Tidak Ada Transaksi",
+        description: "Tidak ada transaksi yang dapat diekspor sesuai filter saat ini.",
+        variant: "info",
+        icon: "info",
+      });
       return;
     }
 

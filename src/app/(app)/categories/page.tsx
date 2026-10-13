@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "@/store/confirm.store";
 
 function renderCategoryIcon(iconName?: string | null) {
   const norm = iconName?.toLowerCase().trim();
@@ -66,6 +67,7 @@ function renderCategoryIcon(iconName?: string | null) {
 
 export default function CategoriesPage() {
   const utils = trpc.useUtils();
+  const confirm = useConfirm();
   const [kind, setKind] = useState<"expense" | "income">("expense");
   const [searchQuery, setSearchQuery] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -289,12 +291,15 @@ export default function CategoriesPage() {
                   <Plus className="h-3.5 w-3.5" />
                 </button>
                 <button
-                  onClick={() => {
-                    if (
-                      confirm(
-                        `Hapus kategori '${parent.name}'?`
-                      )
-                    ) {
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: `Hapus Kategori "${parent.name}"?`,
+                      description: `Kategori "${parent.name}" dan semua subkategori di dalamnya akan dihapus. Tindakan ini tidak dapat dibatalkan.`,
+                      confirmText: "Hapus Kategori",
+                      variant: "destructive",
+                      icon: "trash",
+                    });
+                    if (ok) {
                       deleteMutation.mutate({ id: parent.id });
                     }
                   }}
@@ -316,8 +321,15 @@ export default function CategoriesPage() {
                     >
                       <span>{sub.name}</span>
                       <button
-                        onClick={() => {
-                          if (confirm(`Hapus subkategori '${sub.name}'?`)) {
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: `Hapus Subkategori "${sub.name}"?`,
+                            description: `Subkategori "${sub.name}" akan dihapus dari kategori "${parent.name}".`,
+                            confirmText: "Hapus Subkategori",
+                            variant: "destructive",
+                            icon: "trash",
+                          });
+                          if (ok) {
                             deleteMutation.mutate({ id: sub.id });
                           }
                         }}

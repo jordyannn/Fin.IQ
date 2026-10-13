@@ -30,10 +30,12 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "@/store/confirm.store";
 
 export default function SettingsPage() {
   const router = useRouter();
   const utils = trpc.useUtils();
+  const confirm = useConfirm();
 
   // Gemini AI Key State
   const [geminiKeyInput, setGeminiKeyInput] = useState("");
@@ -136,7 +138,15 @@ export default function SettingsPage() {
   // Logout handler
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const handleLogout = async () => {
-    if (!confirm("Apakah Anda yakin ingin keluar dari akun Fin.IQ?")) return;
+    const ok = await confirm({
+      title: "Keluar dari Akun Fin.IQ?",
+      description: "Sesi Anda akan diakhiri dan Anda perlu masuk kembali untuk mengakses pembukuan.",
+      confirmText: "Keluar",
+      cancelText: "Batal",
+      variant: "warning",
+      icon: "logout",
+    });
+    if (!ok) return;
     setIsLoggingOut(true);
     try {
       await fetch("/api/auth/logout", { method: "POST" });
@@ -456,8 +466,15 @@ export default function SettingsPage() {
                   variant="ghost"
                   size="sm"
                   disabled={removeGeminiKeyMutation.isPending}
-                  onClick={() => {
-                    if (confirm("Putuskan sambungan token Gemini dari akun Anda?")) {
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: "Putuskan Token Gemini AI?",
+                      description: "Token API Key Gemini Anda akan dihapus dari akun. Fitur AI akan kembali menggunakan konfigurasi sistem atau meminta token baru.",
+                      confirmText: "Putuskan Sambungan",
+                      variant: "warning",
+                      icon: "unlink",
+                    });
+                    if (ok) {
                       removeGeminiKeyMutation.mutate();
                     }
                   }}

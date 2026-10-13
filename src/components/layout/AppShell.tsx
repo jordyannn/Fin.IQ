@@ -6,6 +6,7 @@ import { TopBar } from "./TopBar";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { QuickAddModal } from "@/components/transactions/QuickAddModal";
 import { CommandPalette } from "@/components/cmdk/CommandPalette";
+import { ConfirmModalDialog } from "@/components/ui/ConfirmModalDialog";
 import { useUIStore } from "@/store/ui.store";
 import { X } from "lucide-react";
 
@@ -59,6 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Global Interactive Overlays */}
       <QuickAddModal />
       <CommandPalette />
+      <ConfirmModalDialog />
     </div>
   );
 }

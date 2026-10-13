@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "@/store/confirm.store";
 
 interface EditAccountState {
   id: string;
@@ -46,6 +47,7 @@ interface AdjustBalanceState {
 
 export default function AccountsPage() {
   const utils = trpc.useUtils();
+  const confirm = useConfirm();
 
   // Search & filter tab
   const [filterTab, setFilterTab] = useState<"all" | "active" | "hidden">("all");
@@ -395,8 +397,15 @@ export default function AccountsPage() {
                   </button>
 
                   <button
-                    onClick={() => {
-                      if (confirm(`Yakin ingin menghapus akun '${acc.name}'?`)) {
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: `Hapus Akun "${acc.name}"?`,
+                        description: `Akun "${acc.name}" akan dihapus dari daftar akun Anda. Tindakan ini tidak dapat dibatalkan.`,
+                        confirmText: "Hapus Akun",
+                        variant: "destructive",
+                        icon: "trash",
+                      });
+                      if (ok) {
                         deleteMutation.mutate({ id: acc.id });
                       }
                     }}

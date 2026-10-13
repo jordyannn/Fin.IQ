@@ -7,9 +7,11 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useAlert } from "@/store/confirm.store";
 
 export default function LedgersPage() {
   const utils = trpc.useUtils();
+  const alert = useAlert();
   const [newLedgerName, setNewLedgerName] = useState("");
   const [inviteCodeInput, setInviteCodeInput] = useState("");
   const [createdInvite, setCreatedInvite] = useState<string | null>(null);
@@ -31,11 +33,21 @@ export default function LedgersPage() {
 
   const joinMutation = trpc.ledgers.joinWithCode.useMutation({
     onSuccess: () => {
-      alert("Berhasil bergabung dengan buku kas bersama!");
+      alert({
+        title: "Berhasil Bergabung!",
+        description: "Anda telah berhasil bergabung dengan buku kas bersama.",
+        icon: "success",
+      });
       utils.ledgers.invalidate();
       setInviteCodeInput("");
     },
-    onError: (err) => alert("Gagal bergabung: " + err.message),
+    onError: (err) => {
+      alert({
+        title: "Gagal Bergabung",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
   });
 
   return (

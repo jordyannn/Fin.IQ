@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { useAlert } from "@/store/confirm.store";
 
 interface FieldMapping {
   tx_type: string | null;
@@ -431,6 +432,7 @@ async function compressImageToBase64(
 export default function ImportPage() {
   const router = useRouter();
   const utils = trpc.useUtils();
+  const alert = useAlert();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Tab state
@@ -502,7 +504,11 @@ export default function ImportPage() {
     },
     onError: (err) => {
       setIsProcessing(false);
-      alert(`Gagal mengeksekusi impor: ${err.message}`);
+      alert({
+        title: "Gagal Mengeksekusi Impor",
+        description: err.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -513,7 +519,11 @@ export default function ImportPage() {
       /\.(png|jpe?g|webp|bmp|gif)$/i.test(f.name)
     );
     if (newFiles.length === 0) {
-      alert("Format file tidak didukung. Silakan pilih gambar PNG, JPG, JPEG, atau WEBP.");
+      alert({
+        title: "Format File Tidak Didukung",
+        description: "Silakan pilih gambar PNG, JPG, JPEG, atau WEBP.",
+        variant: "warning",
+      });
       return;
     }
 
@@ -626,7 +636,11 @@ export default function ImportPage() {
 
     const validItems = screenshotTxs.filter((t) => t.amount > 0);
     if (validItems.length === 0) {
-      alert("Semua transaksi memiliki nominal 0. Harap periksa nominal transaksi.");
+      alert({
+        title: "Nominal Nol",
+        description: "Semua transaksi memiliki nominal 0. Harap periksa nominal transaksi.",
+        variant: "warning",
+      });
       return;
     }
 
@@ -685,7 +699,11 @@ export default function ImportPage() {
       });
       setIsSuccessOpen(true);
     } catch (err: any) {
-      alert(`Gagal mengeksekusi impor: ${err.message || String(err)}`);
+      alert({
+        title: "Gagal Mengeksekusi Impor",
+        description: err.message || String(err),
+        variant: "destructive",
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -727,7 +745,11 @@ export default function ImportPage() {
     const isCsv = ext === "csv" || ext === "tsv";
 
     if (!isExcel && !isCsv) {
-      alert("Hanya format file .csv, .tsv, .xlsx, atau .xls yang didukung.");
+      alert({
+        title: "Format Tidak Didukung",
+        description: "Hanya format file .csv, .tsv, .xlsx, atau .xls yang didukung.",
+        variant: "warning",
+      });
       return;
     }
 
@@ -742,7 +764,11 @@ export default function ImportPage() {
         const arrayBuffer = await file.arrayBuffer();
         const wb = XLSX.read(arrayBuffer, { type: "array" });
         if (wb.SheetNames.length === 0) {
-          alert("File Excel kosong atau tidak memiliki lembar sheet.");
+          alert({
+            title: "File Kosong",
+            description: "File Excel kosong atau tidak memiliki lembar sheet.",
+            variant: "warning",
+          });
           return;
         }
         const ws = wb.Sheets[wb.SheetNames[0]];
@@ -760,7 +786,11 @@ export default function ImportPage() {
       }
 
       if (rows.length < 2) {
-        alert("File tidak memiliki cukup data atau hanya berisi 1 baris.");
+        alert({
+          title: "Data Tidak Mencukupi",
+          description: "File tidak memiliki cukup data atau hanya berisi 1 baris.",
+          variant: "warning",
+        });
         return;
       }
 
@@ -790,7 +820,11 @@ export default function ImportPage() {
       setCurrentMapping(suggested);
       setMappingDraft(suggested);
     } catch (err: any) {
-      alert(`Gagal membaca file: ${err.message || String(err)}`);
+      alert({
+        title: "Gagal Membaca File",
+        description: err.message || String(err),
+        variant: "destructive",
+      });
       setFileName("");
       setFileTxs([]);
       manualEditedRowIdsRef.current.clear();
@@ -969,7 +1003,11 @@ export default function ImportPage() {
 
     const validItems = fileTxs.filter((t) => t.amount > 0);
     if (validItems.length === 0) {
-      alert("Tidak ada transaksi valid dengan nominal > 0 yang dapat diimpor.");
+      alert({
+        title: "Nominal Tidak Valid",
+        description: "Tidak ada transaksi valid dengan nominal > 0 yang dapat diimpor.",
+        variant: "warning",
+      });
       return;
     }
 
@@ -1032,7 +1070,11 @@ export default function ImportPage() {
       });
       setIsSuccessOpen(true);
     } catch (err: any) {
-      alert(`Gagal mengeksekusi impor: ${err.message || String(err)}`);
+      alert({
+        title: "Gagal Mengeksekusi Impor",
+        description: err.message || String(err),
+        variant: "destructive",
+      });
     } finally {
       setIsProcessing(false);
       setImportProgress(null);

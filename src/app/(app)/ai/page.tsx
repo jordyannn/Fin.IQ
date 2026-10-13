@@ -34,12 +34,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { useAlert } from "@/store/confirm.store";
 
 function AIPageContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
 
   const utils = trpc.useUtils();
+  const alert = useAlert();
   const [activeTab, setActiveTab] = useState<"ocr" | "chat" | "nlp">("ocr");
 
   // Gemini Connection Status
@@ -86,7 +88,11 @@ function AIPageContent() {
     },
     onError: (err) => {
       setIsSavingTx(false);
-      alert("Gagal menyimpan transaksi: " + err.message);
+      alert({
+        title: "Gagal Menyimpan Transaksi",
+        description: err.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -95,7 +101,11 @@ function AIPageContent() {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      alert("Harap pilih file gambar (JPG, PNG, atau WEBP).");
+      alert({
+        title: "Format Gambar Tidak Didukung",
+        description: "Harap pilih file gambar (JPG, PNG, atau WEBP).",
+        variant: "warning",
+      });
       return;
     }
 
@@ -126,7 +136,11 @@ function AIPageContent() {
     const accId = scannedResult.matchedAccountId || accountsData?.accounts?.[0]?.id;
 
     if (!accId) {
-      alert("Tidak ditemukan akun transaksi. Silakan buat akun terlebih dahulu.");
+      alert({
+        title: "Akun Tidak Ditemukan",
+        description: "Tidak ditemukan akun transaksi. Silakan buat akun terlebih dahulu.",
+        variant: "warning",
+      });
       return;
     }
 
@@ -212,7 +226,11 @@ function AIPageContent() {
       setNlpResult(data);
     },
     onError: (err) => {
-      alert("Gagal memproses kalimat: " + err.message);
+      alert({
+        title: "Gagal Memproses Kalimat",
+        description: err.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -230,7 +248,11 @@ function AIPageContent() {
     const accId = nlpResult.matchedAccountId || accountsData?.accounts?.[0]?.id;
 
     if (!accId) {
-      alert("Harap pilih akun transaksi.");
+      alert({
+        title: "Akun Belum Dipilih",
+        description: "Harap pilih akun transaksi terlebih dahulu.",
+        variant: "warning",
+      });
       return;
     }
 

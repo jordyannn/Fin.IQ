@@ -33,10 +33,12 @@ import {
   detectCategory,
   detectAccount,
 } from "@/lib/nlp-parser";
+import { useAlert } from "@/store/confirm.store";
 
 export function QuickAddModal() {
   const { isQuickAddOpen, closeQuickAdd, quickAddAutoScan, setQuickAddAutoScan } = useUIStore();
   const utils = trpc.useUtils();
+  const alert = useAlert();
 
   const [txType, setTxType] = useState<"expense" | "income" | "transfer">("expense");
   const [amount, setAmount] = useState("");
@@ -280,7 +282,11 @@ export function QuickAddModal() {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      alert("Harap pilih file gambar (JPG, PNG, atau WEBP).");
+      alert({
+        title: "Format Gambar Tidak Didukung",
+        description: "Harap pilih file gambar (JPG, PNG, atau WEBP).",
+        variant: "warning",
+      });
       return;
     }
 
@@ -324,7 +330,11 @@ export function QuickAddModal() {
       closeQuickAdd();
     },
     onError: (err) => {
-      alert("Gagal menyimpan transaksi: " + err.message);
+      alert({
+        title: "Gagal Menyimpan Transaksi",
+        description: err.message,
+        variant: "destructive",
+      });
       setIsSubmitting(false);
     },
   });
@@ -343,7 +353,11 @@ export function QuickAddModal() {
     e.preventDefault();
     const numAmount = parseInputIDR(amount);
     if (!numAmount || numAmount <= 0) {
-      alert("Harap masukkan nominal yang valid");
+      alert({
+        title: "Nominal Tidak Valid",
+        description: "Harap masukkan nominal transaksi yang valid.",
+        variant: "warning",
+      });
       return;
     }
 
@@ -351,17 +365,29 @@ export function QuickAddModal() {
     const selectedAcc = accountId || accountsData?.accounts?.[0]?.id;
 
     if (!selectedAcc) {
-      alert("Harap pilih akun transaksi");
+      alert({
+        title: "Akun Belum Dipilih",
+        description: "Harap pilih akun transaksi terlebih dahulu.",
+        variant: "warning",
+      });
       return;
     }
 
     if (txType === "transfer") {
       if (!toAccountId) {
-        alert("Harap pilih akun tujuan untuk transfer");
+        alert({
+          title: "Akun Tujuan Belum Dipilih",
+          description: "Harap pilih akun tujuan untuk transaksi transfer.",
+          variant: "warning",
+        });
         return;
       }
       if (selectedAcc === toAccountId) {
-        alert("Akun asal dan akun tujuan transfer tidak boleh sama");
+        alert({
+          title: "Akun Tidak Boleh Sama",
+          description: "Akun asal dan akun tujuan transfer tidak boleh sama.",
+          variant: "warning",
+        });
         return;
       }
     }
