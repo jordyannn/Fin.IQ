@@ -29,12 +29,13 @@ import {
   Wallet,
   Clock,
   Sparkle,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { useAlert } from "@/store/confirm.store";
+import { useAlert, useConfirm } from "@/store/confirm.store";
 
 function AIPageContent() {
   const searchParams = useSearchParams();
@@ -42,6 +43,7 @@ function AIPageContent() {
 
   const utils = trpc.useUtils();
   const alert = useAlert();
+  const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState<"ocr" | "chat" | "nlp">("ocr");
 
   // Gemini Connection Status
@@ -221,6 +223,64 @@ function AIPageContent() {
   const [nlpText, setNlpText] = useState("");
   const [nlpResult, setNlpResult] = useState<any | null>(null);
 
+  const createCategoryMutation = trpc.categories.create.useMutation({
+    onSuccess: (newCat) => {
+      utils.categories.invalidate();
+      if (nlpResult) {
+        setNlpResult({
+          ...nlpResult,
+          matchedCategoryId: newCat.id,
+          categoryHint: newCat.name,
+          recommendedCategory: nlpResult.recommendedCategory
+            ? { ...nlpResult.recommendedCategory, isNew: false }
+            : undefined,
+        });
+      }
+      if (scannedResult) {
+        setScannedResult({
+          ...scannedResult,
+          matchedCategoryId: newCat.id,
+          categoryHint: newCat.name,
+          recommendedCategory: scannedResult.recommendedCategory
+            ? { ...scannedResult.recommendedCategory, isNew: false }
+            : undefined,
+        });
+      }
+      alert({
+        title: "Kategori Baru Disetujui & Dibuat",
+        description: `Kategori "${newCat.name}" berhasil ditambahkan ke daftar kategori Anda.`,
+        variant: "default",
+        icon: "success",
+      });
+    },
+    onError: (err) => {
+      alert({
+        title: "Gagal Membuat Kategori",
+        description: err.message,
+        variant: "destructive",
+        icon: "alert",
+      });
+    },
+  });
+
+  const handleCreateRecommendedCategory = async (name: string, kind: "expense" | "income" = "expense") => {
+    const isApproved = await confirm({
+      title: "Buat Kategori Rekomendasi?",
+      description: `Kategori "${name}" belum ada di daftar kategori Anda. Apakah Anda ingin membuat kategori baru ini dan menyetujuinya untuk digunakan pada transaksi ini?`,
+      confirmText: "Ya, Buat & Setujui",
+      cancelText: "Batal",
+      variant: "warning",
+      icon: "alert",
+    });
+
+    if (isApproved) {
+      createCategoryMutation.mutate({
+        name,
+        kind,
+      });
+    }
+  };
+
   const parseTextGeminiMutation = trpc.ai.parseTextWithGemini.useMutation({
     onSuccess: (data) => {
       setNlpResult(data);
@@ -230,6 +290,7 @@ function AIPageContent() {
         title: "Gagal Memproses Kalimat",
         description: err.message,
         variant: "destructive",
+        icon: "alert",
       });
     },
   });
@@ -584,9 +645,26 @@ function AIPageContent() {
                     </div>
                     <div className="p-3 rounded-xl border bg-card">
                       <span className="text-[10px] text-muted-foreground block uppercase font-medium">Saran Kategori</span>
-                      <span className="font-semibold text-foreground mt-0.5 block">
-                        {scannedResult.categoryHint || "Umum"}
-                      </span>
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        <span className="font-semibold text-foreground">
+                          {scannedResult.categoryHint || "Umum"}
+                        </span>
+                        {scannedResult.recommendedCategory?.isNew && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleCreateRecommendedCategory(
+                                scannedResult.recommendedCategory.name,
+                                scannedResult.recommendedCategory.kind
+                              )
+                            }
+                            className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="h-2.5 w-2.5" />
+                            Buat Kategori
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="p-3 rounded-xl border bg-card col-span-2 sm:col-span-1">
                       <span className="text-[10px] text-muted-foreground block uppercase font-medium">Metode / Akun</span>
@@ -895,9 +973,26 @@ function AIPageContent() {
                   </div>
                   <div>
                     <span className="text-[10px] text-muted-foreground uppercase font-semibold">Kategori</span>
-                    <span className="font-bold text-foreground block mt-0.5">
-                      {nlpResult.categoryHint || "Umum"}
-                    </span>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <span className="font-bold text-foreground">
+                        {nlpResult.categoryHint || "Umum"}
+                      </span>
+                      {nlpResult.recommendedCategory?.isNew && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleCreateRecommendedCategory(
+                              nlpResult.recommendedCategory.name,
+                              nlpResult.recommendedCategory.kind
+                            )
+                          }
+                          className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="h-2.5 w-2.5" />
+                          Buat Kategori
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <span className="text-[10px] text-muted-foreground uppercase font-semibold">Akun Sumber</span>

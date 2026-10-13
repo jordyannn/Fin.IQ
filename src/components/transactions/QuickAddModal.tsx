@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Eye,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,21 +34,64 @@ import {
   detectCategory,
   detectAccount,
 } from "@/lib/nlp-parser";
-import { useAlert } from "@/store/confirm.store";
+import { useAlert, useConfirm } from "@/store/confirm.store";
+import { CategorySelect } from "./CategorySelect";
+import { AccountSelect } from "./AccountSelect";
 
 export function QuickAddModal() {
   const { isQuickAddOpen, closeQuickAdd, quickAddAutoScan, setQuickAddAutoScan } = useUIStore();
   const utils = trpc.useUtils();
   const alert = useAlert();
+  const confirm = useConfirm();
 
   const [txType, setTxType] = useState<"expense" | "income" | "transfer">("expense");
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState("");
   const [toAccountId, setToAccountId] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [nlpRecommendedCategory, setNlpRecommendedCategory] = useState<{
+    name: string;
+    kind?: "expense" | "income";
+  } | null>(null);
   const [happenedAt, setHappenedAt] = useState("");
   const [note, setNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Mutation untuk membuat kategori rekomendasi NLP
+  const createCategoryMutation = trpc.categories.create.useMutation({
+    onSuccess: (newCat) => {
+      utils.categories.invalidate();
+      setCategoryId(newCat.id);
+      setNlpRecommendedCategory(null);
+    },
+    onError: (err) => {
+      alert({
+        title: "Gagal Membuat Kategori",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCreateRecommendedCategory = async (catName: string, kind?: "expense" | "income") => {
+    const targetKind = kind || (txType === "income" ? "income" : "expense");
+    const ok = await confirm({
+      title: "Buat Kategori Rekomendasi?",
+      description: `Analisis NLP merekomendasikan kategori "${catName}" untuk transaksi ini, tetapi kategori ini belum ada di daftar kategori Anda. Apakah Anda setuju untuk membuat kategori baru "${catName}" dan langsung menggunakannya pada transaksi ini?`,
+      confirmText: "Ya, Buat Kategori",
+      cancelText: "Batal",
+      variant: "default",
+      icon: "help",
+    });
+
+    if (ok) {
+      createCategoryMutation.mutate({
+        name: catName,
+        kind: targetKind,
+        icon: "tag",
+      });
+    }
+  };
 
   // Bill Scanner state
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -93,18 +137,6 @@ export function QuickAddModal() {
     }
   };
 
-  // Pengelompokan hierarkis kategori untuk optgroup
-  const activeCategories = (categoriesList || []).filter((c) => c.kind === txType);
-  const parentCategories = activeCategories.filter((c) => !c.parentId);
-  const childCategoriesMap = new Map<string, typeof activeCategories>();
-  for (const cat of activeCategories) {
-    if (cat.parentId) {
-      const list = childCategoriesMap.get(cat.parentId) || [];
-      list.push(cat);
-      childCategoriesMap.set(cat.parentId, list);
-    }
-  }
-
   // Smart Voice & NLP parsing
   const applySmartSpeechParse = (transcript: string) => {
     // 1. Eksekusi lokal instan (0 ms latency)
@@ -140,6 +172,12 @@ export function QuickAddModal() {
     } else {
       if (result.matchedCategoryId) {
         setCategoryId(result.matchedCategoryId);
+        setNlpRecommendedCategory(null);
+      } else if (result.recommendedCategory && result.recommendedCategory.isNew) {
+        setNlpRecommendedCategory({
+          name: result.recommendedCategory.name,
+          kind: result.recommendedCategory.kind,
+        });
       } else if (categoriesList) {
         const foundCat = categoriesList
           .filter((c) => c.kind === result.txType)
@@ -149,9 +187,12 @@ export function QuickAddModal() {
           );
         if (foundCat) {
           setCategoryId(foundCat.id);
-        } else {
-          const fallbackCat = categoriesList.find((c) => c.kind === result.txType);
-          if (fallbackCat) setCategoryId(fallbackCat.id);
+          setNlpRecommendedCategory(null);
+        } else if (result.categoryHint) {
+          setNlpRecommendedCategory({
+            name: result.categoryHint,
+            kind: result.txType === "income" ? "income" : "expense",
+          });
         }
       }
     }
@@ -201,6 +242,12 @@ export function QuickAddModal() {
       } else {
         if (data.matchedCategoryId) {
           setCategoryId(data.matchedCategoryId);
+          setNlpRecommendedCategory(null);
+        } else if (data.recommendedCategory && data.recommendedCategory.isNew) {
+          setNlpRecommendedCategory({
+            name: data.recommendedCategory.name,
+            kind: data.recommendedCategory.kind,
+          });
         } else if (categoriesList) {
           const foundCat = categoriesList
             .filter((c) => c.kind === data.txType)
@@ -210,9 +257,12 @@ export function QuickAddModal() {
             );
           if (foundCat) {
             setCategoryId(foundCat.id);
-          } else {
-            const fallbackCat = categoriesList.find((c) => c.kind === data.txType);
-            if (fallbackCat) setCategoryId(fallbackCat.id);
+            setNlpRecommendedCategory(null);
+          } else if (data.categoryHint) {
+            setNlpRecommendedCategory({
+              name: data.categoryHint,
+              kind: data.txType === "income" ? "income" : "expense",
+            });
           }
         }
       }
@@ -257,6 +307,22 @@ export function QuickAddModal() {
       }
       if (data.matchedCategoryId) {
         setCategoryId(data.matchedCategoryId);
+        setNlpRecommendedCategory(null);
+      } else if (data.recommendedCategory && data.recommendedCategory.isNew) {
+        setNlpRecommendedCategory({
+          name: data.recommendedCategory.name,
+          kind: data.recommendedCategory.kind,
+        });
+      } else if (data.categoryHint) {
+        const exists = categoriesList?.some(
+          (c) => c.name.toLowerCase().trim() === data.categoryHint.toLowerCase().trim()
+        );
+        if (!exists) {
+          setNlpRecommendedCategory({
+            name: data.categoryHint,
+            kind: data.txType === "income" ? "income" : "expense",
+          });
+        }
       }
 
       setScannedBillMeta({
@@ -347,6 +413,7 @@ export function QuickAddModal() {
     setReceiptPreviewUrl(null);
     setScannedBillMeta(null);
     setBillScanError(null);
+    setNlpRecommendedCategory(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -884,6 +951,37 @@ export function QuickAddModal() {
             </p>
           </div>
 
+          {/* Rekomendasi Kategori NLP Banner */}
+          {nlpRecommendedCategory && !categoriesList?.some((c) => c.name.toLowerCase().trim() === nlpRecommendedCategory.name.toLowerCase().trim()) && (
+            <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-transparent border border-emerald-500/30 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="h-8 w-8 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                      Rekomendasi Kategori NLP
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/80">&bull; Belum ada di daftar</span>
+                  </div>
+                  <span className="text-xs font-bold text-foreground truncate">
+                    &quot;{nlpRecommendedCategory.name}&quot;
+                  </span>
+                </div>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => handleCreateRecommendedCategory(nlpRecommendedCategory.name, nlpRecommendedCategory.kind)}
+                className="h-8 px-3 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 gap-1.5 shadow-sm cursor-pointer transition-all"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Buat Kategori
+              </Button>
+            </div>
+          )}
+
           {/* Akun & Kategori */}
           <div className="grid grid-cols-2 gap-3">
             {/* Akun Sumber */}
@@ -905,18 +1003,12 @@ export function QuickAddModal() {
                   }}
                 />
               </div>
-              <select
+              <AccountSelect
+                accounts={accountsData?.accounts || []}
                 value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="">Pilih Akun...</option>
-                {accountsData?.accounts?.map((acc) => (
-                  <option key={acc.id} value={acc.id}>
-                    {acc.name.toUpperCase()} (Rp {acc.balance.toLocaleString("id-ID")})
-                  </option>
-                ))}
-              </select>
+                onChange={setAccountId}
+                placeholder="Pilih Akun..."
+              />
             </div>
 
             {/* Target Akun atau Kategori */}
@@ -938,21 +1030,12 @@ export function QuickAddModal() {
                     }}
                   />
                 </div>
-                <select
+                <AccountSelect
+                  accounts={(accountsData?.accounts || []).filter((a) => a.id !== accountId)}
                   value={toAccountId}
-                  onChange={(e) => setToAccountId(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                  required
-                >
-                  <option value="">Pilih Akun Tujuan...</option>
-                  {accountsData?.accounts
-                    ?.filter((a) => a.id !== accountId)
-                    .map((acc) => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.name.toUpperCase()}
-                      </option>
-                    ))}
-                </select>
+                  onChange={setToAccountId}
+                  placeholder="Pilih Akun Tujuan..."
+                />
               </div>
             ) : (
               <div>
@@ -966,46 +1049,29 @@ export function QuickAddModal() {
                         const detected = detectCategory(text, txType, categoriesList);
                         if (detected.matchedCategoryId) {
                           setCategoryId(detected.matchedCategoryId);
+                          setNlpRecommendedCategory(null);
+                        } else if (detected.recommendedCategory && detected.recommendedCategory.isNew) {
+                          setNlpRecommendedCategory({
+                            name: detected.recommendedCategory.name,
+                            kind: detected.recommendedCategory.kind,
+                          });
                         }
                       }
                     }}
                   />
                 </div>
-                <select
+                <CategorySelect
+                  categories={categoriesList || []}
                   value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-medium shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                >
-                  <option value="">Pilih Kategori...</option>
-                  {parentCategories.map((parent) => {
-                    const children = childCategoriesMap.get(parent.id) || [];
-                    if (children.length > 0) {
-                      return (
-                        <optgroup key={parent.id} label={parent.name}>
-                          <option value={parent.id}>{parent.name} (Utama)</option>
-                          {children.map((child) => (
-                            <option key={child.id} value={child.id}>
-                              &nbsp;&nbsp;• {child.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      );
-                    }
-                    return (
-                      <option key={parent.id} value={parent.id}>
-                        {parent.name}
-                      </option>
-                    );
-                  })}
-                  {/* Kategori anak tanpa parent yang terdaftar di parentCategories */}
-                  {activeCategories
-                    .filter((c) => c.parentId && !parentCategories.some((p) => p.id === c.parentId))
-                    .map((orphan) => (
-                      <option key={orphan.id} value={orphan.id}>
-                        {orphan.name}
-                      </option>
-                    ))}
-                </select>
+                  onChange={(newId) => {
+                    setCategoryId(newId);
+                    setNlpRecommendedCategory(null);
+                  }}
+                  txType={txType}
+                  placeholder="Pilih Kategori..."
+                  recommendedCategory={nlpRecommendedCategory}
+                  onCreateRecommended={handleCreateRecommendedCategory}
+                />
               </div>
             )}
           </div>

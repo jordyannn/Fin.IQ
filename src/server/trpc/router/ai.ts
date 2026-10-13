@@ -241,6 +241,11 @@ ATURAN EKSTRAKSI PENTING:
       const matchedCategory = userCategories.find(
         (c) => c.name.toLowerCase().trim() === matchedCatName.toLowerCase().trim()
       );
+      const recommendedCategory = !matchedCategory && parsed.suggestedCategory ? {
+        name: parsed.suggestedCategory,
+        kind: (parsed.txType === "income" ? "income" : "expense") as "expense" | "income",
+        isNew: true,
+      } : undefined;
 
       let happenedAt = parsed.happenedAt;
       if (!happenedAt || isNaN(new Date(happenedAt).getTime())) {
@@ -315,6 +320,7 @@ ATURAN EKSTRAKSI PENTING:
         note: finalNote,
         categoryHint: matchedCatName,
         matchedCategoryId: matchedCategory?.id,
+        recommendedCategory,
         accountHint: matchedAccName,
         matchedAccountId: matchedAccount?.id || userAccounts[0]?.id,
         items,
@@ -521,6 +527,12 @@ ATURAN:
         const foundAcc = userAccounts.find((a) => a.name.toLowerCase() === matchedAcc.toLowerCase());
         const foundCat = userCategories.find((c) => c.name.toLowerCase() === matchedCat.toLowerCase());
 
+        const recommendedCategory = !foundCat && parsed.categoryName ? {
+          name: parsed.categoryName,
+          kind: (parsed.txType || "expense") as "expense" | "income",
+          isNew: true,
+        } : undefined;
+
         return {
           amount,
           formattedAmount: formatInputIDR(String(amount)),
@@ -531,6 +543,7 @@ ATURAN:
           matchedAccountId: foundAcc?.id || userAccounts[0]?.id,
           categoryHint: matchedCat,
           matchedCategoryId: foundCat?.id,
+          recommendedCategory,
         };
       } catch (err: any) {
         throw new TRPCError({

@@ -12,6 +12,12 @@ export interface ParsedTransactionResult {
   matchedToAccountId?: string;
   categoryHint: string;
   matchedCategoryId?: string;
+  recommendedCategory?: {
+    name: string;
+    parentName?: string;
+    kind: "expense" | "income";
+    isNew: boolean;
+  };
   happenedAt?: Date;
   happenedAtFormatted?: string;
   cleanNote: string;
@@ -487,7 +493,16 @@ export function detectCategory(
   text: string,
   txType: "expense" | "income" | "transfer",
   userCategories?: CategoryItem[]
-): { categoryHint: string; matchedCategoryId?: string } {
+): {
+  categoryHint: string;
+  matchedCategoryId?: string;
+  recommendedCategory?: {
+    name: string;
+    parentName?: string;
+    kind: "expense" | "income";
+    isNew: boolean;
+  };
+} {
   const lower = text.toLowerCase().trim();
 
   // Jika transfer, tidak butuh kategori
@@ -574,6 +589,22 @@ export function detectCategory(
     const targetSubLower = bestDatasetEntry.sub.toLowerCase();
     const targetParentLower = bestDatasetEntry.parent.toLowerCase();
 
+    // Cek apakah user punya subkategori ini secara persis
+    const exactSubCat = targetCats.find(
+      (c) => c.cleanName.toLowerCase() === targetSubLower
+    );
+    if (exactSubCat) {
+      return { categoryHint: exactSubCat.name, matchedCategoryId: exactSubCat.id };
+    }
+
+    // Jika belum punya subkategori persis ini, siapkan rekomendasi NLP
+    const recommendedCategory = {
+      name: bestDatasetEntry.sub,
+      parentName: bestDatasetEntry.parent,
+      kind: txType,
+      isNew: true,
+    };
+
     // Prioritas 0: Cek pemetaan kanonikal ke kategori baku (e.g. "Restoran" -> "Dining", "Bahan Bakar" -> "Transportasi")
     const canonicalNameFromSub = CANONICAL_CATEGORY_MAP[targetSubLower];
     const canonicalNameFromParent = CANONICAL_CATEGORY_MAP[targetParentLower];
@@ -584,16 +615,12 @@ export function detectCategory(
         (c) => c.cleanName.toLowerCase() === canonicalTarget.toLowerCase()
       );
       if (matchedCanonical) {
-        return { categoryHint: matchedCanonical.name, matchedCategoryId: matchedCanonical.id };
+        return {
+          categoryHint: matchedCanonical.name,
+          matchedCategoryId: matchedCanonical.id,
+          recommendedCategory,
+        };
       }
-    }
-
-    // Prioritas 1: Cocok persis dengan Subkategori dataset
-    const exactSubCat = targetCats.find(
-      (c) => c.cleanName.toLowerCase() === targetSubLower
-    );
-    if (exactSubCat) {
-      return { categoryHint: exactSubCat.name, matchedCategoryId: exactSubCat.id };
     }
 
     // Prioritas 2: Cocok persis dengan Parent kategori dataset
@@ -601,7 +628,11 @@ export function detectCategory(
       (c) => c.cleanName.toLowerCase() === targetParentLower
     );
     if (exactParentCat) {
-      return { categoryHint: exactParentCat.name, matchedCategoryId: exactParentCat.id };
+      return {
+        categoryHint: exactParentCat.name,
+        matchedCategoryId: exactParentCat.id,
+        recommendedCategory,
+      };
     }
 
     // Prioritas 3: Kesamaan token / substring
@@ -631,8 +662,18 @@ export function detectCategory(
     }
 
     if (bestMatchedUserCat && maxMatchSimilarity > 0) {
-      return { categoryHint: bestMatchedUserCat.name, matchedCategoryId: bestMatchedUserCat.id };
+      return {
+        categoryHint: bestMatchedUserCat.name,
+        matchedCategoryId: bestMatchedUserCat.id,
+        recommendedCategory,
+      };
     }
+
+    return {
+      categoryHint: bestDatasetEntry.sub,
+      matchedCategoryId: undefined,
+      recommendedCategory,
+    };
   }
 
   // 3. Fallback scoring langsung ke kategori user jika dataset tidak match
@@ -1659,7 +1700,7 @@ export function smartParseIndonesianTransaction(
   const normalized = normalizeSpokenIndonesian(text);
   const amount = extractAmountFromText(normalized) || extractAmountFromText(text);
   const txType = detectTxType(normalized);
-  const { categoryHint, matchedCategoryId } = detectCategory(normalized, txType, options?.categories);
+  const { categoryHint, matchedCategoryId, recommendedCategory } = detectCategory(normalized, txType, options?.categories);
   const { accountHint, matchedAccountId, toAccountHint, matchedToAccountId } = detectAccount(normalized, options?.accounts);
   const { happenedAt, happenedAtFormatted } = extractDateTimeFromText(normalized, options?.referenceDate);
   const fullSpeech = text.trim();
@@ -1674,6 +1715,7 @@ export function smartParseIndonesianTransaction(
     matchedToAccountId,
     categoryHint,
     matchedCategoryId,
+    recommendedCategory,
     happenedAt,
     happenedAtFormatted,
     cleanNote: fullSpeech,

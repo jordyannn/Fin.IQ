@@ -13,6 +13,7 @@ import {
   FileText,
   Save,
   Sparkles,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,9 @@ import {
   detectCategory,
   detectAccount,
 } from "@/lib/nlp-parser";
+import { useConfirm, useAlert } from "@/store/confirm.store";
+import { CategorySelect } from "./CategorySelect";
+import { AccountSelect } from "./AccountSelect";
 
 export interface TransactionToEdit {
   id: string;
@@ -61,10 +65,52 @@ export function EditTransactionModal({
   const [happenedAt, setHappenedAt] = useState("");
   const [note, setNote] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [nlpRecommendedCategory, setNlpRecommendedCategory] = useState<{
+    name: string;
+    kind: "expense" | "income";
+  } | null>(null);
+
+  const confirm = useConfirm();
+  const alert = useAlert();
 
   // Queries
   const { data: accountsData } = trpc.accounts.list.useQuery();
   const { data: categoriesList } = trpc.categories.list.useQuery();
+
+  // Mutation to create recommended category
+  const createCategoryMutation = trpc.categories.create.useMutation({
+    onSuccess: (newCat) => {
+      utils.categories.invalidate();
+      setCategoryId(newCat.id);
+      setNlpRecommendedCategory(null);
+    },
+    onError: (err) => {
+      alert({
+        title: "Gagal Membuat Kategori",
+        description: err.message || "Terjadi kesalahan saat membuat kategori.",
+        variant: "destructive",
+        icon: "alert",
+      });
+    },
+  });
+
+  const handleCreateRecommendedCategory = async (name: string, kind: "expense" | "income") => {
+    const isApproved = await confirm({
+      title: "Buat Kategori Rekomendasi?",
+      description: `Kategori "${name}" belum ada di daftar kategori Anda. Apakah Anda ingin membuat kategori baru ini dan menyetujuinya untuk digunakan pada transaksi ini?`,
+      confirmText: "Ya, Buat & Gunakan",
+      cancelText: "Batal",
+      variant: "warning",
+      icon: "alert",
+    });
+
+    if (isApproved) {
+      createCategoryMutation.mutate({
+        name,
+        kind,
+      });
+    }
+  };
 
   // Sinkronisasi kategori ketika jenis transaksi berganti
   const handleTxTypeChange = (newType: "expense" | "income" | "transfer") => {
@@ -80,18 +126,6 @@ export function EditTransactionModal({
     }
   };
 
-  // Pengelompokan hierarkis kategori untuk optgroup
-  const activeCategories = (categoriesList || []).filter((c) => c.kind === txType);
-  const parentCategories = activeCategories.filter((c) => !c.parentId);
-  const childCategoriesMap = new Map<string, typeof activeCategories>();
-  for (const cat of activeCategories) {
-    if (cat.parentId) {
-      const list = childCategoriesMap.get(cat.parentId) || [];
-      list.push(cat);
-      childCategoriesMap.set(cat.parentId, list);
-    }
-  }
-
   // Populate data when transaction changes
   useEffect(() => {
     if (transaction) {
@@ -102,6 +136,7 @@ export function EditTransactionModal({
       setCategoryId(transaction.categoryId || "");
       setNote(transaction.note || "");
       setErrorMessage(null);
+      setNlpRecommendedCategory(null);
 
       try {
         const d = new Date(transaction.happenedAt);
@@ -155,6 +190,12 @@ export function EditTransactionModal({
 
     if (result.matchedCategoryId) {
       setCategoryId(result.matchedCategoryId);
+      setNlpRecommendedCategory(null);
+    } else if (result.recommendedCategory && result.recommendedCategory.isNew) {
+      setNlpRecommendedCategory({
+        name: result.recommendedCategory.name,
+        kind: result.recommendedCategory.kind,
+      });
     } else if (categoriesList) {
       const foundCat = categoriesList
         .filter((c) => c.kind === result.txType)
@@ -164,6 +205,7 @@ export function EditTransactionModal({
         );
       if (foundCat) {
         setCategoryId(foundCat.id);
+        setNlpRecommendedCategory(null);
       } else {
         const fallbackCat = categoriesList.find((c) => c.kind === result.txType);
         if (fallbackCat) setCategoryId(fallbackCat.id);
@@ -379,6 +421,39 @@ export function EditTransactionModal({
             />
           </div>
 
+          {/* Rekomendasi Kategori NLP (Jika Ditemukan Belum Ada di Daftar) */}
+          {txType !== "transfer" && nlpRecommendedCategory && (
+            <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-primary/10 border border-emerald-500/30 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 shrink-0">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    Rekomendasi Kategori NLP
+                  </span>
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 truncate">
+                    &ldquo;{nlpRecommendedCategory.name}&rdquo; (Belum Ada)
+                  </span>
+                </div>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() =>
+                  handleCreateRecommendedCategory(
+                    nlpRecommendedCategory.name,
+                    nlpRecommendedCategory.kind
+                  )
+                }
+                className="h-8 px-3 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 gap-1.5 shadow-sm cursor-pointer transition-all"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Buat Kategori
+              </Button>
+            </div>
+          )}
+
           {/* Akun & Kategori Selectors */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Akun Sumber */}
@@ -401,19 +476,12 @@ export function EditTransactionModal({
                   }}
                 />
               </div>
-              <select
+              <AccountSelect
+                accounts={accountsData?.accounts || []}
                 value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
-                required
-              >
-                <option value="">Pilih Akun...</option>
-                {accountsData?.accounts?.map((acc) => (
-                  <option key={acc.id} value={acc.id}>
-                    {acc.name} ({acc.group})
-                  </option>
-                ))}
-              </select>
+                onChange={setAccountId}
+                placeholder="Pilih Akun..."
+              />
             </div>
 
             {/* Akun Tujuan (Transfer) ATAU Kategori (Expense/Income) */}
@@ -438,21 +506,12 @@ export function EditTransactionModal({
                     }}
                   />
                 </div>
-                <select
+                <AccountSelect
+                  accounts={(accountsData?.accounts || []).filter((a) => a.id !== accountId)}
                   value={toAccountId}
-                  onChange={(e) => setToAccountId(e.target.value)}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
-                  required
-                >
-                  <option value="">Pilih Akun Tujuan...</option>
-                  {accountsData?.accounts
-                    ?.filter((a) => a.id !== accountId)
-                    .map((acc) => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.name} ({acc.group})
-                      </option>
-                    ))}
-                </select>
+                  onChange={setToAccountId}
+                  placeholder="Pilih Akun Tujuan..."
+                />
               </div>
             ) : (
               <div>
@@ -469,46 +528,29 @@ export function EditTransactionModal({
                         const detected = detectCategory(text, txType, categoriesList);
                         if (detected.matchedCategoryId) {
                           setCategoryId(detected.matchedCategoryId);
+                          setNlpRecommendedCategory(null);
+                        } else if (detected.recommendedCategory && detected.recommendedCategory.isNew) {
+                          setNlpRecommendedCategory({
+                            name: detected.recommendedCategory.name,
+                            kind: detected.recommendedCategory.kind,
+                          });
                         }
                       }
                     }}
                   />
                 </div>
-                <select
+                <CategorySelect
+                  categories={categoriesList || []}
                   value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
-                >
-                  <option value="">Tanpa Kategori (Umum)</option>
-                  {parentCategories.map((parent) => {
-                    const children = childCategoriesMap.get(parent.id) || [];
-                    if (children.length > 0) {
-                      return (
-                        <optgroup key={parent.id} label={parent.name}>
-                          <option value={parent.id}>{parent.name} (Utama)</option>
-                          {children.map((child) => (
-                            <option key={child.id} value={child.id}>
-                              &nbsp;&nbsp;• {child.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      );
-                    }
-                    return (
-                      <option key={parent.id} value={parent.id}>
-                        {parent.name}
-                      </option>
-                    );
-                  })}
-                  {/* Kategori anak tanpa parent yang terdaftar di parentCategories */}
-                  {activeCategories
-                    .filter((c) => c.parentId && !parentCategories.some((p) => p.id === c.parentId))
-                    .map((orphan) => (
-                      <option key={orphan.id} value={orphan.id}>
-                        {orphan.name}
-                      </option>
-                    ))}
-                </select>
+                  onChange={(newId) => {
+                    setCategoryId(newId);
+                    setNlpRecommendedCategory(null);
+                  }}
+                  txType={txType}
+                  placeholder="Pilih Kategori..."
+                  recommendedCategory={nlpRecommendedCategory}
+                  onCreateRecommended={(name, kind) => handleCreateRecommendedCategory(name, kind)}
+                />
               </div>
             )}
           </div>
