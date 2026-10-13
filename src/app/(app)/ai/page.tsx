@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useTransition } from "react";
+import React, { useState, useRef, useEffect, useTransition, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
@@ -34,7 +34,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 
-export default function AIPage() {
+function AIPageContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
 
@@ -810,3 +810,19 @@ export default function AIPage() {
     </div>
   );
 }
+
+export default function AIPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-[#00B569]" />
+          <p className="text-sm text-muted-foreground animate-pulse">Memuat Fin.IQ AI Studio...</p>
+        </div>
+      }
+    >
+      <AIPageContent />
+    </Suspense>
+  );
+}
+
