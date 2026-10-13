@@ -493,12 +493,34 @@ function AIPageContent() {
               <div className="flex items-center justify-between pb-3 border-b mb-4">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-[#00B569]" />
-                  <h3 className="font-extrabold text-sm text-foreground">Hasil Analisis OCR Gemini</h3>
+                  <h3 className="font-extrabold text-sm text-foreground">Hasil Analisis AI Vision Gemini</h3>
                 </div>
                 {scannedResult && (
-                  <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-none font-semibold text-[10px]">
-                    Berhasil Diekstrak
-                  </Badge>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {scannedResult.documentType === "transfer_proof" && (
+                      <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-600 bg-blue-500/10">
+                        💳 Bukti Transfer M-Banking
+                      </Badge>
+                    )}
+                    {scannedResult.documentType === "bank_statement" && (
+                      <Badge variant="outline" className="text-[10px] border-purple-500/30 text-purple-600 bg-purple-500/10">
+                        📑 Riwayat Mutasi Rekening
+                      </Badge>
+                    )}
+                    {scannedResult.documentType === "receipt" && (
+                      <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-600 bg-emerald-500/10">
+                        🧾 Struk Belanja Kasir
+                      </Badge>
+                    )}
+                    {scannedResult.documentType === "bill" && (
+                      <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-600 bg-amber-500/10">
+                        ⚡ Tagihan / Faktur
+                      </Badge>
+                    )}
+                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-none font-semibold text-[10px]">
+                      Berhasil Diekstrak
+                    </Badge>
+                  </div>
                 )}
               </div>
 
@@ -507,15 +529,25 @@ function AIPageContent() {
                   {/* Highlight Nominal & Toko */}
                   <div className="p-4 rounded-2xl bg-muted/40 border border-border/60 flex items-center justify-between">
                     <div>
-                      <span className="text-[11px] text-muted-foreground block">Grand Total Belanja</span>
-                      <span className="text-xl font-black text-rose-600 dark:text-rose-400">
+                      <span className="text-[11px] text-muted-foreground block">
+                        {scannedResult.documentType === "transfer_proof"
+                          ? "Nominal Transfer"
+                          : scannedResult.documentType === "bank_statement"
+                          ? "Transaksi Utama"
+                          : scannedResult.documentType === "bill"
+                          ? "Total Tagihan"
+                          : "Grand Total Belanja"}
+                      </span>
+                      <span className={`text-xl font-black ${scannedResult.txType === "income" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                         {formatCurrency(scannedResult.amount)}
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-[11px] text-muted-foreground block">Merchant / Toko</span>
+                      <span className="text-[11px] text-muted-foreground block">
+                        {scannedResult.documentType === "transfer_proof" ? "Penerima / Merchant" : "Merchant / Toko"}
+                      </span>
                       <span className="text-sm font-bold text-foreground">
-                        {scannedResult.merchantName || scannedResult.note || "Toko Kasir"}
+                        {scannedResult.merchantName || scannedResult.note || "Transaksi Terdeteksi"}
                       </span>
                     </div>
                   </div>
@@ -535,23 +567,28 @@ function AIPageContent() {
                       </span>
                     </div>
                     <div className="p-3 rounded-xl border bg-card col-span-2 sm:col-span-1">
-                      <span className="text-[10px] text-muted-foreground block uppercase font-medium">Metode Pembayaran</span>
+                      <span className="text-[10px] text-muted-foreground block uppercase font-medium">Metode / Akun</span>
                       <span className="font-semibold text-foreground mt-0.5 block">
                         {scannedResult.accountHint || "Kas Tunai"}
                       </span>
                     </div>
                   </div>
 
-                  {/* Line Items Breakdown jika ada */}
+                  {/* Line Items Breakdown jika ada (Multi-Product Bills) */}
                   {Array.isArray(scannedResult.items) && scannedResult.items.length > 0 && (
                     <div className="border rounded-xl p-3 bg-card mt-3">
-                      <span className="font-bold text-[11px] text-muted-foreground uppercase tracking-wider block mb-2">
-                        Rincian Item Belanja ({scannedResult.items.length} item)
-                      </span>
-                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-bold text-[11px] text-muted-foreground uppercase tracking-wider block">
+                          Daftar Produk Belanja ({scannedResult.items.length} produk)
+                        </span>
+                        <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-600">
+                          Multi-Product
+                        </Badge>
+                      </div>
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                         {scannedResult.items.map((item: any, idx: number) => (
-                          <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-border/40 last:border-none">
-                            <span className="font-medium text-foreground truncate max-w-[200px]">
+                          <div key={idx} className="flex items-center justify-between text-xs py-1.5 border-b border-border/40 last:border-none">
+                            <span className="font-medium text-foreground truncate max-w-[220px]">
                               {item.qty ? `${item.qty}x ` : ""}{item.name}
                             </span>
                             <span className="font-mono text-muted-foreground font-semibold">
@@ -563,10 +600,41 @@ function AIPageContent() {
                     </div>
                   )}
 
+                  {/* Multi-Transaction Statement Breakdown jika gambar mutasi rekening */}
+                  {scannedResult.isMultipleTransactions && Array.isArray(scannedResult.transactions) && scannedResult.transactions.length > 1 && (
+                    <div className="border rounded-xl p-3 bg-card mt-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-bold text-[11px] text-muted-foreground uppercase tracking-wider block">
+                          Daftar Mutasi Terdeteksi ({scannedResult.transactions.length} mutasi)
+                        </span>
+                        <Badge variant="outline" className="text-[9px] border-blue-500/30 text-blue-600">
+                          Riwayat M-Banking
+                        </Badge>
+                      </div>
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        {scannedResult.transactions.map((tx: any, idx: number) => (
+                          <div key={idx} className="flex items-center justify-between text-xs py-1.5 border-b border-border/40 last:border-none">
+                            <div className="flex flex-col min-w-0 pr-2">
+                              <span className="font-semibold text-foreground truncate max-w-[220px]">
+                                {tx.note || "Transaksi"}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {formatDateTime(tx.happenedAt)} • {tx.accountHint || "Bank"}
+                              </span>
+                            </div>
+                            <span className={`font-mono font-bold shrink-0 ${tx.txType === "income" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                              {tx.txType === "income" ? "+ " : "- "}{formatCurrency(tx.amount)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Catatan yang akan disimpan */}
                   <div className="p-3 rounded-xl border bg-card">
-                    <span className="text-[10px] text-muted-foreground block uppercase font-medium">Catatan Mutasi</span>
-                    <span className="font-medium text-foreground mt-0.5 block">
+                    <span className="text-[10px] text-muted-foreground block uppercase font-medium">Catatan Otomatis</span>
+                    <span className="font-medium text-foreground mt-0.5 block leading-relaxed">
                       {scannedResult.note}
                     </span>
                   </div>
@@ -576,8 +644,8 @@ function AIPageContent() {
                   <Receipt className="h-8 w-8 text-muted-foreground/40" />
                   <span className="text-xs">
                     {isScanningBill
-                      ? "Sedang membaca struk..."
-                      : "Belum ada struk yang dipindai. Unggah gambar struk belanja di sebelah kiri untuk melihat hasil OCR."}
+                      ? "Sedang membaca dokumen finansial..."
+                      : "Belum ada gambar yang dipindai. Unggah foto struk belanja, bukti transfer m-banking, atau mutasi rekening di sebelah kiri untuk melihat hasil ekstraksi AI."}
                   </span>
                 </div>
               )}

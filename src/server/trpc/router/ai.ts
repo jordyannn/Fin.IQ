@@ -89,8 +89,12 @@ export const aiRouter = router({
       const currentYear = new Date().getFullYear();
       const cleanBase64 = input.image.base64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
 
-      const prompt = `Kamu adalah sistem OCR dan analisis transaksi keuangan profesional di Indonesia untuk aplikasi Fin.IQ.
-Tugasmu adalah menganalisis gambar struk belanja kasir fisik (Alfamart, Indomaret, supermarket, resto, kafe, warung), bukti transfer m-banking / QRIS, kuitansi, atau faktur/tagihan (bill/invoice PLN, PDAM, wifi, dsb.), lalu mengekstrak data transaksi menjadi format JSON tunggal.
+      const prompt = `Kamu adalah sistem AI Vision Keuangan paling canggih di Indonesia untuk aplikasi Fin.IQ.
+Tugasmu adalah menganalisis gambar finansial apa pun:
+1. STRUK BELANJA KASIR FISIK & DIGITAL (Alfamart, Indomaret, Superindo, supermarket, resto, kafe, apotek, SPBU, warung, mall) dengan SEMUA DAFTAR PRODUKNYA.
+2. BUKTI TRANSFER & PEMBAYARAN MOBILE BANKING / E-WALLET (BCA, myBCA, Mandiri Livin, BRImo, Wondr BNI, Bank Jago, Seabank, Jenius, GoPay, OVO, DANA, ShopeePay, QRIS, dll).
+3. RIWAYAT MUTASI REKENING / TRANSACTION HISTORY MOBILE BANKING (beberapa baris mutasi debit/kredit dalam 1 layar).
+4. TAGIHAN / FAKTUR / INVOICE (PLN Pascabayar/Token, PDAM, Indihome/wifi, BPJS, Tokopedia, Shopee, e-commerce).
 
 Daftar akun pengguna di aplikasi: ${accountNamesStr}.
 Daftar kategori pengguna di aplikasi: ${categoryNamesStr}.
@@ -98,6 +102,7 @@ Daftar kategori pengguna di aplikasi: ${categoryNamesStr}.
 FORMAT OUTPUT:
 Kembalikan HANYA 1 objek JSON murni:
 {
+  "documentType": "receipt" | "transfer_proof" | "bank_statement" | "bill",
   "txType": "expense" | "income",
   "amount": number,
   "merchantName": string,
@@ -114,29 +119,62 @@ Kembalikan HANYA 1 objek JSON murni:
   "tax": number,
   "serviceCharge": number,
   "discount": number,
-  "note": string
+  "note": string,
+  "isMultipleTransactions": boolean,
+  "transactions": [
+    {
+      "txType": "expense" | "income",
+      "amount": number,
+      "happenedAt": "YYYY-MM-DDTHH:mm:ss",
+      "note": string,
+      "categoryHint": string,
+      "accountHint": string
+    }
+  ]
 }
 
 ATURAN EKSTRAKSI PENTING:
-1. "amount":
-   - Merupakan GRAND TOTAL akhir yang dibayar (angka integer bulat positif dalam Rupiah).
-   - JANGAN mengambil Subtotal kotor sebelum diskon/pajak.
+1. DETEKSI SEMUA PRODUK PADA STRUK BELANJA (CRITICAL):
+   - WAJIB deteksi dan ekstrak SEMUA item/produk yang tercantum di struk, jangan ada yang terlewat!
+   - Untuk setiap produk di dalam array "items":
+     * "name": Nama produk yang jelas dan terbaca di struk (misal: "Indomie Goreng Ayam", "Susu Ultra 250ml", "Aqua 600ml", "Roti Tawar").
+     * "qty": Jumlah kuantiti (integer positif, misal: 1, 2, 3).
+     * "price": Harga total atau harga satuan barang dalam integer Rupiah.
+   - Cantumkan SEMUA barang di struk ke dalam array "items", bukan cuma 1 barang pertama!
+
+2. BUKTI TRANSFER & PEMBAYARAN MOBILE BANKING / QRIS:
+   - "documentType": "transfer_proof"
+   - Kenali bank / e-wallet asal (BCA, Mandiri, BRI, BNI, GoPay, DANA, OVO, ShopeePay, Seabank, Jago, dll).
+   - "txType":
+     * "expense": jika transfer keluar, pembayaran QRIS, belanja merchant, bayar tagihan.
+     * "income": jika transfer masuk (dana diterima, top up masuk, kredit).
+   - "amount": Nominal transaksi yang ditransfer atau dibayar (Rupiah integer positif).
+   - "merchantName": Nama penerima uang atau nama toko QRIS (misal: "Budi Santoso", "Kopi Kenangan").
+   - "note": Deskripsi rapi dan informatif, misal: "Transfer ke Budi Santoso (BCA)" atau "QRIS Kopi Kenangan".
+
+3. DAFTAR MUTASI / RIWAYAT TRANSAKSI BANYAK BARIS DI M-BANKING:
+   - Jika gambar menampilkan screenshot daftar mutasi rekening dengan 2 atau lebih baris transaksi:
+     * "documentType": "bank_statement"
+     * "isMultipleTransactions": true
+     * Masukkan SEMUA baris transaksi yang tertera ke dalam array "transactions":
+       - txType: "expense" (jika DB / Debit / uang keluar / minus -) atau "income" (jika CR / Kredit / uang masuk / plus +).
+       - amount: nominal baris tersebut.
+       - note: nama merchant / pengirim / keterangan mutasi.
+     * Isi "amount" utama dengan nominal transaksi baris paling atas/terbaru.
+     * Isi "note" utama dengan: "Mutasi [Bank]: [Keterangan baris 1]".
+
+4. GRAND TOTAL AMOUNT (RUPIAH):
+   - Untuk struk belanja: Ambil GRAND TOTAL akhir setelah diskon/pajak (angka integer bulat positif dalam Rupiah).
    - JANGAN mengambil nominal Tunai/Cash yang diserahkan ke kasir atau Kembalian!
-   - Di Indonesia, titik (.) adalah pemisah ribuan (Rp 45.000 = 45000). Jangan membaca titik sebagai desimal!
-2. "merchantName" & "note":
-   - Nama toko/tempat/merchant atau penerbit tagihan (misal: "Indomaret", "Alfamart", "Kopi Kenangan", "PLN Pascabayar", "Starbucks").
-   - Jika ada rincian belanja, buat "note" yang rapi dan informatif (misal: "Belanja di Indomaret" atau nama toko).
-3. "happenedAt":
-   - Tanggal & waktu transaksi dari struk (format ISO "YYYY-MM-DDTHH:mm:ss").
-   - Jika jam tidak tertera, gunakan jam 12:00:00. Jika tahun tidak tertera, gunakan tahun ${currentYear}.
-4. "suggestedCategory":
-   - Pilih SATU nama yang paling cocok HANYA dari daftar kategori pengguna: [${categoryNamesStr}].
-5. "paymentMethod":
-   - Metode bayar yang tertera (misal: "TUNAI", "DEBIT BCA", "QRIS", "GOPAY", "MANDIRI", "DANA", "SHOPEEPAY", "KREDIT").
-6. "items":
-   - Daftar item/barang belanjaan jika tertera pada struk kasir.
-7. Jika BUKAN gambar transaksi/struk/tagihan yang valid, kembalikan:
-   { "amount": 0, "merchantName": "", "note": "Tidak terdeteksi struk transaksi", "items": [] }
+   - Tanda titik (.) di Indonesia adalah pemisah ribuan (Rp 50.000 = 50000). Jangan membaca titik sebagai desimal!
+
+5. "suggestedCategory":
+   - Pilih satu kategori yang paling cocok HANYA dari daftar pengguna: [${categoryNamesStr}].
+   - Jika struk belanja minimarket/supermarket, pilih kategori harian/groceries/Daily Goods/Shopping/Umum.
+   - Jika kafe/makanan, pilih Dining/Beverage. Jika pulsa/listrik, pilih Utilities.
+
+6. Jika gambar BUKAN dokumen transaksi/struk/mutasi yang valid:
+   { "amount": 0, "merchantName": "", "note": "Tidak terdeteksi dokumen transaksi yang valid", "items": [], "transactions": [] }
 `;
 
       const ai = new GoogleGenAI({ apiKey });
@@ -161,10 +199,10 @@ ATURAN EKSTRAKSI PENTING:
         });
         responseText = response.text || "{}";
       } catch (genErr: any) {
-        console.error("Gemini Bill OCR Error:", genErr);
+        console.error("Gemini Vision OCR Error:", genErr);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: `Gagal membaca struk dengan Gemini AI: ${genErr.message || "Unknown error"}`,
+          message: `Gagal membaca gambar dengan Gemini AI: ${genErr.message || "Unknown error"}`,
         });
       }
 
@@ -190,7 +228,7 @@ ATURAN EKSTRAKSI PENTING:
         throw new TRPCError({
           code: "BAD_REQUEST",
           message:
-            "Tidak dapat mendeteksi total transaksi dari gambar. Pastikan foto struk atau tagihan terlihat tajam dan terbaca.",
+            "Tidak dapat mendeteksi total transaksi dari gambar. Pastikan foto struk, bukti transfer, atau mutasi terlihat jelas dan terbaca.",
         });
       }
 
@@ -209,17 +247,64 @@ ATURAN EKSTRAKSI PENTING:
         happenedAt = input.clientTime || new Date().toISOString();
       }
 
+      const items = Array.isArray(parsed.items) ? parsed.items : [];
       let itemsSummary = "";
-      if (Array.isArray(parsed.items) && parsed.items.length > 0) {
-        itemsSummary = parsed.items
-          .slice(0, 6)
-          .map((item: any) => `${item.qty ? item.qty + "x " : ""}${item.name}`)
+      if (items.length > 0) {
+        itemsSummary = items
+          .map((item: any) => `${item.qty && item.qty > 1 ? item.qty + "x " : ""}${item.name || "Item"}${item.price ? ` (${formatInputIDR(String(Math.round(item.price)))})` : ""}`)
           .join(", ");
       }
 
       const merchant = (parsed.merchantName || "").trim();
       const rawNote = (parsed.note || "").trim();
-      const finalNote = merchant || rawNote || "Belanja Struk";
+
+      let finalNote = "";
+      if (merchant && items.length > 0) {
+        // Rangkum merchant dan seluruh produk utama yang dibeli
+        const itemNames = items
+          .slice(0, 6)
+          .map((it: any) => `${it.qty && it.qty > 1 ? it.qty + "x " : ""}${it.name}`)
+          .join(", ");
+        const moreCount = items.length > 6 ? ` (+${items.length - 6} item)` : "";
+        finalNote = `${merchant}: ${itemNames}${moreCount}`;
+      } else if (rawNote) {
+        finalNote = rawNote;
+      } else if (merchant) {
+        finalNote = `Transaksi di ${merchant}`;
+      } else {
+        finalNote = "Transaksi AI Vision";
+      }
+
+      if (finalNote.length > 250) {
+        finalNote = finalNote.substring(0, 247) + "...";
+      }
+
+      // Format baris mutasi multi-transaksi jika ada
+      const rawTxList = Array.isArray(parsed.transactions) ? parsed.transactions : [];
+      const parsedTransactions = rawTxList
+        .filter((t: any) => Number(t.amount) > 0)
+        .map((t: any) => {
+          const tAmount = Math.round(Number(t.amount) || 0);
+          const tMatchedAcc = fuzzyMatchAccount(t.accountHint || parsed.paymentMethod, userAccounts);
+          const tFoundAcc = userAccounts.find(
+            (a) => a.name.toLowerCase().trim() === tMatchedAcc.toLowerCase().trim()
+          );
+          const tMatchedCat = fuzzyMatchCategory(t.categoryHint || parsed.suggestedCategory, userCategories);
+          const tFoundCat = userCategories.find(
+            (c) => c.name.toLowerCase().trim() === tMatchedCat.toLowerCase().trim()
+          );
+          return {
+            amount: tAmount,
+            formattedAmount: formatInputIDR(String(tAmount)),
+            txType: (t.txType === "income" ? "income" : "expense") as "expense" | "income",
+            happenedAt: t.happenedAt || happenedAt,
+            note: (t.note || "Transaksi Mutasi").substring(0, 250),
+            accountHint: tMatchedAcc,
+            matchedAccountId: tFoundAcc?.id || userAccounts[0]?.id,
+            categoryHint: tMatchedCat,
+            matchedCategoryId: tFoundCat?.id,
+          };
+        });
 
       return {
         amount,
@@ -232,11 +317,15 @@ ATURAN EKSTRAKSI PENTING:
         matchedCategoryId: matchedCategory?.id,
         accountHint: matchedAccName,
         matchedAccountId: matchedAccount?.id || userAccounts[0]?.id,
-        items: Array.isArray(parsed.items) ? parsed.items : [],
+        items,
         itemsSummary,
+        itemsCount: items.length,
         tax: Number(parsed.tax) || 0,
         serviceCharge: Number(parsed.serviceCharge) || 0,
         discount: Number(parsed.discount) || 0,
+        documentType: (parsed.documentType || (parsedTransactions.length > 1 ? "bank_statement" : items.length > 0 ? "receipt" : "transfer_proof")) as "receipt" | "transfer_proof" | "bank_statement" | "bill",
+        isMultipleTransactions: Boolean(parsed.isMultipleTransactions && parsedTransactions.length > 1),
+        transactions: parsedTransactions,
       };
     }),
 

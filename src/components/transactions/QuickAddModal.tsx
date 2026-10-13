@@ -59,8 +59,12 @@ export function QuickAddModal() {
     merchantName?: string;
     itemsSummary?: string;
     itemsCount?: number;
+    items?: Array<{ name: string; qty?: number; price?: number }>;
     tax?: number;
     discount?: number;
+    documentType?: string;
+    isMultipleTransactions?: boolean;
+    transactions?: Array<any>;
   } | null>(null);
 
   // Queries
@@ -256,9 +260,13 @@ export function QuickAddModal() {
       setScannedBillMeta({
         merchantName: data.merchantName,
         itemsSummary: data.itemsSummary,
-        itemsCount: data.items?.length || 0,
+        itemsCount: data.itemsCount || data.items?.length || 0,
+        items: data.items || [],
         tax: data.tax,
         discount: data.discount,
+        documentType: data.documentType,
+        isMultipleTransactions: data.isMultipleTransactions,
+        transactions: data.transactions || [],
       });
     },
     onError: (err) => {
@@ -555,14 +563,28 @@ export function QuickAddModal() {
                 </div>
               </div>
               <div className="min-w-0 flex flex-col">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span className="font-bold text-foreground truncate">
-                    {scannedBillMeta?.merchantName || "Struk Belanja Terbaca"}
+                    {scannedBillMeta?.documentType === "transfer_proof"
+                      ? `Bukti Transfer: ${scannedBillMeta.merchantName || "M-Banking"}`
+                      : scannedBillMeta?.isMultipleTransactions
+                      ? `Mutasi: ${scannedBillMeta.merchantName || "M-Banking"}`
+                      : scannedBillMeta?.merchantName || "Dokumen Keuangan Terbaca"}
                   </span>
+                  {scannedBillMeta?.itemsCount && scannedBillMeta.itemsCount > 1 ? (
+                    <span className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                      {scannedBillMeta.itemsCount} Produk
+                    </span>
+                  ) : null}
+                  {scannedBillMeta?.isMultipleTransactions ? (
+                    <span className="bg-blue-500/20 text-blue-700 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                      {scannedBillMeta.transactions?.length} Mutasi
+                    </span>
+                  ) : null}
                 </div>
-                <span className="text-[11px] text-muted-foreground truncate">
-                  {scannedBillMeta?.itemsSummary || "Data berhasil diisi otomatis ke formulir"}
+                <span className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+                  {scannedBillMeta?.itemsSummary || "Data transaksi berhasil diekstrak dan diisi otomatis."}
                 </span>
               </div>
             </div>
