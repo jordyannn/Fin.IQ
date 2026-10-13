@@ -14,6 +14,7 @@ import { smartParseIndonesianTransaction } from "@/lib/nlp-parser";
 import { GoogleGenAI } from "@google/genai";
 import { fuzzyMatchAccount, fuzzyMatchCategory } from "./import";
 import { formatInputIDR } from "@/lib/utils";
+import { GEMINI_AUDIO_MODEL } from "../../gemini";
 
 async function getEffectiveGeminiKey(ctx: { db: any; userId: string }): Promise<string> {
   const profile = await ctx.db.query.userProfiles.findFirst({
@@ -56,6 +57,242 @@ export const aiRouter = router({
         categories: userCategories,
         referenceDate: input.clientTime ? new Date(input.clientTime) : new Date(),
       });
+    }),
+
+  parseAudioWithGemini: protectedProcedure
+    .input(
+      z.object({
+        audioBase64: z.string().optional(),
+        mimeType: z.string().default("audio/webm"),
+        transcript: z.string().optional(),
+        clientTime: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const userAccounts = await ctx.db
+        .select({ id: accounts.id, name: accounts.name, group: accounts.group })
+        .from(accounts)
+        .where(eq(accounts.userId, ctx.userId));
+
+      const userCategories = await ctx.db
+        .select({
+          id: categories.id,
+          name: categories.name,
+          kind: categories.kind,
+          parentId: categories.parentId,
+        })
+        .from(categories)
+        .where(eq(categories.userId, ctx.userId));
+
+      const rawSpeech = input.transcript?.trim() || "";
+
+      // 1. Panggil Gemini 2.5 Flash Native Audio
+      try {
+        const apiKey = await getEffectiveGeminiKey(ctx);
+        const ai = new GoogleGenAI({ apiKey });
+
+        const accountNamesStr = userAccounts.map((a) => a.name).join(", ") || "Kas Tunai, Rekening BCA, GoPay";
+        const categoryNamesStr =
+          userCategories.map((c) => c.name).join(", ") ||
+          "Dining, Beverage, Snacks, Transportasi, Daily Goods, Shopping, Utilities, Saving, Family, Beauty, Health, Education, entertain, paylater, Umum";
+
+        const clientDate = input.clientTime ? new Date(input.clientTime) : new Date();
+        const clientDateStr = clientDate.toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
+
+        const prompt = `Kamu adalah asisten AI keuangan cerdas Bahasa Indonesia untuk Fin.IQ.
+Tugasmu adalah menganalisis ucapan pengguna (melalui rekaman audio native dan/atau transkripsi) untuk mengekstrak detail transaksi finansial.
+Model AI: Gemini 2.5 Flash Native Audio Dialog.
+Pengguna mungkin berbicara santai, bahasa daerah/slang Indonesia (misal: goceng, ceban, goban, cepek, sewa, ngopi, jajan, tf, bayar, beli, dsb).
+
+Konteks pengguna:
+- Waktu saat ini: ${clientDateStr}
+- Akun yang dimiliki pengguna di Fin.IQ: [${accountNamesStr}]
+- Kategori yang dimiliki pengguna di Fin.IQ: [${categoryNamesStr}]
+${rawSpeech ? `- Transkripsi teks awal: "${rawSpeech}"` : ""}
+
+TUGAS EKSTRAKSI:
+Ekstrak transaksi dan kembalikan HANYA JSON valid dengan struktur:
+{
+  "txType": "expense" | "income" | "transfer",
+  "amount": number,
+  "note": string,
+  "accountHint": string,
+  "toAccountHint": string,
+  "categoryHint": string,
+  "isNewCategory": boolean,
+  "suggestedParentCategory": string,
+  "happenedAtIso": string or null
+}
+
+ATURAN DETAIL:
+1. "amount": Angka bulat integer Rupiah (misal 50.000 -> 50000, 2.5jt -> 2500000, goban -> 50000, goceng -> 5000). Jika tidak ada angka, isi 0.
+2. "txType":
+   - "expense": pengeluaran/belanja/makan/beli barang/tagihan/bensin.
+   - "income": pemasukan/gaji/angpao/hadiah/cuan/bonus/kiriman.
+   - "transfer": transfer saldo/geser uang antar rekening/top up e-wallet dari bank.
+3. "note": Ringkasan rapi dari apa yang dibeli/dikerjakan tanpa kata instruksi pembuka (misal: "Beli kopi", "Ganti ban motor", "Makan siang di warteg").
+4. "accountHint": Nama akun sumber yang paling sesuai dari daftar pengguna.
+5. "toAccountHint": Jika transfer, nama akun tujuan. Jika bukan transfer, isi string kosong "".
+6. "categoryHint" & "isNewCategory":
+   - Jika transaksinya cocok dengan salah satu kategori yang sudah ada di [${categoryNamesStr}], gunakan nama kategori tersebut dan set "isNewCategory": false.
+   - Jika belum ada kategori yang pas di daftar pengguna (misal: "Servis Ban Tubeless", "Donasi Panti Asuhan", "Beli Mainan Kucing", "Sewa Lapangan Badminton"), berikan nama kategori baru yang spesifik & rapi (misal: "Bengkel & Servis", "Donasi & Amal", "Hewan Peliharaan", "Olahraga") dan set "isNewCategory": true.
+7. "suggestedParentCategory": Kategori induk yang cocok jika "isNewCategory" bernilai true (misal: "Makanan & Minuman", "Transportasi", "Kebutuhan Hidup", "Kesehatan", dll).
+8. "happenedAtIso": Jika pengguna menyebutkan waktu khusus (kemarin, 2 jam lalu, tadi pagi, tanggal 15), konversikan ke format ISO 8601 (YYYY-MM-DDTHH:mm:ss). Jika tidak menyebutkan waktu, isi null.
+9. Format jawaban WAJIB HANYA JSON murni tanpa markdown wrapping (\`\`\`json).`;
+
+        const contents: any[] = [];
+        if (input.audioBase64) {
+          const cleanAudioBase64 = input.audioBase64.replace(/^data:audio\/[a-zA-Z0-9.+-]+;base64,/, "");
+          contents.push({
+            inlineData: {
+              data: cleanAudioBase64,
+              mimeType: input.mimeType || "audio/webm",
+            },
+          });
+        }
+        contents.push({ text: prompt });
+
+        const response = await ai.models.generateContent({
+          model: GEMINI_AUDIO_MODEL,
+          contents,
+          config: {
+            responseMimeType: "application/json",
+          },
+        });
+
+        const rawText = response.text || "{}";
+        const cleanJsonStr = rawText.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
+        const parsed = JSON.parse(cleanJsonStr);
+
+        const amount =
+          typeof parsed.amount === "number" && !isNaN(parsed.amount)
+            ? Math.max(0, Math.round(parsed.amount))
+            : 0;
+        const txType: "expense" | "income" | "transfer" =
+          parsed.txType === "income" || parsed.txType === "transfer" ? parsed.txType : "expense";
+
+        // Akun matching
+        let matchedAccountId: string | undefined = undefined;
+        let accountHint = parsed.accountHint || "";
+        if (accountHint) {
+          const matchedAccName = fuzzyMatchAccount(accountHint, userAccounts);
+          const matchedAccObj = userAccounts.find(
+            (a) => a.name.toLowerCase() === matchedAccName.toLowerCase()
+          );
+          if (matchedAccObj) {
+            matchedAccountId = matchedAccObj.id;
+            accountHint = matchedAccObj.name;
+          }
+        }
+
+        // Akun tujuan matching jika transfer
+        let matchedToAccountId: string | undefined = undefined;
+        let toAccountHint = parsed.toAccountHint || "";
+        if (txType === "transfer" && toAccountHint) {
+          const matchedToAccName = fuzzyMatchAccount(toAccountHint, userAccounts);
+          const matchedToAccObj = userAccounts.find(
+            (a) => a.name.toLowerCase() === matchedToAccName.toLowerCase()
+          );
+          if (matchedToAccObj) {
+            matchedToAccountId = matchedToAccObj.id;
+            toAccountHint = matchedToAccObj.name;
+          }
+        }
+
+        // Kategori matching & rekomendasi kategori baru
+        let matchedCategoryId: string | undefined = undefined;
+        let categoryHint = parsed.categoryHint || (txType === "income" ? "Umum" : "Dining");
+        let recommendedCategory:
+          | {
+              name: string;
+              parentName?: string;
+              kind: "expense" | "income";
+              isNew: boolean;
+            }
+          | undefined = undefined;
+
+        if (txType !== "transfer") {
+          const matchingCats = userCategories.filter((c) => !c.kind || c.kind === txType);
+          const exactCat = matchingCats.find(
+            (c) => c.name.toLowerCase().trim() === categoryHint.toLowerCase().trim()
+          );
+
+          if (exactCat && !parsed.isNewCategory) {
+            matchedCategoryId = exactCat.id;
+            categoryHint = exactCat.name;
+          } else {
+            const fuzzyCatName = fuzzyMatchCategory(categoryHint, matchingCats);
+            const fuzzyCatObj = matchingCats.find(
+              (c) => c.name.toLowerCase().trim() === fuzzyCatName.toLowerCase().trim()
+            );
+
+            if (fuzzyCatObj && !parsed.isNewCategory) {
+              matchedCategoryId = fuzzyCatObj.id;
+              categoryHint = fuzzyCatObj.name;
+            } else {
+              recommendedCategory = {
+                name: parsed.categoryHint || "Umum",
+                parentName: parsed.suggestedParentCategory || undefined,
+                kind: txType === "income" ? "income" : "expense",
+                isNew: true,
+              };
+              categoryHint = parsed.categoryHint || "Umum";
+            }
+          }
+        }
+
+        // Waktu transaksi
+        let happenedAt: Date | undefined = undefined;
+        let happenedAtFormatted: string | undefined = undefined;
+        if (parsed.happenedAtIso) {
+          const parsedDate = new Date(parsed.happenedAtIso);
+          if (!isNaN(parsedDate.getTime())) {
+            happenedAt = parsedDate;
+            const yyyy = parsedDate.getFullYear();
+            const mm = String(parsedDate.getMonth() + 1).padStart(2, "0");
+            const dd = String(parsedDate.getDate()).padStart(2, "0");
+            const hh = String(parsedDate.getHours()).padStart(2, "0");
+            const min = String(parsedDate.getMinutes()).padStart(2, "0");
+            happenedAtFormatted = `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+          }
+        }
+
+        const note = parsed.note?.trim() || rawSpeech;
+
+        return {
+          txType,
+          amount,
+          formattedAmount: amount > 0 ? formatInputIDR(String(amount)) : "",
+          accountHint,
+          matchedAccountId,
+          toAccountHint,
+          matchedToAccountId,
+          categoryHint,
+          matchedCategoryId,
+          recommendedCategory,
+          isDatasetMatch: true,
+          happenedAt,
+          happenedAtFormatted,
+          cleanNote: note,
+          note,
+          rawText: rawSpeech,
+          usedGemini: true,
+        };
+      } catch (geminiErr: any) {
+        console.warn(
+          "Gemini 2.5 Flash Audio fallback warning, falling back to local NLP:",
+          geminiErr?.message || geminiErr
+        );
+        const localResult = smartParseIndonesianTransaction(rawSpeech, {
+          accounts: userAccounts,
+          categories: userCategories,
+          referenceDate: input.clientTime ? new Date(input.clientTime) : new Date(),
+        });
+        return {
+          ...localResult,
+          usedGemini: false,
+        };
+      }
     }),
 
   parseBillReceipt: protectedProcedure

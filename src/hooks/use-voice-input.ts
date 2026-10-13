@@ -95,15 +95,28 @@ export function parseSpokenNumber(text: string): number | null {
 
 export interface UseVoiceInputOptions {
   silenceDelayMs?: number; // Waktu jeda hening sebelum otomatis selesai bicara (default: 2000ms)
-  processDelayMs?: number; // Waktu pemrosesan halus sebelum mengeksekusi hasil (default: 1000ms)
+  processDelayMs?: number; // Waktu pemrosesan halus sebelum mengeksekusi hasil (default: 500ms)
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      const base64 = result.includes(",") ? result.split(",")[1] : result;
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
 export function useVoiceInput(
-  onResult?: (transcript: string) => void,
+  onResult?: (transcript: string, audioBase64?: string, mimeType?: string) => void,
   options?: UseVoiceInputOptions
 ) {
   const silenceDelayMs = options?.silenceDelayMs ?? 2000;
-  const processDelayMs = options?.processDelayMs ?? 1000;
+  const processDelayMs = options?.processDelayMs ?? 500;
 
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -115,6 +128,12 @@ export function useVoiceInput(
   const finalTranscriptRef = useRef<string>("");
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
+
+  // MediaRecorder audio capture refs
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordedMimeTypeRef = useRef<string>("audio/webm");
 
   const silenceDelayRef = useRef(silenceDelayMs);
   silenceDelayRef.current = silenceDelayMs;
@@ -132,7 +151,47 @@ export function useVoiceInput(
     }
   };
 
-  const handleFinishSpeech = useCallback(() => {
+  const stopMediaStreamAndRecorder = useCallback(async (): Promise<{ audioBase64: string; mimeType: string }> => {
+    let audioBase64 = "";
+    const mimeType = recordedMimeTypeRef.current || "audio/webm";
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      try {
+        await new Promise<void>((resolve) => {
+          if (!mediaRecorderRef.current || mediaRecorderRef.current.state === "inactive") {
+            return resolve();
+          }
+          mediaRecorderRef.current.onstop = () => resolve();
+          mediaRecorderRef.current.stop();
+        });
+      } catch (err) {
+        console.warn("Gagal menghentikan MediaRecorder:", err);
+      }
+    }
+
+    if (mediaStreamRef.current) {
+      try {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+      } catch {}
+    }
+
+    if (audioChunksRef.current.length > 0) {
+      try {
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        if (audioBlob.size > 200) {
+          audioBase64 = await blobToBase64(audioBlob);
+        }
+      } catch (err) {
+        console.warn("Gagal konversi blob audio ke base64:", err);
+      }
+      audioChunksRef.current = [];
+    }
+
+    return { audioBase64, mimeType };
+  }, []);
+
+  const handleFinishSpeech = useCallback(async () => {
     clearSilenceTimer();
     const textToProcess = finalTranscriptRef.current.trim();
 
@@ -145,21 +204,24 @@ export function useVoiceInput(
     setIsListening(false);
     isListeningRef.current = false;
 
-    if (textToProcess) {
+    // Ambil rekaman audio Base64 untuk keperluan Gemini Native Audio fallback
+    const { audioBase64, mimeType } = await stopMediaStreamAndRecorder();
+
+    if (textToProcess || audioBase64) {
       setIsProcessing(true);
       isProcessingRef.current = true;
       setTimeout(() => {
         setIsProcessing(false);
         isProcessingRef.current = false;
         if (onResultRef.current) {
-          onResultRef.current(textToProcess);
+          onResultRef.current(textToProcess, audioBase64, mimeType);
         }
       }, processDelayRef.current);
     } else {
       setIsProcessing(false);
       isProcessingRef.current = false;
     }
-  }, []);
+  }, [stopMediaStreamAndRecorder]);
 
   const handleFinishSpeechRef = useRef(handleFinishSpeech);
   handleFinishSpeechRef.current = handleFinishSpeech;
@@ -185,7 +247,6 @@ export function useVoiceInput(
           setTranscript(cleanText);
 
           // Reset silence timer setiap kata baru terdeteksi
-          // Memberi waktu hening yang cukup (2000ms) agar kalimat pengguna tidak terpotong saat jeda
           clearSilenceTimer();
           silenceTimerRef.current = setTimeout(() => {
             handleFinishSpeechRef.current();
@@ -219,28 +280,78 @@ export function useVoiceInput(
 
     return () => {
       clearSilenceTimer();
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
     };
   }, []);
 
-  const startListening = useCallback(() => {
+  const startListening = useCallback(async () => {
     setError(null);
     clearSilenceTimer();
     finalTranscriptRef.current = "";
     setTranscript("");
     setIsProcessing(false);
     isProcessingRef.current = false;
+    audioChunksRef.current = [];
 
-    if (!recognitionRef.current) {
-      setError("Browser tidak mendukung speech recognition.");
+    const hasSpeech = Boolean(recognitionRef.current);
+    const hasMedia = typeof window !== "undefined" && Boolean(navigator?.mediaDevices?.getUserMedia);
+
+    if (!hasSpeech && !hasMedia) {
+      setError("Browser tidak mendukung input suara.");
       return;
     }
-    try {
-      setIsListening(true);
-      isListeningRef.current = true;
-      recognitionRef.current.start();
-    } catch (e) {
-      setIsListening(false);
-      isListeningRef.current = false;
+
+    setIsListening(true);
+    isListeningRef.current = true;
+
+    // 1. Rekam audio via MediaRecorder secara paralel untuk input native Gemini
+    if (hasMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaStreamRef.current = stream;
+
+        let mimeType = "audio/webm";
+        if (typeof MediaRecorder !== "undefined") {
+          if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+            mimeType = "audio/webm;codecs=opus";
+          } else if (MediaRecorder.isTypeSupported("audio/webm")) {
+            mimeType = "audio/webm";
+          } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+            mimeType = "audio/mp4";
+          } else if (MediaRecorder.isTypeSupported("audio/ogg")) {
+            mimeType = "audio/ogg";
+          }
+        }
+        recordedMimeTypeRef.current = mimeType;
+
+        const recorder = new MediaRecorder(stream, { mimeType });
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            audioChunksRef.current.push(e.data);
+          }
+        };
+        mediaRecorderRef.current = recorder;
+        recorder.start(200);
+      } catch (micErr: any) {
+        console.warn("getUserMedia error:", micErr);
+        if (!hasSpeech) {
+          setIsListening(false);
+          isListeningRef.current = false;
+          setError("Izin mikrofon ditolak atau tidak tersedia.");
+          return;
+        }
+      }
+    }
+
+    // 2. Start SpeechRecognition lokal untuk kecepatan respons 0 ms
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.start();
+      } catch (e) {
+        // Abaikan jika sudah berjalan
+      }
     }
   }, []);
 
@@ -257,3 +368,4 @@ export function useVoiceInput(
     stopListening,
   };
 }
+

@@ -33,6 +33,7 @@ import {
   extractDateTimeFromText,
   detectCategory,
   detectAccount,
+  isConfidentDatasetMatch,
 } from "@/lib/nlp-parser";
 import { useAlert, useConfirm } from "@/store/confirm.store";
 import { CategorySelect } from "./CategorySelect";
@@ -137,137 +138,131 @@ export function QuickAddModal() {
     }
   };
 
-  // Smart Voice & NLP parsing
-  const applySmartSpeechParse = (transcript: string) => {
+  const [isAiParsingVoice, setIsAiParsingVoice] = useState(false);
+
+  // Helper untuk mengisi seluruh form dari hasil parsing (lokal maupun AI)
+  const applyParsedDataToForm = (data: any) => {
+    if (data.amount > 0) {
+      setAmount(data.formattedAmount || formatInputIDR(String(data.amount)));
+    }
+    if (data.txType) {
+      setTxType(data.txType);
+    }
+    if (data.matchedAccountId) {
+      setAccountId(data.matchedAccountId);
+    } else if (accountsData?.accounts && data.accountHint) {
+      const foundAcc = accountsData.accounts.find(
+        (a) =>
+          a.name.toLowerCase().includes(data.accountHint.toLowerCase()) ||
+          data.accountHint.toLowerCase().includes(a.name.toLowerCase())
+      );
+      if (foundAcc) setAccountId(foundAcc.id);
+    }
+
+    if (data.txType === "transfer") {
+      if (data.matchedToAccountId) {
+        setToAccountId(data.matchedToAccountId);
+      } else if (accountsData?.accounts && data.toAccountHint) {
+        const fromId = data.matchedAccountId || accountId || accountsData.accounts[0]?.id;
+        const fallbackTo = accountsData.accounts.find(
+          (a) =>
+            a.id !== fromId &&
+            (a.name.toLowerCase().includes(data.toAccountHint.toLowerCase()) ||
+              data.toAccountHint.toLowerCase().includes(a.name.toLowerCase()))
+        );
+        if (fallbackTo) setToAccountId(fallbackTo.id);
+      }
+    } else {
+      if (data.matchedCategoryId) {
+        setCategoryId(data.matchedCategoryId);
+        setNlpRecommendedCategory(null);
+      } else if (data.recommendedCategory && data.recommendedCategory.isNew) {
+        setNlpRecommendedCategory({
+          name: data.recommendedCategory.name,
+          kind: data.recommendedCategory.kind,
+        });
+      } else if (categoriesList && data.categoryHint) {
+        const foundCat = categoriesList
+          .filter((c) => c.kind === data.txType)
+          .find(
+            (c) =>
+              c.name.toLowerCase().includes(data.categoryHint.toLowerCase()) ||
+              data.categoryHint.toLowerCase().includes(c.name.toLowerCase())
+          );
+        if (foundCat) {
+          setCategoryId(foundCat.id);
+          setNlpRecommendedCategory(null);
+        } else {
+          setNlpRecommendedCategory({
+            name: data.categoryHint,
+            kind: data.txType === "income" ? "income" : "expense",
+          });
+        }
+      }
+    }
+
+    if (data.happenedAtFormatted) {
+      setHappenedAt(data.happenedAtFormatted);
+    }
+
+    if (data.cleanNote) {
+      setNote(data.cleanNote);
+    } else if (data.note) {
+      setNote(data.note);
+    }
+  };
+
+  // Smart Voice & NLP parsing dengan Automatic Gemini 2.5 Flash Native Audio Fallback
+  const applySmartSpeechParse = (
+    transcript: string,
+    audioBase64?: string,
+    mimeType?: string
+  ) => {
     // 1. Eksekusi lokal instan (0 ms latency)
     const result = smartParseIndonesianTransaction(transcript, {
       accounts: accountsData?.accounts,
       categories: categoriesList,
     });
 
-    if (result.amount > 0) {
-      setAmount(result.formattedAmount);
-    }
-    if (result.txType) {
-      setTxType(result.txType);
-    }
-    if (result.matchedAccountId) {
-      setAccountId(result.matchedAccountId);
-    } else if (accountsData?.accounts) {
-      const foundAcc = accountsData.accounts.find((a) =>
-        a.name.toLowerCase().includes(result.accountHint.toLowerCase()) ||
-        result.accountHint.toLowerCase().includes(a.name.toLowerCase())
-      );
-      if (foundAcc) setAccountId(foundAcc.id);
-    }
+    // Isi langsung form dengan hasil parsing lokal terbaik
+    applyParsedDataToForm(result);
 
-    if (result.txType === "transfer") {
-      if (result.matchedToAccountId) {
-        setToAccountId(result.matchedToAccountId);
-      } else if (accountsData?.accounts) {
-        const fromId = result.matchedAccountId || accountId || accountsData.accounts[0]?.id;
-        const fallbackTo = accountsData.accounts.find((a) => a.id !== fromId);
-        if (fallbackTo) setToAccountId(fallbackTo.id);
-      }
+    // 2. Evaluasi apakah kata kunci transaksi cocok dengan dataset fin_iq
+    const isConfident = isConfidentDatasetMatch(result);
+
+    if (isConfident) {
+      // Kata kunci ditemukan di dataset fin_iq! Kirim ke backend mutation untuk sinkronisasi
+      parseMutation.mutate({ text: transcript, clientTime: new Date().toISOString() });
     } else {
-      if (result.matchedCategoryId) {
-        setCategoryId(result.matchedCategoryId);
-        setNlpRecommendedCategory(null);
-      } else if (result.recommendedCategory && result.recommendedCategory.isNew) {
-        setNlpRecommendedCategory({
-          name: result.recommendedCategory.name,
-          kind: result.recommendedCategory.kind,
-        });
-      } else if (categoriesList) {
-        const foundCat = categoriesList
-          .filter((c) => c.kind === result.txType)
-          .find((c) =>
-            c.name.toLowerCase().includes(result.categoryHint.toLowerCase()) ||
-            result.categoryHint.toLowerCase().includes(c.name.toLowerCase())
-          );
-        if (foundCat) {
-          setCategoryId(foundCat.id);
-          setNlpRecommendedCategory(null);
-        } else if (result.categoryHint) {
-          setNlpRecommendedCategory({
-            name: result.categoryHint,
-            kind: result.txType === "income" ? "income" : "expense",
-          });
-        }
-      }
+      // Kata kunci TIDAK ditemukan di dataset fin_iq (atau nominal belum terdeteksi)!
+      // Otomatis fallback ke Gemini 2.5 Flash Native Audio Dialog Live API
+      setIsAiParsingVoice(true);
+      parseAudioMutation.mutate({
+        audioBase64: audioBase64 || undefined,
+        mimeType: mimeType || "audio/webm",
+        transcript: transcript || undefined,
+        clientTime: new Date().toISOString(),
+      });
     }
-
-    if (result.happenedAtFormatted) {
-      setHappenedAt(result.happenedAtFormatted);
-    }
-
-    if (result.cleanNote) {
-      setNote(result.cleanNote);
-    } else {
-      setNote(transcript);
-    }
-
-    // 2. Kirim ke backend mutation untuk memastikan sinkronisasi
-    parseMutation.mutate({ text: transcript, clientTime: new Date().toISOString() });
   };
 
   const parseMutation = trpc.ai.parseTextToTransaction.useMutation({
     onSuccess: (data) => {
-      if (data.amount > 0) setAmount(data.formattedAmount || formatInputIDR(String(data.amount)));
-      if (data.txType) setTxType(data.txType);
-      if (data.happenedAtFormatted) {
-        setHappenedAt((prev) => prev || data.happenedAtFormatted || "");
-      }
-      if (data.cleanNote) setNote(data.cleanNote);
-      else if (data.note) setNote(data.note);
-
-      if (data.matchedAccountId) {
-        setAccountId(data.matchedAccountId);
-      } else if (accountsData?.accounts) {
-        const foundAcc = accountsData.accounts.find((a) =>
-          a.name.toLowerCase().includes(data.accountHint.toLowerCase()) ||
-          data.accountHint.toLowerCase().includes(a.name.toLowerCase())
-        );
-        if (foundAcc) setAccountId(foundAcc.id);
-      }
-
-      if (data.txType === "transfer") {
-        if (data.matchedToAccountId) {
-          setToAccountId(data.matchedToAccountId);
-        } else if (accountsData?.accounts) {
-          const fromId = data.matchedAccountId || accountId || accountsData.accounts[0]?.id;
-          const fallbackTo = accountsData.accounts.find((a) => a.id !== fromId);
-          if (fallbackTo) setToAccountId(fallbackTo.id);
-        }
-      } else {
-        if (data.matchedCategoryId) {
-          setCategoryId(data.matchedCategoryId);
-          setNlpRecommendedCategory(null);
-        } else if (data.recommendedCategory && data.recommendedCategory.isNew) {
-          setNlpRecommendedCategory({
-            name: data.recommendedCategory.name,
-            kind: data.recommendedCategory.kind,
-          });
-        } else if (categoriesList) {
-          const foundCat = categoriesList
-            .filter((c) => c.kind === data.txType)
-            .find((c) =>
-              c.name.toLowerCase().includes(data.categoryHint.toLowerCase()) ||
-              data.categoryHint.toLowerCase().includes(c.name.toLowerCase())
-            );
-          if (foundCat) {
-            setCategoryId(foundCat.id);
-            setNlpRecommendedCategory(null);
-          } else if (data.categoryHint) {
-            setNlpRecommendedCategory({
-              name: data.categoryHint,
-              kind: data.txType === "income" ? "income" : "expense",
-            });
-          }
-        }
-      }
+      applyParsedDataToForm(data);
     },
   });
+
+  const parseAudioMutation = trpc.ai.parseAudioWithGemini.useMutation({
+    onSuccess: (data) => {
+      setIsAiParsingVoice(false);
+      applyParsedDataToForm(data);
+    },
+    onError: (err) => {
+      setIsAiParsingVoice(false);
+      console.warn("Fallback Gemini Native Audio gagal:", err.message);
+    },
+  });
+
 
   // Auto-trigger pilihan sumber foto jika modal dibuka lewat tombol 'Scan Struk'
   useEffect(() => {
@@ -381,9 +376,13 @@ export function QuickAddModal() {
     setBillScanError(null);
   };
 
-  const { isListening, isProcessing, startListening, stopListening } = useVoiceInput((transcript) => {
-    applySmartSpeechParse(transcript);
-  });
+  const { isListening, isProcessing, startListening, stopListening } = useVoiceInput(
+    (transcript, audioBase64, mimeType) => {
+      applySmartSpeechParse(transcript, audioBase64, mimeType);
+    }
+  );
+
+  const isVoiceBusy = isProcessing || isAiParsingVoice;
 
   // Create mutation
   const createTxMutation = trpc.transactions.create.useMutation({
@@ -560,23 +559,23 @@ export function QuickAddModal() {
               type="button"
               variant={isListening ? "destructive" : "outline"}
               size="sm"
-              disabled={isProcessing || isScanningBill}
+              disabled={isVoiceBusy || isScanningBill}
               onClick={isListening ? stopListening : startListening}
               className={cn(
                 "h-9 rounded-xl text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 transition-all shadow-2xs",
                 isListening && "animate-pulse bg-rose-500 text-white border-rose-500 hover:bg-rose-600",
-                isProcessing && "border-primary/40 text-primary animate-pulse"
+                isVoiceBusy && "border-primary/40 text-primary animate-pulse"
               )}
               title="Dikte transaksi lewat suara"
             >
               {isListening ? (
                 <MicOff className="h-3.5 w-3.5 shrink-0" />
-              ) : isProcessing ? (
+              ) : isVoiceBusy ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
               ) : (
                 <Mic className="h-3.5 w-3.5 text-primary shrink-0" />
               )}
-              <span className="truncate">{isListening ? "Berhenti" : isProcessing ? "Proses..." : "Dikte"}</span>
+              <span className="truncate">{isListening ? "Berhenti" : isVoiceBusy ? "AI Memproses..." : "Dikte"}</span>
             </Button>
 
             {/* Buka Kamera */}
@@ -584,7 +583,7 @@ export function QuickAddModal() {
               type="button"
               variant="outline"
               size="sm"
-              disabled={isScanningBill || isProcessing}
+              disabled={isScanningBill || isVoiceBusy}
               onClick={() => cameraInputRef.current?.click()}
               className="h-9 rounded-xl text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 hover:text-primary transition-all shadow-2xs cursor-pointer"
               title="Buka Kamera untuk foto struk atau mutasi"
@@ -602,7 +601,7 @@ export function QuickAddModal() {
               type="button"
               variant="outline"
               size="sm"
-              disabled={isScanningBill || isProcessing}
+              disabled={isScanningBill || isVoiceBusy}
               onClick={() => galleryInputRef.current?.click()}
               className="h-9 rounded-xl text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 hover:text-primary transition-all shadow-2xs cursor-pointer"
               title="Buka Galeri foto atau dokumen"
@@ -1097,8 +1096,8 @@ export function QuickAddModal() {
               <VoiceMicButton
                 size="sm"
                 title="Dikte transaksi cerdas (otomatis isi seluruh form)"
-                onResult={(text) => {
-                  applySmartSpeechParse(text);
+                onResult={(text, audioBase64, mimeType) => {
+                  applySmartSpeechParse(text, audioBase64, mimeType);
                 }}
               />
             </div>

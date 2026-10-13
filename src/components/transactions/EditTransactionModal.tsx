@@ -25,6 +25,7 @@ import {
   extractDateTimeFromText,
   detectCategory,
   detectAccount,
+  isConfidentDatasetMatch,
 } from "@/lib/nlp-parser";
 import { useConfirm, useAlert } from "@/store/confirm.store";
 import { CategorySelect } from "./CategorySelect";
@@ -162,64 +163,91 @@ export function EditTransactionModal({
     },
   });
 
-  const applySmartSpeechParse = (transcript: string) => {
-    const result = smartParseIndonesianTransaction(transcript, {
-      accounts: accountsData?.accounts,
-      categories: categoriesList,
-    });
-
-    if (result.amount > 0) {
-      setAmount(result.formattedAmount);
+  const applyParsedDataToForm = (data: any) => {
+    if (data.amount > 0) {
+      setAmount(data.formattedAmount || formatInputIDR(String(data.amount)));
     }
-    if (result.txType) {
-      setTxType(result.txType);
+    if (data.txType) {
+      setTxType(data.txType);
     }
-    if (result.matchedAccountId) {
-      setAccountId(result.matchedAccountId);
-    } else if (accountsData?.accounts) {
+    if (data.matchedAccountId) {
+      setAccountId(data.matchedAccountId);
+    } else if (accountsData?.accounts && data.accountHint) {
       const foundAcc = accountsData.accounts.find((a) =>
-        a.name.toLowerCase().includes(result.accountHint.toLowerCase()) ||
-        result.accountHint.toLowerCase().includes(a.name.toLowerCase())
+        a.name.toLowerCase().includes(data.accountHint.toLowerCase()) ||
+        data.accountHint.toLowerCase().includes(a.name.toLowerCase())
       );
       if (foundAcc) setAccountId(foundAcc.id);
     }
 
-    if (result.matchedToAccountId) {
-      setToAccountId(result.matchedToAccountId);
+    if (data.matchedToAccountId) {
+      setToAccountId(data.matchedToAccountId);
     }
 
-    if (result.matchedCategoryId) {
-      setCategoryId(result.matchedCategoryId);
+    if (data.matchedCategoryId) {
+      setCategoryId(data.matchedCategoryId);
       setNlpRecommendedCategory(null);
-    } else if (result.recommendedCategory && result.recommendedCategory.isNew) {
+    } else if (data.recommendedCategory && data.recommendedCategory.isNew) {
       setNlpRecommendedCategory({
-        name: result.recommendedCategory.name,
-        kind: result.recommendedCategory.kind,
+        name: data.recommendedCategory.name,
+        kind: data.recommendedCategory.kind,
       });
-    } else if (categoriesList) {
+    } else if (categoriesList && data.categoryHint) {
       const foundCat = categoriesList
-        .filter((c) => c.kind === result.txType)
+        .filter((c) => c.kind === data.txType)
         .find((c) =>
-          c.name.toLowerCase().includes(result.categoryHint.toLowerCase()) ||
-          result.categoryHint.toLowerCase().includes(c.name.toLowerCase())
+          c.name.toLowerCase().includes(data.categoryHint.toLowerCase()) ||
+          data.categoryHint.toLowerCase().includes(c.name.toLowerCase())
         );
       if (foundCat) {
         setCategoryId(foundCat.id);
         setNlpRecommendedCategory(null);
       } else {
-        const fallbackCat = categoriesList.find((c) => c.kind === result.txType);
+        const fallbackCat = categoriesList.find((c) => c.kind === data.txType);
         if (fallbackCat) setCategoryId(fallbackCat.id);
       }
     }
 
-    if (result.happenedAtFormatted) {
-      setHappenedAt(result.happenedAtFormatted);
+    if (data.happenedAtFormatted) {
+      setHappenedAt(data.happenedAtFormatted);
     }
 
-    if (result.cleanNote) {
-      setNote(result.cleanNote);
-    } else {
-      setNote(transcript);
+    if (data.cleanNote) {
+      setNote(data.cleanNote);
+    } else if (data.note) {
+      setNote(data.note);
+    }
+  };
+
+  const parseAudioMutation = trpc.ai.parseAudioWithGemini.useMutation({
+    onSuccess: (data) => {
+      applyParsedDataToForm(data);
+    },
+    onError: (err) => {
+      console.warn("Fallback Gemini Native Audio gagal:", err.message);
+    },
+  });
+
+  const applySmartSpeechParse = (
+    transcript: string,
+    audioBase64?: string,
+    mimeType?: string
+  ) => {
+    const result = smartParseIndonesianTransaction(transcript, {
+      accounts: accountsData?.accounts,
+      categories: categoriesList,
+    });
+
+    applyParsedDataToForm(result);
+
+    const isConfident = isConfidentDatasetMatch(result);
+    if (!isConfident) {
+      parseAudioMutation.mutate({
+        audioBase64: audioBase64 || undefined,
+        mimeType: mimeType || "audio/webm",
+        transcript: transcript || undefined,
+        clientTime: new Date().toISOString(),
+      });
     }
   };
 
@@ -580,8 +608,8 @@ export function EditTransactionModal({
               <VoiceMicButton
                 size="sm"
                 title="Dikte transaksi cerdas (otomatis isi seluruh form)"
-                onResult={(text) => {
-                  applySmartSpeechParse(text);
+                onResult={(text, audioBase64, mimeType) => {
+                  applySmartSpeechParse(text, audioBase64, mimeType);
                 }}
               />
             </div>

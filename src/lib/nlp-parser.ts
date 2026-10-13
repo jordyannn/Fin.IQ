@@ -18,6 +18,7 @@ export interface ParsedTransactionResult {
     kind: "expense" | "income";
     isNew: boolean;
   };
+  isDatasetMatch?: boolean;
   happenedAt?: Date;
   happenedAtFormatted?: string;
   cleanNote: string;
@@ -502,17 +503,18 @@ export function detectCategory(
     kind: "expense" | "income";
     isNew: boolean;
   };
+  isDatasetMatch: boolean;
 } {
   const lower = text.toLowerCase().trim();
 
   // Jika transfer, tidak butuh kategori
   if (txType === "transfer") {
-    return { categoryHint: "Transfer" };
+    return { categoryHint: "Transfer", isDatasetMatch: true };
   }
 
   // Jika userCategories tidak tersedia
   if (!userCategories || userCategories.length === 0) {
-    return { categoryHint: txType === "income" ? "Umum" : "Dining" };
+    return { categoryHint: txType === "income" ? "Umum" : "Dining", isDatasetMatch: false };
   }
 
   // Filter kategori sesuai jenis transaksi (expense/income) dan bersihkan teks mandarin jika ada
@@ -531,7 +533,7 @@ export function detectCategory(
       .replace(/\s*[\(（][\u4e00-\u9fa5\s]+[\)）]/g, "")
       .replace(/[\u4e00-\u9fa5]+/g, "")
       .trim();
-    return { categoryHint: firstClean, matchedCategoryId: userCategories[0].id };
+    return { categoryHint: firstClean, matchedCategoryId: userCategories[0].id, isDatasetMatch: false };
   }
 
   // 1. Scoring semantik komprehensif menggunakan DATASET_TAXONOMY (79 subkategori & 12 induk)
@@ -594,7 +596,7 @@ export function detectCategory(
       (c) => c.cleanName.toLowerCase() === targetSubLower
     );
     if (exactSubCat) {
-      return { categoryHint: exactSubCat.name, matchedCategoryId: exactSubCat.id };
+      return { categoryHint: exactSubCat.name, matchedCategoryId: exactSubCat.id, isDatasetMatch: true };
     }
 
     // Jika belum punya subkategori persis ini, siapkan rekomendasi NLP
@@ -619,6 +621,7 @@ export function detectCategory(
           categoryHint: matchedCanonical.name,
           matchedCategoryId: matchedCanonical.id,
           recommendedCategory,
+          isDatasetMatch: true,
         };
       }
     }
@@ -632,6 +635,7 @@ export function detectCategory(
         categoryHint: exactParentCat.name,
         matchedCategoryId: exactParentCat.id,
         recommendedCategory,
+        isDatasetMatch: true,
       };
     }
 
@@ -666,6 +670,7 @@ export function detectCategory(
         categoryHint: bestMatchedUserCat.name,
         matchedCategoryId: bestMatchedUserCat.id,
         recommendedCategory,
+        isDatasetMatch: true,
       };
     }
 
@@ -673,6 +678,7 @@ export function detectCategory(
       categoryHint: bestDatasetEntry.sub,
       matchedCategoryId: undefined,
       recommendedCategory,
+      isDatasetMatch: true,
     };
   }
 
@@ -706,10 +712,10 @@ export function detectCategory(
   }
 
   if (bestDirectCat && maxDirectScore > 0) {
-    return { categoryHint: bestDirectCat.name, matchedCategoryId: bestDirectCat.id };
+    return { categoryHint: bestDirectCat.name, matchedCategoryId: bestDirectCat.id, isDatasetMatch: true };
   }
 
-  // 4. Default Fallback teraman (sesuai 19 kategori konsisten)
+  // 4. Default Fallback teraman (sesuai 19 kategori konsisten - bukan dataset match)
   const fallback =
     targetCats.find((c) =>
       txType === "income"
@@ -721,7 +727,7 @@ export function detectCategory(
           c.cleanName.toLowerCase() === "umum"
     ) || targetCats[0];
 
-  return { categoryHint: fallback.name, matchedCategoryId: fallback.id };
+  return { categoryHint: fallback.name, matchedCategoryId: fallback.id, isDatasetMatch: false };
 }
 
 /**
@@ -1700,7 +1706,7 @@ export function smartParseIndonesianTransaction(
   const normalized = normalizeSpokenIndonesian(text);
   const amount = extractAmountFromText(normalized) || extractAmountFromText(text);
   const txType = detectTxType(normalized);
-  const { categoryHint, matchedCategoryId, recommendedCategory } = detectCategory(normalized, txType, options?.categories);
+  const { categoryHint, matchedCategoryId, recommendedCategory, isDatasetMatch } = detectCategory(normalized, txType, options?.categories);
   const { accountHint, matchedAccountId, toAccountHint, matchedToAccountId } = detectAccount(normalized, options?.accounts);
   const { happenedAt, happenedAtFormatted } = extractDateTimeFromText(normalized, options?.referenceDate);
   const fullSpeech = text.trim();
@@ -1716,10 +1722,23 @@ export function smartParseIndonesianTransaction(
     categoryHint,
     matchedCategoryId,
     recommendedCategory,
+    isDatasetMatch: txType === "transfer" ? true : isDatasetMatch,
     happenedAt,
     happenedAtFormatted,
     cleanNote: fullSpeech,
     note: fullSpeech,
     rawText: text,
   };
+}
+
+/**
+ * Mengecek apakah hasil parsing lokal dari NLP memiliki tingkat keyakinan tinggi
+ * (kata kunci kategori cocok dengan dataset fin_iq dan nominal transaksi > 0).
+ * Jika mengembalikan false, sistem otomatis melakukan fallback audio ke Gemini 2.5 Flash Native Audio.
+ */
+export function isConfidentDatasetMatch(result: ParsedTransactionResult): boolean {
+  if (result.txType === "transfer") {
+    return result.amount > 0;
+  }
+  return Boolean(result.isDatasetMatch && result.amount > 0);
 }

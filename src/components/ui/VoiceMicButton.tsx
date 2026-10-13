@@ -6,7 +6,7 @@ import { useVoiceInput } from "@/hooks/use-voice-input";
 import { cn } from "@/lib/utils";
 
 interface VoiceMicButtonProps {
-  onResult: (transcript: string) => void;
+  onResult: (transcript: string, audioBase64?: string, mimeType?: string) => void;
   size?: "sm" | "md";
   className?: string;
   title?: string;
