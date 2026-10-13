@@ -20,6 +20,7 @@ import {
   Receipt,
   Eye,
   Trash2,
+  Image as ImageIcon,
   Bot,
   Send,
   HelpCircle,
@@ -53,7 +54,8 @@ function AIPageContent() {
   // --------------------------------------------------------------------------
   // TAB 1: OCR Bill & Struk Scanner State
   // --------------------------------------------------------------------------
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [isScanningBill, setIsScanningBill] = useState(false);
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
   const [billError, setBillError] = useState<string | null>(null);
@@ -361,20 +363,55 @@ function AIPageContent() {
                 <h3 className="font-extrabold text-sm text-foreground">Unggah Foto Struk / Bill</h3>
               </div>
 
+              {/* Hidden input for Camera capture */}
               <input
-                ref={fileInputRef}
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleReceiptFileChange}
+              />
+
+              {/* Hidden input for Gallery / Files */}
+              <input
+                ref={galleryInputRef}
                 type="file"
                 accept="image/*"
                 className="hidden"
                 onChange={handleReceiptFileChange}
               />
 
+              {/* Direct Camera vs Gallery Quick Action Buttons */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isScanningBill}
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="h-9 rounded-xl text-xs font-semibold gap-2 border-border/80 hover:bg-primary/10 hover:border-primary/40 hover:text-primary transition-all shadow-2xs cursor-pointer"
+                >
+                  <Camera className="h-4 w-4 text-primary" />
+                  <span>Buka Kamera</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isScanningBill}
+                  onClick={() => galleryInputRef.current?.click()}
+                  className="h-9 rounded-xl text-xs font-semibold gap-2 border-border/80 hover:bg-primary/10 hover:border-primary/40 hover:text-primary transition-all shadow-2xs cursor-pointer"
+                >
+                  <ImageIcon className="h-4 w-4 text-primary" />
+                  <span>Buka Galeri</span>
+                </Button>
+              </div>
+
               {/* Drop / Click Box */}
               <div
                 onClick={() => {
-                  if (!isScanningBill) fileInputRef.current?.click();
+                  if (!isScanningBill) galleryInputRef.current?.click();
                 }}
-                className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 min-h-[200px] ${
+                className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 min-h-[180px] ${
                   isScanningBill
                     ? "border-primary/50 bg-primary/5 cursor-not-allowed"
                     : "border-border hover:border-primary/50 hover:bg-muted/40"
@@ -399,7 +436,7 @@ function AIPageContent() {
                     </div>
                     <div>
                       <span className="text-xs font-bold text-foreground block">
-                        Pilih Gambar atau Jepret Foto Struk
+                        Pilih Gambar atau Tarik File ke Sini
                       </span>
                       <span className="text-[11px] text-muted-foreground mt-0.5 block">
                         Struk Alfamart, Indomaret, resto, café, bukti transfer QRIS, atau invoice PLN/wifi (PNG, JPG, WEBP).

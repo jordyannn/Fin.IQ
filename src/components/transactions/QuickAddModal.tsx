@@ -48,7 +48,9 @@ export function QuickAddModal() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Bill Scanner state
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const [showSourceChoiceModal, setShowSourceChoiceModal] = useState(false);
   const [isScanningBill, setIsScanningBill] = useState(false);
   const [billScanError, setBillScanError] = useState<string | null>(null);
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
@@ -211,14 +213,11 @@ export function QuickAddModal() {
     },
   });
 
-  // Auto-trigger file picker jika modal dibuka lewat tombol 'Scan Struk'
+  // Auto-trigger pilihan sumber foto jika modal dibuka lewat tombol 'Scan Struk'
   useEffect(() => {
     if (isQuickAddOpen && quickAddAutoScan) {
       setQuickAddAutoScan(false);
-      const timer = setTimeout(() => {
-        fileInputRef.current?.click();
-      }, 150);
-      return () => clearTimeout(timer);
+      setShowSourceChoiceModal(true);
     }
   }, [isQuickAddOpen, quickAddAutoScan, setQuickAddAutoScan]);
 
@@ -411,9 +410,19 @@ export function QuickAddModal() {
           </button>
         </div>
 
-        {/* Hidden input for Bill Scanner */}
+        {/* Hidden input for Camera capture (direct camera trigger on mobile) */}
         <input
-          ref={fileInputRef}
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleBillFileChange}
+        />
+
+        {/* Hidden input for Gallery / Files */}
+        <input
+          ref={galleryInputRef}
           type="file"
           accept="image/*"
           className="hidden"
@@ -454,31 +463,62 @@ export function QuickAddModal() {
             </div>
           </div>
 
-          {/* Bill / Receipt Scanner Button Card */}
+          {/* Bill / Receipt Scanner Button Card with Camera & Gallery */}
           <div
-            onClick={() => {
-              if (!isScanningBill) fileInputRef.current?.click();
-            }}
             className={cn(
-              "flex items-center gap-2.5 rounded-xl border border-border/80 bg-muted/40 p-2.5 cursor-pointer hover:bg-muted/70 transition-colors",
-              isScanningBill && "opacity-75 cursor-not-allowed border-primary/40 bg-primary/5"
+              "flex items-center justify-between gap-2 rounded-xl border border-border/80 bg-muted/40 p-2 transition-colors",
+              isScanningBill && "opacity-75 border-primary/40 bg-primary/5"
             )}
-            title="Pilih foto struk belanja atau bukti transfer"
           >
-            <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              {isScanningBill ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-              ) : (
-                <Camera className="h-3.5 w-3.5" />
-              )}
+            <div
+              className="flex items-center gap-2 min-w-0 cursor-pointer"
+              onClick={() => {
+                if (!isScanningBill) setShowSourceChoiceModal(true);
+              }}
+              title="Pilih cara scan struk"
+            >
+              <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                {isScanningBill ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                ) : (
+                  <Receipt className="h-3.5 w-3.5" />
+                )}
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs font-semibold text-foreground truncate">
+                  {isScanningBill ? "Membaca..." : "AI Vision Struk"}
+                </span>
+                <span className="text-[10px] text-muted-foreground truncate">
+                  {isScanningBill ? "Gemini aktif" : "Kamera / Galeri"}
+                </span>
+              </div>
             </div>
-            <div className="flex flex-col min-w-0">
-              <span className="text-xs font-semibold text-foreground truncate">
-                {isScanningBill ? "Membaca Struk..." : "Scan Struk / Bill"}
-              </span>
-              <span className="text-[10px] text-muted-foreground truncate">
-                {isScanningBill ? "Gemini AI Vision aktif" : "Foto / unggah struk kasir"}
-              </span>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isScanningBill}
+                onClick={() => cameraInputRef.current?.click()}
+                className="h-7 px-2 text-[11px] rounded-lg gap-1 border-primary/20 text-primary hover:bg-primary/10 hover:border-primary/40 shadow-2xs"
+                title="Buka Kamera untuk foto struk"
+              >
+                <Camera className="h-3 w-3" />
+                <span>Kamera</span>
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isScanningBill}
+                onClick={() => galleryInputRef.current?.click()}
+                className="h-7 px-2 text-[11px] rounded-lg gap-1 border-primary/20 text-primary hover:bg-primary/10 hover:border-primary/40 shadow-2xs"
+                title="Pilih dari Galeri foto"
+              >
+                <ImageIcon className="h-3 w-3" />
+                <span>Galeri</span>
+              </Button>
             </div>
           </div>
         </div>
@@ -562,7 +602,7 @@ export function QuickAddModal() {
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => setShowSourceChoiceModal(true)}
               className="h-6 text-[10px] px-2 text-rose-600 hover:bg-rose-500/20 shrink-0 font-medium"
             >
               Coba Lagi
@@ -603,6 +643,74 @@ export function QuickAddModal() {
                 >
                   Tutup
                 </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Pilihan Sumber Foto Struk (Kamera vs Galeri) */}
+        {showSourceChoiceModal && (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+            onClick={() => setShowSourceChoiceModal(false)}
+          >
+            <div
+              className="w-full max-w-sm rounded-2xl bg-card border border-border p-5 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    <Receipt className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-foreground">Sumber Foto Struk</h3>
+                    <p className="text-[11px] text-muted-foreground">Pilih cara mengambil foto struk / bill</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSourceChoiceModal(false)}
+                  className="rounded-full p-1 text-muted-foreground hover:bg-muted"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSourceChoiceModal(false);
+                    cameraInputRef.current?.click();
+                  }}
+                  className="flex flex-col items-center justify-center gap-2.5 p-4 rounded-xl border-2 border-border/70 hover:border-primary hover:bg-primary/5 transition-all text-center group cursor-pointer"
+                >
+                  <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Camera className="h-6 w-6" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-foreground">Buka Kamera</span>
+                    <span className="text-[10px] text-muted-foreground">Ambil foto langsung</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSourceChoiceModal(false);
+                    galleryInputRef.current?.click();
+                  }}
+                  className="flex flex-col items-center justify-center gap-2.5 p-4 rounded-xl border-2 border-border/70 hover:border-primary hover:bg-primary/5 transition-all text-center group cursor-pointer"
+                >
+                  <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <ImageIcon className="h-6 w-6" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-foreground">Buka Galeri</span>
+                    <span className="text-[10px] text-muted-foreground">Pilih dari album foto</span>
+                  </div>
+                </button>
               </div>
             </div>
           </div>
