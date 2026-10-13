@@ -39,6 +39,7 @@ export const userProfiles = mysqlTable("user_profiles", {
   themePrimaryColor: varchar("theme_primary_color", { length: 30 }).default("#3b82f6"),
   totpSecret: varchar("totp_secret", { length: 255 }),
   totpEnabled: boolean("totp_enabled").default(false).notNull(),
+  geminiApiKey: text("gemini_api_key"),
   updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
 });
 

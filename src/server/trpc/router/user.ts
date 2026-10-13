@@ -77,6 +77,11 @@ export const userRouter = router({
       accountCount: userAccounts.length,
       transactionCount,
       totalBalance,
+      geminiApiKeyMasked: profile?.geminiApiKey
+        ? `${profile.geminiApiKey.slice(0, 6)}••••${profile.geminiApiKey.slice(-4)}`
+        : null,
+      hasGeminiKey: Boolean(profile?.geminiApiKey?.trim() || process.env.GEMINI_API_KEY),
+      isPersonalKey: Boolean(profile?.geminiApiKey?.trim()),
     };
   }),
 
@@ -164,4 +169,99 @@ export const userRouter = router({
         message: "Kata sandi Anda berhasil diperbarui.",
       };
     }),
+
+  setGeminiKey: protectedProcedure
+    .input(z.object({ apiKey: z.string().trim().min(8, "API Key minimal 8 karakter") }))
+    .mutation(async ({ ctx, input }) => {
+      // 1. Verifikasi langsung ke Google Gemini API
+      try {
+        const { GoogleGenAI } = await import("@google/genai");
+        const ai = new GoogleGenAI({ apiKey: input.apiKey });
+        await ai.models.generateContent({
+          model: "gemini-3.8-flash",
+          contents: "ping",
+        });
+      } catch (err: any) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Gagal memverifikasi token dengan Google Gemini: ${err?.message || "Token tidak valid"}`,
+        });
+      }
+
+      // 2. Simpan token ke database user_profiles
+      const existing = await ctx.db
+        .select()
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, ctx.userId))
+        .limit(1);
+
+      if (existing.length === 0) {
+        await ctx.db.insert(userProfiles).values({
+          userId: ctx.userId,
+          displayName: "Pengguna Fin.IQ",
+          geminiApiKey: input.apiKey,
+        });
+      } else {
+        await ctx.db
+          .update(userProfiles)
+          .set({ geminiApiKey: input.apiKey, updatedAt: new Date() })
+          .where(eq(userProfiles.userId, ctx.userId));
+      }
+
+      return {
+        success: true,
+        message: "Token Google Gemini berhasil diverifikasi dan tersambung!",
+      };
+    }),
+
+  removeGeminiKey: protectedProcedure.mutation(async ({ ctx }) => {
+    await ctx.db
+      .update(userProfiles)
+      .set({ geminiApiKey: null, updatedAt: new Date() })
+      .where(eq(userProfiles.userId, ctx.userId));
+
+    return {
+      success: true,
+      message: "Token Google Gemini berhasil diputuskan.",
+    };
+  }),
+
+  testGeminiStatus: protectedProcedure.query(async ({ ctx }) => {
+    const profile = await ctx.db.query.userProfiles.findFirst({
+      where: eq(userProfiles.userId, ctx.userId),
+    });
+
+    const activeKey = profile?.geminiApiKey?.trim() || process.env.GEMINI_API_KEY;
+    if (!activeKey) {
+      return {
+        connected: false,
+        source: "none" as const,
+        maskedKey: null,
+        message: "Belum ada token Google Gemini yang tersambung.",
+      };
+    }
+
+    try {
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey: activeKey });
+      await ai.models.generateContent({
+        model: "gemini-3.8-flash",
+        contents: "ping",
+      });
+      return {
+        connected: true,
+        source: profile?.geminiApiKey?.trim() ? ("personal" as const) : ("system" as const),
+        maskedKey: `${activeKey.slice(0, 6)}••••${activeKey.slice(-4)}`,
+        model: "gemini-3.8-flash",
+        message: "Koneksi Gemini AI aktif & siap digunakan.",
+      };
+    } catch (err: any) {
+      return {
+        connected: false,
+        source: profile?.geminiApiKey?.trim() ? ("personal" as const) : ("system" as const),
+        maskedKey: `${activeKey.slice(0, 6)}••••${activeKey.slice(-4)}`,
+        message: `Koneksi gagal: ${err?.message || "Token bermasalah"}`,
+      };
+    }
+  }),
 });

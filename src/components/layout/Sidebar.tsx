@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   FileSpreadsheet,
   LogOut,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
@@ -24,6 +25,7 @@ import { trpc } from "@/lib/trpc/client";
 const navigationItems = [
   { label: "Overview", href: "/overview", icon: LayoutDashboard },
   { label: "Transaksi", href: "/transactions", icon: Receipt },
+  { label: "Fin.IQ AI", href: "/ai", icon: Sparkles },
   { label: "Impor Transaksi", href: "/import", icon: FileSpreadsheet },
   { label: "Analisis", href: "/analytics", icon: PieChart },
   { label: "Kalender", href: "/calendar", icon: Calendar },

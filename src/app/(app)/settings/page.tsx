@@ -20,6 +20,11 @@ import {
   Calendar,
   AlertCircle,
   CheckCircle2,
+  Sparkles,
+  Eye,
+  EyeOff,
+  ExternalLink,
+  Loader2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +34,40 @@ import { Badge } from "@/components/ui/badge";
 export default function SettingsPage() {
   const router = useRouter();
   const utils = trpc.useUtils();
+
+  // Gemini AI Key State
+  const [geminiKeyInput, setGeminiKeyInput] = useState("");
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [geminiMsg, setGeminiMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const setGeminiKeyMutation = trpc.user.setGeminiKey.useMutation({
+    onSuccess: (res) => {
+      setGeminiMsg({ type: "success", text: res.message });
+      setGeminiKeyInput("");
+      utils.user.getProfile.invalidate();
+      utils.user.testGeminiStatus.invalidate();
+      setTimeout(() => setGeminiMsg(null), 4000);
+    },
+    onError: (err) => {
+      setGeminiMsg({ type: "error", text: err.message });
+      setTimeout(() => setGeminiMsg(null), 5000);
+    },
+  });
+
+  const removeGeminiKeyMutation = trpc.user.removeGeminiKey.useMutation({
+    onSuccess: (res) => {
+      setGeminiMsg({ type: "success", text: res.message });
+      utils.user.getProfile.invalidate();
+      utils.user.testGeminiStatus.invalidate();
+      setTimeout(() => setGeminiMsg(null), 3000);
+    },
+    onError: (err) => {
+      setGeminiMsg({ type: "error", text: err.message });
+      setTimeout(() => setGeminiMsg(null), 4000);
+    },
+  });
+
+  const { data: geminiStatus } = trpc.user.testGeminiStatus.useQuery();
 
   // Profile Query
   const { data: profile, isLoading: isProfileLoading } = trpc.user.getProfile.useQuery();
@@ -347,6 +386,154 @@ export default function SettingsPage() {
                 </Button>
               </form>
             )}
+          </div>
+        </Card>
+
+        {/* Google Gemini AI Studio Token Card */}
+        <Card className="p-6 rounded-2xl shadow-sm border-border/70 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-border/60 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-foreground">
+                    Google Gemini AI Studio Token
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">Koneksi model OCR &amp; Financial AI</p>
+                </div>
+              </div>
+
+              {geminiStatus?.connected ? (
+                <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-none font-semibold text-[10px] gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {geminiStatus.source === "personal" ? "Token Pribadi Aktif" : "Token Server Aktif"}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-amber-600 border-amber-300 text-[10px] gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Belum Terhubung
+                </Badge>
+              )}
+            </div>
+
+            <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+              Sambungkan API Key Google Gemini Anda untuk mengaktifkan pemindaian struk kasir otomatis (OCR), dikte suara pintar, dan Fin.IQ AI Advisor.
+            </p>
+
+            {/* Token status feedback */}
+            {geminiMsg && (
+              <div
+                className={`flex items-center gap-2 p-2.5 mb-4 rounded-xl text-xs ${
+                  geminiMsg.type === "success"
+                    ? "bg-emerald-50 dark:bg-emerald-950/50 text-[#00B569] border border-emerald-200"
+                    : "bg-red-50 dark:bg-red-950/50 text-red-600 border border-red-200"
+                }`}
+              >
+                {geminiMsg.type === "success" ? (
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                )}
+                <span>{geminiMsg.text}</span>
+              </div>
+            )}
+
+            {/* Active Key Info */}
+            {profile?.geminiApiKeyMasked && (
+              <div className="p-3 rounded-xl bg-muted/40 border border-border/60 mb-4 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-muted-foreground block">
+                    Token Tersimpan Saat Ini
+                  </span>
+                  <span className="font-mono text-xs font-bold text-foreground">
+                    {profile.geminiApiKeyMasked}
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={removeGeminiKeyMutation.isPending}
+                  onClick={() => {
+                    if (confirm("Putuskan sambungan token Gemini dari akun Anda?")) {
+                      removeGeminiKeyMutation.mutate();
+                    }
+                  }}
+                  className="text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 h-7 px-2.5"
+                >
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  Putuskan
+                </Button>
+              </div>
+            )}
+
+            {/* Form Input Key */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!geminiKeyInput.trim()) return;
+                setGeminiKeyMutation.mutate({ apiKey: geminiKeyInput.trim() });
+              }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="text-xs font-semibold text-foreground block mb-1">
+                  {profile?.geminiApiKeyMasked ? "Ganti Token Gemini API Key" : "Masukkan Gemini API Key"}
+                </label>
+                <div className="relative">
+                  <Input
+                    type={showGeminiKey ? "text" : "password"}
+                    value={geminiKeyInput}
+                    onChange={(e) => setGeminiKeyInput(e.target.value)}
+                    placeholder="Masukkan Gemini API Key (misal: AIzaSy...)"
+                    className="h-10 text-xs rounded-xl pr-10 font-mono"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowGeminiKey(!showGeminiKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showGeminiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <Button
+                  type="submit"
+                  disabled={setGeminiKeyMutation.isPending || !geminiKeyInput.trim()}
+                  className="bg-[#00B569] hover:bg-[#009E5B] text-white font-bold h-9 px-4 rounded-xl text-xs gap-1.5"
+                >
+                  {setGeminiKeyMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Memverifikasi Token...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-3.5 w-3.5" />
+                      Verifikasi &amp; Sambungkan
+                    </>
+                  )}
+                </Button>
+                <a
+                  href="https://aistudio.google.com/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-medium sm:ml-auto"
+                >
+                  Ambil Key di Google AI Studio
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            </form>
+          </div>
+
+          <div className="pt-4 border-t mt-4 text-[11px] text-muted-foreground">
+            Model aktif: <span className="font-semibold text-foreground">gemini-3.8-flash</span>. Token tersimpan aman di database profil Anda.
           </div>
         </Card>
 

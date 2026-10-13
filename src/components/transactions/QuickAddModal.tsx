@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useUIStore } from "@/store/ui.store";
 import { trpc } from "@/lib/trpc/client";
 import { useVoiceInput, parseSpokenNumber } from "@/hooks/use-voice-input";
@@ -13,11 +13,20 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Calendar,
+  Camera,
+  Receipt,
+  Loader2,
+  Trash2,
+  Image as ImageIcon,
+  CheckCircle2,
+  AlertCircle,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, formatInputIDR, parseInputIDR } from "@/lib/utils";
 import { VoiceMicButton } from "@/components/ui/VoiceMicButton";
+import { compressImageToBase64 } from "@/lib/image-compressor";
 import {
   smartParseIndonesianTransaction,
   extractDateTimeFromText,
@@ -26,7 +35,7 @@ import {
 } from "@/lib/nlp-parser";
 
 export function QuickAddModal() {
-  const { isQuickAddOpen, closeQuickAdd } = useUIStore();
+  const { isQuickAddOpen, closeQuickAdd, quickAddAutoScan, setQuickAddAutoScan } = useUIStore();
   const utils = trpc.useUtils();
 
   const [txType, setTxType] = useState<"expense" | "income" | "transfer">("expense");
@@ -37,6 +46,20 @@ export function QuickAddModal() {
   const [happenedAt, setHappenedAt] = useState("");
   const [note, setNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Bill Scanner state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isScanningBill, setIsScanningBill] = useState(false);
+  const [billScanError, setBillScanError] = useState<string | null>(null);
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [scannedBillMeta, setScannedBillMeta] = useState<{
+    merchantName?: string;
+    itemsSummary?: string;
+    itemsCount?: number;
+    tax?: number;
+    discount?: number;
+  } | null>(null);
 
   // Queries
   const { data: accountsData } = trpc.accounts.list.useQuery();
@@ -188,6 +211,97 @@ export function QuickAddModal() {
     },
   });
 
+  // Auto-trigger file picker jika modal dibuka lewat tombol 'Scan Struk'
+  useEffect(() => {
+    if (isQuickAddOpen && quickAddAutoScan) {
+      setQuickAddAutoScan(false);
+      const timer = setTimeout(() => {
+        fileInputRef.current?.click();
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [isQuickAddOpen, quickAddAutoScan, setQuickAddAutoScan]);
+
+  const parseBillMutation = trpc.ai.parseBillReceipt.useMutation({
+    onSuccess: (data) => {
+      setIsScanningBill(false);
+      setBillScanError(null);
+
+      if (data.formattedAmount) {
+        setAmount(data.formattedAmount);
+      }
+      if (data.txType) {
+        setTxType(data.txType);
+      }
+      if (data.note) {
+        setNote(data.note);
+      }
+      if (data.happenedAt) {
+        const d = new Date(data.happenedAt);
+        if (!isNaN(d.getTime())) {
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, "0");
+          const dd = String(d.getDate()).padStart(2, "0");
+          const hh = String(d.getHours()).padStart(2, "0");
+          const min = String(d.getMinutes()).padStart(2, "0");
+          setHappenedAt(`${yyyy}-${mm}-${dd}T${hh}:${min}`);
+        }
+      }
+      if (data.matchedAccountId) {
+        setAccountId(data.matchedAccountId);
+      }
+      if (data.matchedCategoryId) {
+        setCategoryId(data.matchedCategoryId);
+      }
+
+      setScannedBillMeta({
+        merchantName: data.merchantName,
+        itemsSummary: data.itemsSummary,
+        itemsCount: data.items?.length || 0,
+        tax: data.tax,
+        discount: data.discount,
+      });
+    },
+    onError: (err) => {
+      setIsScanningBill(false);
+      setBillScanError(err.message || "Gagal memproses struk dengan Gemini AI.");
+    },
+  });
+
+  const handleBillFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Harap pilih file gambar (JPG, PNG, atau WEBP).");
+      return;
+    }
+
+    setIsScanningBill(true);
+    setBillScanError(null);
+
+    try {
+      const { base64, mimeType, previewUrl } = await compressImageToBase64(file);
+      setReceiptPreviewUrl(previewUrl);
+
+      parseBillMutation.mutate({
+        image: { base64, mimeType },
+        clientTime: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      setIsScanningBill(false);
+      setBillScanError(err.message || "Gagal memproses gambar.");
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  const handleClearReceipt = () => {
+    setReceiptPreviewUrl(null);
+    setScannedBillMeta(null);
+    setBillScanError(null);
+  };
+
   const { isListening, isProcessing, startListening, stopListening } = useVoiceInput((transcript) => {
     applySmartSpeechParse(transcript);
   });
@@ -213,6 +327,9 @@ export function QuickAddModal() {
     setHappenedAt("");
     setNote("");
     setToAccountId("");
+    setReceiptPreviewUrl(null);
+    setScannedBillMeta(null);
+    setBillScanError(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -283,7 +400,7 @@ export function QuickAddModal() {
             </div>
             <div>
               <h2 className="text-base font-bold">Catat Transaksi</h2>
-              <p className="text-xs text-muted-foreground">Manual atau gunakan dikte suara AI</p>
+              <p className="text-xs text-muted-foreground">Manual, dikte suara AI, atau scan struk</p>
             </div>
           </div>
           <button
@@ -294,47 +411,202 @@ export function QuickAddModal() {
           </button>
         </div>
 
-        {/* Voice AI Dikte Bar */}
-        <div className="mt-4 flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-3">
-          <div className="flex items-center gap-2.5">
+        {/* Hidden input for Bill Scanner */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleBillFileChange}
+        />
+
+        {/* AI Assistant Dual Action Bar */}
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {/* Voice AI Button Card */}
+          <div className="flex items-center gap-2.5 rounded-xl border border-primary/20 bg-primary/5 p-2.5 transition-colors">
             <Button
               type="button"
               variant={isListening ? "destructive" : isProcessing ? "secondary" : "default"}
               size="icon"
-              disabled={isProcessing}
+              disabled={isProcessing || isScanningBill}
               onClick={isListening ? stopListening : startListening}
               className={cn(
-                "h-9 w-9 rounded-full shadow-sm transition-all",
+                "h-8 w-8 rounded-full shadow-sm shrink-0 transition-all",
                 isListening && "animate-pulse",
                 isProcessing && "bg-primary/20 text-primary border border-primary/40 animate-pulse"
               )}
             >
               {isListening ? (
-                <MicOff className="h-4 w-4" />
+                <MicOff className="h-3.5 w-3.5" />
               ) : isProcessing ? (
-                <Sparkles className="h-4 w-4 animate-spin text-primary" />
+                <Sparkles className="h-3.5 w-3.5 animate-spin text-primary" />
               ) : (
-                <Mic className="h-4 w-4" />
+                <Mic className="h-3.5 w-3.5" />
               )}
             </Button>
-            <div className="flex flex-col">
-              <span className="text-xs font-semibold text-foreground">
-                {isListening
-                  ? "Mendengarkan... (bicara santai, jeda hening 2 detik)"
-                  : isProcessing
-                  ? "Sedang memproses & menganalisis kalimat..."
-                  : "Dikte Suara Fin.IQ AI"}
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-semibold text-foreground truncate">
+                {isListening ? "Mendengarkan..." : isProcessing ? "Memproses..." : "Dikte Suara AI"}
               </span>
-              <span className="text-[11px] text-muted-foreground">
-                {isListening
-                  ? "Sebut nominal, kategori, akun & waktu transaksi"
-                  : isProcessing
-                  ? "Mengekstrak tanggal, jam, nominal, kategori & akun..."
-                  : "Tekan mic lalu sebutkan transaksi Anda"}
+              <span className="text-[10px] text-muted-foreground truncate">
+                {isListening ? "Sebutkan transaksi" : "Tekan mic untuk bicara"}
+              </span>
+            </div>
+          </div>
+
+          {/* Bill / Receipt Scanner Button Card */}
+          <div
+            onClick={() => {
+              if (!isScanningBill) fileInputRef.current?.click();
+            }}
+            className={cn(
+              "flex items-center gap-2.5 rounded-xl border border-border/80 bg-muted/40 p-2.5 cursor-pointer hover:bg-muted/70 transition-colors",
+              isScanningBill && "opacity-75 cursor-not-allowed border-primary/40 bg-primary/5"
+            )}
+            title="Pilih foto struk belanja atau bukti transfer"
+          >
+            <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              {isScanningBill ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              ) : (
+                <Camera className="h-3.5 w-3.5" />
+              )}
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-semibold text-foreground truncate">
+                {isScanningBill ? "Membaca Struk..." : "Scan Struk / Bill"}
+              </span>
+              <span className="text-[10px] text-muted-foreground truncate">
+                {isScanningBill ? "Gemini AI Vision aktif" : "Foto / unggah struk kasir"}
               </span>
             </div>
           </div>
         </div>
+
+        {/* Bill Scanning Progress Indicator */}
+        {isScanningBill && (
+          <div className="mt-2.5 flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/10 text-xs animate-pulse">
+            <Loader2 className="h-4 w-4 animate-spin shrink-0 text-primary" />
+            <div className="flex flex-col">
+              <span className="font-semibold text-foreground">Gemini AI sedang membaca struk...</span>
+              <span className="text-[11px] text-muted-foreground">
+                Mengekstrak total belanja, tanggal, nama toko & kategori otomatis.
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Scanned Receipt Success Banner */}
+        {receiptPreviewUrl && !isScanningBill && (
+          <div className="mt-2.5 flex items-center justify-between gap-2.5 p-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div
+                className="relative h-10 w-10 rounded-lg overflow-hidden border border-emerald-500/30 cursor-pointer group shrink-0"
+                onClick={() => setPreviewModalOpen(true)}
+                title="Perbesar struk"
+              >
+                <img
+                  src={receiptPreviewUrl}
+                  alt="Struk Preview"
+                  className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <Eye className="h-3 w-3 text-white" />
+                </div>
+              </div>
+              <div className="min-w-0 flex flex-col">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="font-bold text-foreground truncate">
+                    {scannedBillMeta?.merchantName || "Struk Belanja Terbaca"}
+                  </span>
+                </div>
+                <span className="text-[11px] text-muted-foreground truncate">
+                  {scannedBillMeta?.itemsSummary || "Data berhasil diisi otomatis ke formulir"}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setPreviewModalOpen(true)}
+                className="h-7 text-[11px] px-2 text-muted-foreground hover:text-foreground"
+              >
+                <Eye className="h-3 w-3 mr-1" />
+                Lihat
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handleClearReceipt}
+                className="h-7 w-7 text-muted-foreground hover:text-rose-500"
+                title="Hapus struk"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Bill Scan Error Alert */}
+        {billScanError && !isScanningBill && (
+          <div className="mt-2.5 flex items-center justify-between gap-2 p-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-600 dark:text-rose-400">
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span className="truncate">{billScanError}</span>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              className="h-6 text-[10px] px-2 text-rose-600 hover:bg-rose-500/20 shrink-0 font-medium"
+            >
+              Coba Lagi
+            </Button>
+          </div>
+        )}
+
+        {/* Modal Zoom Preview Struk */}
+        {previewModalOpen && receiptPreviewUrl && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 animate-in fade-in">
+            <div className="relative max-w-md w-full max-h-[85vh] bg-card rounded-2xl overflow-hidden flex flex-col p-4 border shadow-2xl">
+              <div className="flex items-center justify-between pb-3 border-b">
+                <span className="text-sm font-bold flex items-center gap-1.5">
+                  <Receipt className="h-4 w-4 text-primary" />
+                  Pratinjau Struk / Bill
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPreviewModalOpen(false)}
+                  className="p-1 rounded-full text-muted-foreground hover:bg-muted"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-auto py-3 flex items-center justify-center bg-black/5 rounded-xl mt-2">
+                <img
+                  src={receiptPreviewUrl}
+                  alt="Struk Belanja Penuh"
+                  className="max-h-[60vh] object-contain rounded-lg"
+                />
+              </div>
+              <div className="mt-3 flex justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setPreviewModalOpen(false)}
+                  className="text-xs"
+                >
+                  Tutup
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">

@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   LogOut,
   ChevronDown,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/store/ui.store";
@@ -82,12 +83,25 @@ export function TopBar() {
           className="flex items-center gap-2 rounded-xl border border-input/70 bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground transition-all hover:bg-muted/80 md:w-64 active:scale-98"
         >
           <Search className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="hidden md:inline">Cari transaksi, menu...</span>
-          <span className="md:hidden">Cari menu...</span>
+          <span className="hidden md:inline">Cari transaksi, menu, AI...</span>
+          <span className="md:hidden">Cari...</span>
           <kbd className="ml-auto hidden rounded border bg-background px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground md:inline-block">
             ⌘K
           </kbd>
         </button>
+
+        {/* AI Studio Quick Button */}
+        <Link href="/ai">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1.5 text-xs rounded-xl font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 px-2.5"
+            title="Buka Fin.IQ AI Studio"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-[#00B569]" />
+            <span className="hidden sm:inline">AI Studio</span>
+          </Button>
+        </Link>
       </div>
 
       {/* Right Area: Actions, Quick Add & User */}

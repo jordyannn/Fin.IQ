@@ -22,6 +22,7 @@ import {
   ChevronRight,
   X,
   RotateCcw,
+  Camera,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +32,7 @@ import { EditTransactionModal, type TransactionToEdit } from "@/components/trans
 import { DateFilterPreset, computeDateRange } from "@/lib/date-filters";
 
 export default function TransactionsPage() {
-  const { openQuickAdd } = useUIStore();
+  const { openQuickAdd, openQuickAddWithScan } = useUIStore();
   const utils = trpc.useUtils();
 
   // Filters state
@@ -245,6 +246,15 @@ export default function TransactionsPage() {
           <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-1.5 text-xs">
             <Download className="h-3.5 w-3.5" />
             Ekspor CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={openQuickAddWithScan}
+            className="gap-1.5 text-xs border-primary/30 text-primary hover:bg-primary/10 shadow-sm"
+          >
+            <Camera className="h-3.5 w-3.5" />
+            Scan Struk / Bill
           </Button>
           <Button size="sm" onClick={openQuickAdd} className="bg-primary text-white gap-1.5 text-xs shadow-sm">
             <Plus className="h-3.5 w-3.5" />

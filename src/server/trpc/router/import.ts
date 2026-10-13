@@ -4,8 +4,9 @@ import { router, protectedProcedure } from "../trpc";
 import { accounts, categories, transactions, ledgers } from "../../db/schema";
 import { eq, sql } from "drizzle-orm";
 import { GoogleGenAI } from "@google/genai";
+import { getEffectiveGeminiKey } from "../../gemini";
 
-function fuzzyMatchAccount(rawName: string | undefined, userAccounts: { id: string; name: string }[]): string {
+export function fuzzyMatchAccount(rawName: string | undefined, userAccounts: { id: string; name: string }[]): string {
   if (!rawName || !rawName.trim()) {
     return userAccounts[0]?.name || "Kas Tunai";
   }
@@ -54,7 +55,7 @@ function fuzzyMatchAccount(rawName: string | undefined, userAccounts: { id: stri
 
 import { CANONICAL_CATEGORY_MAP } from "@/lib/nlp-parser";
 
-function fuzzyMatchCategory(
+export function fuzzyMatchCategory(
   rawName: string | undefined,
   userCategories: { id: string; name: string; kind?: string }[]
 ): string {
@@ -101,14 +102,7 @@ export const importRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message:
-            "GEMINI_API_KEY belum dikonfigurasi di server (.env.local). Silakan dapatkan API key gratis di Google AI Studio (https://aistudio.google.com/apikey).",
-        });
-      }
+      const apiKey = await getEffectiveGeminiKey(ctx);
 
       const ai = new GoogleGenAI({ apiKey });
 
@@ -191,7 +185,7 @@ ATURAN EKSTRAKSI PENTING:
 
         try {
           const response = await ai.models.generateContent({
-            model: "gemini-2.0-flash",
+            model: "gemini-3.8-flash",
             contents: [
               {
                 inlineData: {

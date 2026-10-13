@@ -7,7 +7,10 @@ interface UIState {
 
   isQuickAddOpen: boolean;
   openQuickAdd: () => void;
+  openQuickAddWithScan: () => void;
   closeQuickAdd: () => void;
+  quickAddAutoScan: boolean;
+  setQuickAddAutoScan: (val: boolean) => void;
 
   isCommandPaletteOpen: boolean;
   setCommandPaletteOpen: (open: boolean) => void;
@@ -23,8 +26,11 @@ export const useUIStore = create<UIState>((set) => ({
   setSidebarOpen: (open) => set({ isSidebarOpen: open }),
 
   isQuickAddOpen: false,
-  openQuickAdd: () => set({ isQuickAddOpen: true }),
-  closeQuickAdd: () => set({ isQuickAddOpen: false }),
+  quickAddAutoScan: false,
+  openQuickAdd: () => set({ isQuickAddOpen: true, quickAddAutoScan: false }),
+  openQuickAddWithScan: () => set({ isQuickAddOpen: true, quickAddAutoScan: true }),
+  closeQuickAdd: () => set({ isQuickAddOpen: false, quickAddAutoScan: false }),
+  setQuickAddAutoScan: (val) => set({ quickAddAutoScan: val }),
 
   isCommandPaletteOpen: false,
   setCommandPaletteOpen: (open) => set({ isCommandPaletteOpen: open }),
