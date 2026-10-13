@@ -274,23 +274,38 @@ export function EditTransactionModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg rounded-2xl bg-card border border-border/80 shadow-2xl overflow-hidden p-6 text-card-foreground">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b pb-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
+      <form
+        onSubmit={handleSubmit}
+        className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-3xl bg-card border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in zoom-in-95 duration-150"
+      >
+        {/* Header - Fixed & Pinned at Top */}
+        <div className="flex items-center justify-between border-b px-6 py-4 shrink-0 bg-card z-10">
           <div>
-            <h2 className="text-base font-bold">Edit Transaksi</h2>
+            <h2 className="text-base font-bold text-foreground">Edit Transaksi</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
               Perbarui rincian, akun, atau nominal transaksi ini
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {/* Scrollable Modal Content Body */}
+        <div
+          className="flex-1 overflow-y-auto px-6 py-4 space-y-4 overscroll-contain
+            [&::-webkit-scrollbar]:w-2
+            [&::-webkit-scrollbar-track]:bg-muted/20
+            [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30
+            [&::-webkit-scrollbar-thumb]:rounded-full
+            hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50
+            transition-colors"
+        >
 
         {errorMessage && (
           <div className="mt-4 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium">
@@ -316,7 +331,7 @@ export function EditTransactionModal({
           />
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
           {/* Tipe Transaksi (Tabs) */}
           <div className="grid grid-cols-3 gap-2 rounded-xl bg-muted p-1 text-xs">
             <button
@@ -588,30 +603,32 @@ export function EditTransactionModal({
             />
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-2 border-t pt-4 mt-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onClose}
-              disabled={updateMutation.isPending}
-              className="text-xs"
-            >
-              Batal
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={updateMutation.isPending}
-              className="bg-[#00B569] hover:bg-[#00B569]/90 text-white text-xs gap-1.5 shadow-sm"
-            >
-              <Save className="h-3.5 w-3.5" />
-              {updateMutation.isPending ? "Menyimpan..." : "Simpan Perubahan"}
-            </Button>
-          </div>
-        </form>
+        </div>
       </div>
-    </div>
-  );
+
+      {/* Fixed Pinned Footer Actions */}
+      <div className="border-t border-border/70 px-6 py-3.5 shrink-0 bg-card/95 backdrop-blur-sm flex items-center justify-end gap-2.5 z-10">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onClose}
+          disabled={updateMutation.isPending}
+          className="text-xs h-9 px-4 rounded-xl cursor-pointer"
+        >
+          Batal
+        </Button>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={updateMutation.isPending}
+          className="bg-[#00B569] hover:bg-[#009E5B] text-white text-xs h-9 px-4 rounded-xl font-bold gap-1.5 shadow-md cursor-pointer transition-all"
+        >
+          <Save className="h-3.5 w-3.5" />
+          {updateMutation.isPending ? "Menyimpan..." : "Simpan Perubahan"}
+        </Button>
+      </div>
+    </form>
+  </div>
+);
 }

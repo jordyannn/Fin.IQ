@@ -50,6 +50,8 @@ export function CategorySelect({
   const [search, setSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const [openUpward, setOpenUpward] = useState(false);
+
   // Close when clicking outside or pressing Escape
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -67,6 +69,14 @@ export function CategorySelect({
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       document.addEventListener("keydown", handleKeyDown);
+
+      // Check available space below to decide opening direction
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        setOpenUpward(spaceBelow < 310 && spaceAbove > spaceBelow);
+      }
     }
 
     return () => {
@@ -183,7 +193,15 @@ export function CategorySelect({
 
       {/* Dropdown Popover */}
       {isOpen && (
-        <div className="absolute left-0 top-full z-50 mt-1.5 w-full min-w-[280px] rounded-2xl border border-border/80 bg-card p-2 shadow-2xl animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-1.5 text-card-foreground">
+        <div
+          onWheel={(e) => e.stopPropagation()}
+          className={cn(
+            "absolute left-0 z-50 w-full min-w-[300px] rounded-2xl border border-border/80 bg-card/98 backdrop-blur-md p-2.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-2 text-card-foreground",
+            openUpward
+              ? "bottom-full mb-2 origin-bottom shadow-[-4px_-8px_24px_rgba(0,0,0,0.18)]"
+              : "top-full mt-2 origin-top shadow-[4px_12px_32px_rgba(0,0,0,0.2)]"
+          )}
+        >
           {/* Rekomendasi NLP Banner (Pinned) */}
           {recommendedCategory && !isRecommendedAlreadyInList && onCreateRecommended && (
             <div className="p-2.5 rounded-xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-transparent border border-emerald-500/30 flex items-center justify-between gap-2 shadow-xs">
@@ -224,23 +242,32 @@ export function CategorySelect({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cari kategori..."
-              className="h-8 w-full rounded-lg bg-muted/60 pl-8 pr-7 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary border border-border/60"
+              placeholder="Cari kategori (ketik kopi, makan, hobi...)"
+              className="h-8.5 w-full rounded-xl bg-muted/60 pl-8.5 pr-8 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary border border-border/60"
               autoFocus
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-full"
               >
                 <X className="h-3 w-3" />
               </button>
             )}
           </div>
 
-          {/* List Kategori */}
-          <div className="max-h-56 overflow-y-auto space-y-0.5 pr-0.5 pt-0.5">
+          {/* List Kategori dengan Scroller yang rapi & nyaman */}
+          <div
+            className="max-h-64 sm:max-h-72 overflow-y-auto overscroll-contain space-y-1 pr-1.5 pt-0.5 scroll-smooth
+              [&::-webkit-scrollbar]:w-2
+              [&::-webkit-scrollbar-track]:bg-muted/40
+              [&::-webkit-scrollbar-track]:rounded-full
+              [&::-webkit-scrollbar-thumb]:bg-muted-foreground/35
+              [&::-webkit-scrollbar-thumb]:rounded-full
+              hover:[&::-webkit-scrollbar-thumb]:bg-primary/70
+              transition-colors"
+          >
             {filteredParents.length > 0 ? (
               filteredParents.map((parent) => {
                 const children = childCategoriesMap.get(parent.id) || [];
@@ -252,7 +279,7 @@ export function CategorySelect({
                 const isParentSelected = value === parent.id;
 
                 return (
-                  <div key={parent.id} className="space-y-0.5">
+                  <div key={parent.id} className="space-y-0.5 mb-1.5">
                     {/* Parent Item */}
                     <button
                       type="button"
@@ -262,18 +289,27 @@ export function CategorySelect({
                         setSearch("");
                       }}
                       className={cn(
-                        "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors group",
+                        "flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left text-xs transition-all group",
                         isParentSelected
-                          ? "bg-primary/10 text-primary font-bold"
-                          : "text-foreground font-semibold hover:bg-muted/80"
+                          ? "bg-primary/15 text-primary font-bold border border-primary/25 shadow-xs"
+                          : "text-foreground font-semibold hover:bg-muted/80 border border-transparent"
                       )}
                     >
                       <div className="flex items-center gap-2 min-w-0">
-                        <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0 group-hover:text-primary transition-colors" />
+                        <div
+                          className={cn(
+                            "flex h-6 w-6 items-center justify-center rounded-lg text-xs shrink-0 transition-colors",
+                            isParentSelected
+                              ? "bg-primary text-white"
+                              : "bg-muted text-muted-foreground group-hover:text-primary group-hover:bg-primary/10"
+                          )}
+                        >
+                          <Folder className="h-3.5 w-3.5" />
+                        </div>
                         <span className="truncate">{parent.name}</span>
                         {children.length > 0 && (
-                          <span className="text-[10px] text-muted-foreground/70 font-normal">
-                            ({children.length})
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-muted/80 text-muted-foreground font-medium shrink-0">
+                            {children.length}
                           </span>
                         )}
                       </div>
@@ -281,37 +317,46 @@ export function CategorySelect({
                     </button>
 
                     {/* Children Items */}
-                    {filteredChildren.map((child) => {
-                      const isChildSelected = value === child.id;
-                      return (
-                        <button
-                          key={child.id}
-                          type="button"
-                          onClick={() => {
-                            onChange(child.id);
-                            setIsOpen(false);
-                            setSearch("");
-                          }}
-                          className={cn(
-                            "flex w-full items-center justify-between rounded-lg pl-6 pr-2.5 py-1.5 text-left text-xs transition-colors",
-                            isChildSelected
-                              ? "bg-primary/15 text-primary font-bold"
-                              : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-                          )}
-                        >
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="h-1.5 w-1.5 rounded-full bg-border shrink-0" />
-                            <span className="truncate">{child.name}</span>
-                          </div>
-                          {isChildSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                        </button>
-                      );
-                    })}
+                    {filteredChildren.length > 0 && (
+                      <div className="ml-3.5 pl-2.5 border-l-2 border-border/60 space-y-0.5 my-0.5">
+                        {filteredChildren.map((child) => {
+                          const isChildSelected = value === child.id;
+                          return (
+                            <button
+                              key={child.id}
+                              type="button"
+                              onClick={() => {
+                                onChange(child.id);
+                                setIsOpen(false);
+                                setSearch("");
+                              }}
+                              className={cn(
+                                "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition-all",
+                                isChildSelected
+                                  ? "bg-primary/15 text-primary font-bold border border-primary/20 shadow-xs"
+                                  : "text-muted-foreground hover:text-foreground hover:bg-muted/70 border border-transparent"
+                              )}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span
+                                  className={cn(
+                                    "h-1.5 w-1.5 rounded-full shrink-0",
+                                    isChildSelected ? "bg-primary" : "bg-muted-foreground/40"
+                                  )}
+                                />
+                                <span className="truncate">{child.name}</span>
+                              </div>
+                              {isChildSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })
             ) : (
-              <div className="py-4 text-center text-xs text-muted-foreground flex flex-col items-center gap-2">
+              <div className="py-5 text-center text-xs text-muted-foreground flex flex-col items-center gap-2">
                 <span>Tidak ada kategori &quot;{search}&quot;</span>
                 {onCreateRecommended && search.trim() && (
                   <button
@@ -324,14 +369,20 @@ export function CategorySelect({
                       setIsOpen(false);
                       setSearch("");
                     }}
-                    className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer bg-primary/10 px-3 py-1 rounded-lg border border-primary/20"
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    Buat Kategori &quot;{search.trim()}&quot;
+                    Buat Kategori Baru &quot;{search.trim()}&quot;
                   </button>
                 )}
               </div>
             )}
+          </div>
+
+          {/* Bottom helper */}
+          <div className="pt-1.5 border-t border-border/50 px-1 flex items-center justify-between text-[10px] text-muted-foreground">
+            <span>{relevantCategories.length} kategori tersedia</span>
+            <span>Gulir untuk melihat lainnya</span>
           </div>
         </div>
       )}

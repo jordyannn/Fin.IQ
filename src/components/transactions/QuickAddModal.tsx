@@ -490,28 +490,42 @@ export function QuickAddModal() {
   if (!isQuickAddOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg rounded-2xl bg-card border shadow-2xl overflow-hidden p-6 text-card-foreground">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b pb-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
+      <form
+        onSubmit={handleSubmit}
+        className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-3xl bg-card border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in zoom-in-95 duration-150"
+      >
+        {/* Header - Fixed & Pinned at Top */}
+        <div className="flex items-center justify-between border-b px-6 py-4 shrink-0 bg-card z-10">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Sparkles className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold">Catat Transaksi</h2>
+              <h2 className="text-base font-bold text-foreground">Catat Transaksi</h2>
               <p className="text-xs text-muted-foreground">Manual, dikte suara AI, atau scan struk</p>
             </div>
           </div>
           <button
+            type="button"
             onClick={closeQuickAdd}
-            className="rounded-full p-1 text-muted-foreground hover:bg-muted"
+            className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Hidden input for Camera capture (direct camera trigger on mobile) */}
+        {/* Scrollable Modal Content Body */}
+        <div
+          className="flex-1 overflow-y-auto px-6 py-4 space-y-4 overscroll-contain
+            [&::-webkit-scrollbar]:w-2
+            [&::-webkit-scrollbar-track]:bg-muted/20
+            [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30
+            [&::-webkit-scrollbar-thumb]:rounded-full
+            hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50
+            transition-colors"
+        >
+          {/* Hidden input for Camera capture (direct camera trigger on mobile) */}
         <input
           ref={cameraInputRef}
           type="file"
@@ -810,8 +824,8 @@ export function QuickAddModal() {
           </div>
         )}
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+        {/* Form Body Fields */}
+        <div className="space-y-4 pt-1">
           {/* Tipe Transaksi */}
           <div className="grid grid-cols-3 gap-2 rounded-xl bg-muted p-1">
             <button
@@ -1106,26 +1120,28 @@ export function QuickAddModal() {
             />
           </div>
 
-          {/* Submit Action */}
-          <div className="pt-2 flex gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-1/3"
-              onClick={closeQuickAdd}
-            >
-              Batal
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-2/3 bg-primary text-white font-semibold"
-            >
-              {isSubmitting ? "Menyimpan..." : "Simpan Transaksi"}
-            </Button>
           </div>
-        </form>
-      </div>
+        </div>
+
+        {/* Fixed Pinned Footer Actions */}
+        <div className="border-t border-border/70 px-6 py-3.5 shrink-0 bg-card/95 backdrop-blur-sm flex gap-3 z-10">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-1/3 rounded-xl h-10 text-xs font-semibold cursor-pointer"
+            onClick={closeQuickAdd}
+          >
+            Batal
+          </Button>
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-2/3 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl h-10 text-xs shadow-md cursor-pointer transition-all"
+          >
+            {isSubmitting ? "Menyimpan..." : "Simpan Transaksi"}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }
