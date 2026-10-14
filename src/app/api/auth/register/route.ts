@@ -126,13 +126,14 @@ export async function POST(req: Request) {
       },
     });
 
-    // Set secure cookie
+    // Set cookie (secure hanya jika protokol HTTPS agar tidak di-drop saat akses via HTTP/IP)
+    const isHttps = req.headers.get("x-forwarded-proto") === "https" || req.url.startsWith("https://");
     response.cookies.set("finiq_session", token, {
       path: "/",
       httpOnly: true,
       sameSite: "lax",
       maxAge: 30 * 24 * 60 * 60,
-      secure: process.env.NODE_ENV === "production",
+      secure: isHttps,
     });
 
     return response;

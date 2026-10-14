@@ -342,7 +342,7 @@ function AIPageContent() {
               <h1 className="text-2xl font-black tracking-tight text-foreground flex items-center gap-2">
                 Fin.IQ AI Studio
                 <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary">
-                  gemini-3.8-flash
+                  Gemini 3 Flash & 3.8
                 </Badge>
               </h1>
               <p className="text-xs text-muted-foreground mt-0.5">

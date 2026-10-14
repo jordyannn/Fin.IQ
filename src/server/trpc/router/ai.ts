@@ -14,23 +14,12 @@ import { smartParseIndonesianTransaction } from "@/lib/nlp-parser";
 import { GoogleGenAI } from "@google/genai";
 import { fuzzyMatchAccount, fuzzyMatchCategory } from "./import";
 import { formatInputIDR } from "@/lib/utils";
-import { GEMINI_AUDIO_MODEL } from "../../gemini";
-
-async function getEffectiveGeminiKey(ctx: { db: any; userId: string }): Promise<string> {
-  const profile = await ctx.db.query.userProfiles.findFirst({
-    where: eq(userProfiles.userId, ctx.userId),
-  });
-
-  const key = profile?.geminiApiKey?.trim() || process.env.GEMINI_API_KEY;
-  if (!key) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message:
-        "Anda belum menyambungkan Google Gemini API Key di profil. Silakan buka Pengaturan & Profil atau halaman AI untuk menyambungkan token Anda.",
-    });
-  }
-  return key;
-}
+import {
+  GEMINI_AUDIO_MODEL,
+  GEMINI_VISION_MODEL,
+  generateWithFallback,
+  getEffectiveGeminiKey,
+} from "../../gemini";
 
 export const aiRouter = router({
   parseTextToTransaction: protectedProcedure
@@ -152,8 +141,8 @@ ATURAN DETAIL:
         }
         contents.push({ text: prompt });
 
-        const response = await ai.models.generateContent({
-          model: GEMINI_AUDIO_MODEL,
+        const response = await generateWithFallback(ai, {
+          preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
           contents,
           config: {
             responseMimeType: "application/json",
@@ -417,8 +406,8 @@ ATURAN EKSTRAKSI PENTING:
       const ai = new GoogleGenAI({ apiKey });
       let responseText = "";
       try {
-        const response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
+        const response = await generateWithFallback(ai, {
+          preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
           contents: [
             {
               inlineData: {
@@ -681,8 +670,8 @@ Instruksi:
 
       const ai = new GoogleGenAI({ apiKey });
       try {
-        const response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
+        const response = await generateWithFallback(ai, {
+          preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
           contents: prompt,
         });
 
@@ -700,8 +689,6 @@ Instruksi:
   parseTextWithGemini: protectedProcedure
     .input(z.object({ text: z.string().min(2), clientTime: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const apiKey = await getEffectiveGeminiKey(ctx);
-
       const userAccounts = await ctx.db
         .select({ id: accounts.id, name: accounts.name, group: accounts.group })
         .from(accounts)
@@ -712,11 +699,13 @@ Instruksi:
         .from(categories)
         .where(eq(categories.userId, ctx.userId));
 
-      const accountNamesStr = userAccounts.map((a) => a.name).join(", ") || "Kas Tunai, BCA";
-      const categoryNamesStr = userCategories.map((c) => c.name).join(", ") || "Dining, Transportasi, Umum";
-      const currentYear = new Date().getFullYear();
+      try {
+        const apiKey = await getEffectiveGeminiKey(ctx);
 
-      const prompt = `Kamu adalah parser transaksi keuangan bahasa Indonesia untuk aplikasi Fin.IQ.
+        const accountNamesStr = userAccounts.map((a) => a.name).join(", ") || "Kas Tunai, BCA";
+        const categoryNamesStr = userCategories.map((c) => c.name).join(", ") || "Dining, Transportasi, Umum";
+
+        const prompt = `Kamu adalah parser transaksi keuangan bahasa Indonesia untuk aplikasi Fin.IQ.
 Ubah kalimat pengguna berikut menjadi 1 objek JSON transaksi:
 "${input.text}"
 
@@ -741,10 +730,9 @@ ATURAN:
 4. "happenedAt": ISO datetime string ("YYYY-MM-DDTHH:mm:ss"). Jika disebut kemarin/tadi/besok, hitung dari ${input.clientTime || new Date().toISOString()}.
 5. Kembalikan HANYA JSON.`;
 
-      const ai = new GoogleGenAI({ apiKey });
-      try {
-        const response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
+        const ai = new GoogleGenAI({ apiKey });
+        const response = await generateWithFallback(ai, {
+          preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
           contents: prompt,
           config: { responseMimeType: "application/json" },
         });
@@ -781,12 +769,19 @@ ATURAN:
           categoryHint: matchedCat,
           matchedCategoryId: foundCat?.id,
           recommendedCategory,
+          usedGemini: true,
         };
       } catch (err: any) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: `Gagal memproses teks dengan Gemini: ${err.message || "Unknown error"}`,
+        console.warn("[parseTextWithGemini] Fallback ke rule-based NLP lokal:", err?.message || err);
+        const localResult = smartParseIndonesianTransaction(input.text, {
+          accounts: userAccounts,
+          categories: userCategories,
+          referenceDate: input.clientTime ? new Date(input.clientTime) : new Date(),
         });
+        return {
+          ...localResult,
+          usedGemini: false,
+        };
       }
     }),
 });

@@ -4,7 +4,7 @@ import { router, protectedProcedure } from "../trpc";
 import { accounts, categories, transactions, ledgers } from "../../db/schema";
 import { eq, sql } from "drizzle-orm";
 import { GoogleGenAI } from "@google/genai";
-import { getEffectiveGeminiKey } from "../../gemini";
+import { getEffectiveGeminiKey, generateWithFallback } from "../../gemini";
 
 export function fuzzyMatchAccount(rawName: string | undefined, userAccounts: { id: string; name: string }[]): string {
   if (!rawName || !rawName.trim()) {
@@ -184,8 +184,8 @@ ATURAN EKSTRAKSI PENTING:
 9. Jika TIDAK ADA transaksi yang ditemukan di gambar, kembalikan array kosong [].`;
 
         try {
-          const response = await ai.models.generateContent({
-            model: "gemini-3.8-flash",
+          const response = await generateWithFallback(ai, {
+            preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
             contents: [
               {
                 inlineData: {

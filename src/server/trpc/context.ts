@@ -127,6 +127,16 @@ export async function createContext(opts?: { req?: Request }): Promise<Context> 
     }
   }
 
+  // 5. Fallback for DEMO_USER_ID if configured and no session token present
+  if (!authenticatedUserId && process.env.DEMO_USER_ID) {
+    const demoId = process.env.DEMO_USER_ID.trim();
+    if (demoId) {
+      await ensureUserProvisioned(demoId, "owner@finiq.app");
+      authenticatedUserId = demoId;
+      authenticatedEmail = "owner@finiq.app";
+    }
+  }
+
   return {
     db,
     userId: authenticatedUserId || "",

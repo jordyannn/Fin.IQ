@@ -550,7 +550,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="pt-4 border-t mt-4 text-[11px] text-muted-foreground">
-            Model aktif: <span className="font-semibold text-foreground">gemini-3.8-flash</span>. Token tersimpan aman di database profil Anda.
+            Model aktif: <span className="font-semibold text-foreground">Gemini 3 Flash & 3.8</span>. Token tersimpan aman di database profil Anda.
           </div>
         </Card>
 
