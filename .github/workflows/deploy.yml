@@ -21,6 +21,8 @@ jobs:
           port: ${{ secrets.SERVER_PORT || 22 }}
           script: |
             cd /var/www/fin-iq
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
             docker compose down
-            docker compose up -d --build
+            docker compose build --no-cache finiq-app
+            docker compose up -d
