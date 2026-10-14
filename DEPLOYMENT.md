@@ -99,7 +99,7 @@ PORT=3000
 ### B. Setup Awal Server (One-Time Setup)
 ### B. Metode 1: Deploy Menggunakan Docker Compose (Direkomendasikan & Sangat Ringan)
 
-Fin.IQ menyediakan konfigurasi multi-stage Docker yang dioptimasi (total konsumsi RAM App + DB hanya **~200MB**).
+Fin.IQ menggunakan arsitektur container ringan yang terhubung langsung ke **Aiven Cloud MySQL** (total konsumsi RAM hanya **~120MB**).
 
 ```bash
 # 1. Install Docker & Docker Compose di Ubuntu jika belum ada:
@@ -114,14 +114,14 @@ sudo git clone https://github.com/jordyannn/Fin.IQ.git fin-iq
 sudo chown -R $USER:$USER /var/www/fin-iq
 cd /var/www/fin-iq
 
-# 3. Jalankan App + Database MySQL dengan 1 perintah:
+# 3. Jalankan Fin.IQ App dengan 1 perintah:
 docker compose up -d --build
 
 # 4. Cek status container yang berjalan:
 docker compose ps
 docker compose logs -f finiq-app
 ```
-> Database MariaDB dan seluruh tabel Fin.IQ beserta data akun awal akan otomatis dibuat dan siap digunakan!
+> Aplikasi langsung terhubung ke database cloud Aiven MySQL dengan SSL aman!
 
 ---
 

@@ -10,13 +10,20 @@ if (!process.env.DATABASE_URL) {
 
 const connectionUri =
   process.env.DATABASE_URL ||
-  "mysql://finiq_user:finiq_user_password_2026@finiq-db:3306/defaultdb";
+  "mysql://avnadmin:AVNS_CpIAQBJBbUy_hH9zbT8@finiq-1-jordanngz12-6510.c.aivencloud.com:12551/defaultdb";
 
 // Docker container dan koneksi localhost tidak menggunakan SSL
 const isLocalOrDocker =
   connectionUri.includes("finiq-db") ||
   connectionUri.includes("localhost") ||
   connectionUri.includes("127.0.0.1");
+
+try {
+  const parsed = new URL(connectionUri);
+  console.log(`[Database] Connecting to MySQL Host: ${parsed.hostname}:${parsed.port || 3306} (SSL: ${!isLocalOrDocker})`);
+} catch {
+  console.log("[Database] Connecting to database using configured URI");
+}
 
 export const pool = mysql.createPool({
   uri: connectionUri,

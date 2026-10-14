@@ -26,7 +26,7 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-ENV DATABASE_URL="mysql://finiq_user:finiq_user_password_2026@finiq-db:3306/defaultdb"
+ENV DATABASE_URL="mysql://avnadmin:AVNS_CpIAQBJBbUy_hH9zbT8@finiq-1-jordanngz12-6510.c.aivencloud.com:12551/defaultdb"
 
 RUN npm run build
 
@@ -40,7 +40,7 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-ENV DATABASE_URL="mysql://finiq_user:finiq_user_password_2026@finiq-db:3306/defaultdb"
+ENV DATABASE_URL="mysql://avnadmin:AVNS_CpIAQBJBbUy_hH9zbT8@finiq-1-jordanngz12-6510.c.aivencloud.com:12551/defaultdb"
 
 # Non-root user for security
 RUN addgroup --system --gid 1001 nodejs && \

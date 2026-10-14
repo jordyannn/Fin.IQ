@@ -23,6 +23,11 @@ jobs:
             cd /var/www/fin-iq
             git fetch origin main
             git reset --hard origin/main
-            docker compose down
+            # Hentikan dan hapus container MariaDB lama jika masih ada
+            docker compose down --remove-orphans
+            docker stop finiq-db 2>/dev/null || true
+            docker rm finiq-db 2>/dev/null || true
+            # Build dan jalankan finiq-app yang langsung terkoneksi ke Aiven MySQL
             docker compose build --no-cache finiq-app
-            docker compose up -d
+            docker compose up -d finiq-app
+            docker ps
