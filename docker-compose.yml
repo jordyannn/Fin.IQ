@@ -62,7 +62,10 @@ services:
       # Jika ingin langsung diakses di port 80 tanpa Nginx, buka baris di bawah:
       # - "80:3000"
     env_file:
-      - .env.local
+      - path: .env.local
+        required: false
+      - path: .env
+        required: false
     environment:
       - NODE_ENV=production
       - PORT=3000
