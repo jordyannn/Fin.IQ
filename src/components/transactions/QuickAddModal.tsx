@@ -58,6 +58,7 @@ export function QuickAddModal() {
   } | null>(null);
   const [happenedAt, setHappenedAt] = useState("");
   const [note, setNote] = useState("");
+  const [nlpInputText, setNlpInputText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Mutation untuk membuat kategori rekomendasi NLP
@@ -232,15 +233,14 @@ export function QuickAddModal() {
     // 2. Evaluasi apakah kata kunci transaksi cocok dengan dataset fin_iq
     const isConfident = isConfidentDatasetMatch(result);
 
-    if (isConfident) {
-      // Kata kunci ditemukan di dataset fin_iq! Kirim ke backend mutation untuk sinkronisasi
+    if (isConfident || !audioBase64) {
+      // Kata kunci ditemukan di dataset fin_iq atau input berupa teks! Kirim ke backend mutation untuk sinkronisasi lokal
       parseMutation.mutate({ text: transcript, clientTime: new Date().toISOString() });
     } else {
-      // Kata kunci TIDAK ditemukan di dataset fin_iq (atau nominal belum terdeteksi)!
-      // Otomatis fallback ke Gemini 2.5 Flash Native Audio Dialog Live API
+      // Hanya fallback ke Gemini jika ada data rekaman audio nyata
       setIsAiParsingVoice(true);
       parseAudioMutation.mutate({
-        audioBase64: audioBase64 || undefined,
+        audioBase64,
         mimeType: mimeType || "audio/webm",
         transcript: transcript || undefined,
         clientTime: new Date().toISOString(),
@@ -702,6 +702,42 @@ export function QuickAddModal() {
                 <ImageIcon className="h-3.5 w-3.5 text-primary shrink-0" />
               )}
               <span className="truncate">Galeri</span>
+            </Button>
+          </div>
+
+          {/* Quick NLP Text Parser Input Bar */}
+          <div className="mt-2.5 flex items-center gap-1.5 pt-2 border-t border-border/50">
+            <Input
+              type="text"
+              placeholder="Ketik transaksi: misal 'Beli makan 35rb pake bca tadi siang'..."
+              value={nlpInputText}
+              onChange={(e) => setNlpInputText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (nlpInputText.trim()) {
+                    applySmartSpeechParse(nlpInputText.trim());
+                    setNlpInputText("");
+                  }
+                }
+              }}
+              className="h-8 text-xs bg-background/90 rounded-xl"
+            />
+            <Button
+              type="button"
+              size="sm"
+              disabled={!nlpInputText.trim()}
+              onClick={() => {
+                if (nlpInputText.trim()) {
+                  applySmartSpeechParse(nlpInputText.trim());
+                  setNlpInputText("");
+                }
+              }}
+              className="h-8 px-3 rounded-xl text-xs font-bold bg-[#00B569] hover:bg-[#009E5B] text-white shrink-0 gap-1 cursor-pointer"
+              title="Parse transaksi otomatis dengan NLP lokal"
+            >
+              <Sparkles className="h-3 w-3" />
+              <span>Parse</span>
             </Button>
           </div>
         </div>

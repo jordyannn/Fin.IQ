@@ -120,7 +120,11 @@ export const transactionsRouter = router({
         txType: z.enum(["expense", "income", "transfer"]),
         amount: z.number().positive("Nominal harus lebih dari 0"),
         currency: z.string().default("IDR"),
-        happenedAt: z.string().optional(),
+        happenedAt: z.union([z.string(), z.date()]).optional().transform((val) => {
+          if (!val) return undefined;
+          if (val instanceof Date) return val.toISOString();
+          return val;
+        }),
         note: z.string().optional(),
         accountId: z.string(),
         toAccountId: z.string().optional(),

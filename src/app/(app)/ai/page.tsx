@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { compressImageToBase64 } from "@/lib/image-compressor";
+import { smartParseIndonesianTransaction } from "@/lib/nlp-parser";
 import {
   Sparkles,
   Camera,
@@ -281,26 +282,61 @@ function AIPageContent() {
     }
   };
 
+  const [nlpEngine, setNlpEngine] = useState<"local" | "gemini">("local");
+
+  const parseTextLocalMutation = trpc.ai.parseTextToTransaction.useMutation({
+    onSuccess: (data) => {
+      setNlpResult(data);
+    },
+    onError: (err) => {
+      console.warn("Local NLP sync warning:", err);
+    },
+  });
+
   const parseTextGeminiMutation = trpc.ai.parseTextWithGemini.useMutation({
     onSuccess: (data) => {
       setNlpResult(data);
     },
     onError: (err) => {
-      alert({
-        title: "Gagal Memproses Kalimat",
-        description: err.message,
-        variant: "destructive",
-        icon: "alert",
+      // Fallback ke local parser jika Gemini gagal
+      const fallbackLocal = smartParseIndonesianTransaction(nlpText.trim(), {
+        accounts: accountsData?.accounts,
+        categories: categoriesList,
+      });
+      setNlpResult({
+        ...fallbackLocal,
+        happenedAt: fallbackLocal.happenedAt ? fallbackLocal.happenedAt.toISOString() : new Date().toISOString(),
+        usedGemini: false,
       });
     },
   });
 
-  const handleParseNlp = () => {
+  const handleParseNlp = (engine: "local" | "gemini" = nlpEngine) => {
     if (!nlpText.trim()) return;
-    parseTextGeminiMutation.mutate({
-      text: nlpText.trim(),
-      clientTime: new Date().toISOString(),
+
+    // 1. Eksekusi lokal instan di browser (0 ms latency)
+    const instantLocal = smartParseIndonesianTransaction(nlpText.trim(), {
+      accounts: accountsData?.accounts,
+      categories: categoriesList,
     });
+    setNlpResult({
+      ...instantLocal,
+      happenedAt: instantLocal.happenedAt ? instantLocal.happenedAt.toISOString() : new Date().toISOString(),
+      usedGemini: false,
+    });
+
+    // 2. Kirim ke backend sesuai engine pilihan
+    if (engine === "local") {
+      parseTextLocalMutation.mutate({
+        text: nlpText.trim(),
+        clientTime: new Date().toISOString(),
+      });
+    } else {
+      parseTextGeminiMutation.mutate({
+        text: nlpText.trim(),
+        clientTime: new Date().toISOString(),
+      });
+    }
   };
 
   const handleSaveNlpTransaction = () => {
@@ -318,13 +354,19 @@ function AIPageContent() {
     }
 
     setIsSavingTx(true);
+    const txHappenedAt = nlpResult.happenedAt
+      ? typeof nlpResult.happenedAt === "string"
+        ? nlpResult.happenedAt
+        : nlpResult.happenedAt.toISOString()
+      : new Date().toISOString();
+
     createTxMutation.mutate({
       ledgerId: defaultLedgerId,
       txType: nlpResult.txType || "expense",
       amount: nlpResult.amount,
       accountId: accId,
       categoryId: nlpResult.matchedCategoryId || undefined,
-      happenedAt: nlpResult.happenedAt || new Date().toISOString(),
+      happenedAt: txHappenedAt,
       note: nlpResult.note || nlpText,
     });
   };
@@ -894,11 +936,37 @@ function AIPageContent() {
       {activeTab === "nlp" && (
         <Card className="p-6 rounded-2xl shadow-sm border-border/70 flex flex-col justify-between">
           <div>
-            <div className="flex items-center gap-2 pb-3 border-b mb-4">
-              <FileText className="h-4 w-4 text-[#00B569]" />
-              <h3 className="font-extrabold text-sm text-foreground">
-                Smart Indonesian Transaction Parser
-              </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b mb-4 gap-2">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-[#00B569]" />
+                <h3 className="font-extrabold text-sm text-foreground">
+                  Smart Indonesian Transaction Parser
+                </h3>
+              </div>
+              <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-xl text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setNlpEngine("local")}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                    nlpEngine === "local"
+                      ? "bg-[#00B569] text-white shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  ⚡ NLP Lokal (Instan 0ms)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNlpEngine("gemini")}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                    nlpEngine === "gemini"
+                      ? "bg-[#00B569] text-white shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  ✨ Gemini AI
+                </button>
+              </div>
             </div>
 
             <p className="text-xs text-muted-foreground mb-4">
@@ -921,11 +989,14 @@ function AIPageContent() {
                   }}
                 />
                 <Button
-                  onClick={handleParseNlp}
-                  disabled={parseTextGeminiMutation.isPending || !nlpText.trim()}
+                  onClick={() => handleParseNlp()}
+                  disabled={
+                    (nlpEngine === "local" ? parseTextLocalMutation.isPending : parseTextGeminiMutation.isPending) ||
+                    !nlpText.trim()
+                  }
                   className="bg-[#00B569] hover:bg-[#009E5B] text-white font-bold h-10 px-4 rounded-xl text-xs gap-1.5 shrink-0"
                 >
-                  {parseTextGeminiMutation.isPending ? (
+                  {(nlpEngine === "local" ? parseTextLocalMutation.isPending : parseTextGeminiMutation.isPending) ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <Sparkles className="h-3.5 w-3.5" />
@@ -945,7 +1016,10 @@ function AIPageContent() {
                   <button
                     key={egIdx}
                     type="button"
-                    onClick={() => setNlpText(eg)}
+                    onClick={() => {
+                      setNlpText(eg);
+                      handleParseNlp("local");
+                    }}
                     className="underline hover:text-foreground"
                   >
                     &quot;{eg}&quot;
@@ -958,7 +1032,12 @@ function AIPageContent() {
             {nlpResult && (
               <div className="mt-6 p-4 rounded-2xl bg-muted/40 border border-border/60 space-y-3 text-xs">
                 <div className="flex items-center justify-between border-b pb-2">
-                  <span className="font-bold text-foreground">Hasil Ekstraksi Transaksi</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-foreground">Hasil Ekstraksi Transaksi</span>
+                    <Badge variant="outline" className="text-[10px] font-mono text-[#00B569] border-[#00B569]/30">
+                      {nlpResult.usedGemini ? "Gemini AI" : "⚡ NLP Lokal (Instan)"}
+                    </Badge>
+                  </div>
                   <Badge variant={nlpResult.txType as any} className="text-[10px] uppercase">
                     {nlpResult.txType}
                   </Badge>

@@ -41,11 +41,18 @@ export const aiRouter = router({
         .from(categories)
         .where(eq(categories.userId, ctx.userId));
 
-      return smartParseIndonesianTransaction(input.text, {
+      const result = smartParseIndonesianTransaction(input.text, {
         accounts: userAccounts,
         categories: userCategories,
         referenceDate: input.clientTime ? new Date(input.clientTime) : new Date(),
       });
+
+      return {
+        ...result,
+        happenedAt: result.happenedAt ? result.happenedAt.toISOString() : (input.clientTime || new Date().toISOString()),
+        happenedAtFormatted: result.happenedAtFormatted || undefined,
+        usedGemini: false,
+      };
     }),
 
   parseAudioWithGemini: protectedProcedure
@@ -780,6 +787,8 @@ ATURAN:
         });
         return {
           ...localResult,
+          happenedAt: localResult.happenedAt ? localResult.happenedAt.toISOString() : (input.clientTime || new Date().toISOString()),
+          happenedAtFormatted: localResult.happenedAtFormatted || undefined,
           usedGemini: false,
         };
       }
