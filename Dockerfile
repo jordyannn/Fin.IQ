@@ -41,6 +41,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV DATABASE_URL="mysql://avnadmin:AVNS_CpIAQBJBbUy_hH9zbT8@finiq-1-jordanngz12-6510.c.aivencloud.com:12551/defaultdb"
+ENV GEMINI_API_KEY="AQ.Ab8RN6IGdjST8WXK9I-8LIULXF8TAcbXlz-NeN2H6d1v__yN8A"
 
 # Non-root user for security
 RUN addgroup --system --gid 1001 nodejs && \

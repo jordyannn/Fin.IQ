@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { GoogleGenAI } from "@google/genai";
 
 export const GEMINI_MODEL = "gemini-3.8-flash";
-export const GEMINI_AUDIO_MODEL = "gemini-2.5-flash";
+export const GEMINI_AUDIO_MODEL = "gemini-3.8-flash";
 
 export async function getEffectiveGeminiKey(ctx: { db: any; userId: string }): Promise<string> {
   const profileRecords = await ctx.db
