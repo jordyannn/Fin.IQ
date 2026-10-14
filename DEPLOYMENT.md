@@ -97,6 +97,35 @@ PORT=3000
 ---
 
 ### B. Setup Awal Server (One-Time Setup)
+### B. Metode 1: Deploy Menggunakan Docker Compose (Direkomendasikan & Sangat Ringan)
+
+Fin.IQ menyediakan konfigurasi multi-stage Docker yang dioptimasi (total konsumsi RAM App + DB hanya **~200MB**).
+
+```bash
+# 1. Install Docker & Docker Compose di Ubuntu jika belum ada:
+sudo apt update && sudo apt install -y docker.io docker-compose-v2
+sudo systemctl enable --now docker
+sudo usermod -aG docker $USER
+
+# 2. Clone repository ke server:
+sudo mkdir -p /var/www
+cd /var/www
+sudo git clone https://github.com/jordyannn/Fin.IQ.git fin-iq
+sudo chown -R $USER:$USER /var/www/fin-iq
+cd /var/www/fin-iq
+
+# 3. Jalankan App + Database MySQL dengan 1 perintah:
+docker compose up -d --build
+
+# 4. Cek status container yang berjalan:
+docker compose ps
+docker compose logs -f finiq-app
+```
+> Database MariaDB dan seluruh tabel Fin.IQ beserta data akun awal akan otomatis dibuat dan siap digunakan!
+
+---
+
+### C. Metode 2: Deploy Native Node.js 20 + PM2 (Alternatif Tanpa Docker)
 ```bash
 # 1. Update sistem dan install Node 20, Git, Nginx, PM2
 sudo apt update && sudo apt upgrade -y
@@ -128,7 +157,7 @@ pm2 startup
 
 ---
 
-### C. Konfigurasi Nginx (Reverse Proxy Port 80 -> 3000)
+### D. Konfigurasi Nginx (Reverse Proxy Port 80 -> 3000)
 File konfigurasi: `/etc/nginx/sites-available/fin-iq`
 
 ```nginx
@@ -162,9 +191,17 @@ sudo systemctl reload nginx
 
 ---
 
-### D. Alur Pembaruan Kode (Deploy Update Rutin)
+### E. Alur Pembaruan Kode (Deploy Update Rutin)
 Setiap kali Anda selesai melakukan *push* update kode baru dari laptop ke GitHub:
 
+**Jika menggunakan Docker:**
+```bash
+cd /var/www/fin-iq
+git pull origin main
+docker compose up -d --build
+```
+
+**Jika menggunakan PM2:**
 ```bash
 cd /var/www/fin-iq
 git pull origin main
@@ -175,9 +212,9 @@ pm2 reload fin-iq
 
 ---
 
-### E. Perintah Cek Status & Debugging
-- Cek status aplikasi Next.js: `pm2 status`
-- Cek live logs error/request: `pm2 logs fin-iq`
-- Restart aplikasi: `pm2 restart fin-iq`
+### F. Perintah Cek Status & Debugging
+- Cek container Docker: `docker compose ps`
+- Cek log Docker: `docker compose logs -f`
+- Cek PM2 (jika pakai PM2): `pm2 status`
 - Cek status web server Nginx: `sudo systemctl status nginx`
 - Cek log error Nginx: `sudo tail -f /var/log/nginx/error.log`

@@ -1,0 +1,93 @@
+services:
+  # ===========================================================================
+  # 1. Database MySQL / MariaDB (Ringan & Hemat RAM ~90MB)
+  # ===========================================================================
+  finiq-db:
+    image: mariadb:10.11
+    container_name: finiq-db
+    restart: unless-stopped
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --performance-schema=OFF
+      --innodb-buffer-pool-size=64M
+      --innodb-log-buffer-size=8M
+      --max-connections=50
+    environment:
+      MYSQL_ROOT_PASSWORD: finiq_root_password_2026
+      MYSQL_DATABASE: defaultdb
+      MYSQL_USER: finiq_user
+      MYSQL_PASSWORD: finiq_user_password_2026
+    volumes:
+      # Penyimpanan data persisten agar data tidak hilang saat restart
+      - finiq_db_data:/var/lib/mysql
+      # Auto-inisialisasi tabel & data awal saat pertama kali dijalankan
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      # Hanya dibuka ke localhost untuk keamanan
+      - "127.0.0.1:3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================================================
+  # 2. Fin.IQ Next.js Web Application (~120MB RAM)
+  # ===========================================================================
+  finiq-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: finiq-app
+    restart: unless-stopped
+    depends_on:
+      finiq-db:
+        condition: service_healthy
+    ports:
+      # Port 3000 untuk diakses langsung atau melalui reverse proxy Nginx
+      - "3000:3000"
+      # Jika ingin langsung diakses di port 80 tanpa Nginx, buka baris di bawah:
+      # - "80:3000"
+    env_file:
+      - .env.local
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      # Koneksi internal ke container database di atas:
+      - DATABASE_URL=mysql://finiq_user:finiq_user_password_2026@finiq-db:3306/defaultdb
+      - NEXTAUTH_SECRET=finiq-secret-key-32-chars-minimum-token
+      - NEXTAUTH_URL=http://43.163.5.111:3000
+      - NEXT_PUBLIC_DEFAULT_CURRENCY=IDR
+      - DEMO_USER_ID=default-user-uuid-1
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# =============================================================================
+# Volume Persisten
+# =============================================================================
+volumes:
+  finiq_db_data:
+    driver: local
