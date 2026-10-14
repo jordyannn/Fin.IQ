@@ -8,17 +8,25 @@ if (!process.env.DATABASE_URL) {
   dotenv.config();
 }
 
-const connectionUri = process.env.DATABASE_URL;
+const connectionUri =
+  process.env.DATABASE_URL ||
+  "mysql://finiq_user:finiq_user_password_2026@finiq-db:3306/defaultdb";
 
-if (!connectionUri) {
-  throw new Error("DATABASE_URL is not set in environment variables");
-}
+// Docker container dan koneksi localhost tidak menggunakan SSL
+const isLocalOrDocker =
+  connectionUri.includes("finiq-db") ||
+  connectionUri.includes("localhost") ||
+  connectionUri.includes("127.0.0.1");
 
 export const pool = mysql.createPool({
   uri: connectionUri,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ...(isLocalOrDocker
+    ? {}
+    : {
+        ssl: {
+          rejectUnauthorized: false,
+        },
+      }),
   connectTimeout: 30000,
   waitForConnections: true,
   connectionLimit: 10,
