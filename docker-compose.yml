@@ -73,7 +73,7 @@ services:
       # Koneksi internal ke container database di atas:
       - DATABASE_URL=mysql://finiq_user:finiq_user_password_2026@finiq-db:3306/defaultdb
       - NEXTAUTH_SECRET=finiq-secret-key-32-chars-minimum-token
-      - NEXTAUTH_URL=http://43.163.5.111:3000
+      - NEXTAUTH_URL=https://fin-iq.my.id
       - NEXT_PUBLIC_DEFAULT_CURRENCY=IDR
       - DEMO_USER_ID=default-user-uuid-1
     deploy:

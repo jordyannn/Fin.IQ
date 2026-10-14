@@ -163,9 +163,9 @@ File konfigurasi: `/etc/nginx/sites-available/fin-iq`
 ```nginx
 server {
     listen 80;
-    server_name 43.163.5.111; # atau nama domain Anda jika sudah ada
+    server_name fin-iq.my.id www.fin-iq.my.id;
 
-    client_max_body_size 25M;
+    client_max_body_size 50M;
 
     location / {
         proxy_pass http://127.0.0.1:3000;
@@ -181,12 +181,17 @@ server {
 }
 ```
 
-Aktifkan site:
+Aktifkan site Nginx:
 ```bash
 sudo ln -s /etc/nginx/sites-available/fin-iq /etc/nginx/sites-enabled/
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
 sudo systemctl reload nginx
+```
+
+Pasang SSL Gratis (HTTPS) Certbot:
+```bash
+sudo certbot --nginx -d fin-iq.my.id -d www.fin-iq.my.id
 ```
 
 ---
