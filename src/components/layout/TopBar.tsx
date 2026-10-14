@@ -1,3 +1,4 @@
+/* Hallmark · component: TopBar · theme: Bibit-Fintech · genre: modern-minimal */
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";

@@ -1,3 +1,4 @@
+/* Hallmark · component: AppShell · theme: Bibit-Fintech · genre: modern-minimal */
 "use client";
 
 import React from "react";
@@ -14,7 +15,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { isSidebarOpen, setSidebarOpen } = useUIStore();
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
+    <div className="flex min-h-screen w-full overflow-x-clip bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
       {/* Desktop Sidebar */}
       <Sidebar />
 

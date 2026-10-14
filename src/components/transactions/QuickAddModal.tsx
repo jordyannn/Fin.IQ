@@ -1,3 +1,4 @@
+/* Hallmark · component: QuickAddModal · theme: Bibit-Fintech · genre: modern-minimal · states: default, hover, focus, active, disabled, loading, error, success */
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
@@ -22,6 +23,7 @@ import {
   AlertCircle,
   Eye,
   Plus,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -404,7 +406,42 @@ export function QuickAddModal() {
     },
   });
 
+  // ESC shortcut to close modal / nested modals safely
+  useEffect(() => {
+    if (!isQuickAddOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (previewModalOpen) {
+          setPreviewModalOpen(false);
+        } else if (showSourceChoiceModal) {
+          setShowSourceChoiceModal(false);
+        } else {
+          closeQuickAdd();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isQuickAddOpen, previewModalOpen, showSourceChoiceModal, closeQuickAdd]);
+
+  const defaultAccountId = accountsData?.accounts?.[0]?.id || "";
+  const defaultExpenseCategoryId = categoriesList?.find((c) => c.kind === "expense")?.id || "";
+
+  const hasDraftData = Boolean(
+    (amount && amount.trim() !== "" && amount.trim() !== "0") ||
+    (note && note.trim() !== "") ||
+    (happenedAt && happenedAt.trim() !== "") ||
+    receiptPreviewUrl ||
+    scannedBillMeta ||
+    toAccountId ||
+    nlpRecommendedCategory ||
+    txType !== "expense" ||
+    (accountId && accountId !== defaultAccountId) ||
+    (categoryId && categoryId !== defaultExpenseCategoryId)
+  );
+
   const resetForm = () => {
+    setTxType("expense");
     setAmount("");
     setHappenedAt("");
     setNote("");
@@ -413,6 +450,33 @@ export function QuickAddModal() {
     setScannedBillMeta(null);
     setBillScanError(null);
     setNlpRecommendedCategory(null);
+    setIsScanningBill(false);
+    setShowSourceChoiceModal(false);
+
+    if (accountsData?.accounts && accountsData.accounts.length > 0) {
+      setAccountId(accountsData.accounts[0].id);
+    } else {
+      setAccountId("");
+    }
+    const defaultCat = categoriesList?.find((c) => c.kind === "expense");
+    setCategoryId(defaultCat ? defaultCat.id : "");
+  };
+
+  const handleClearForm = async () => {
+    if (!hasDraftData) return;
+    const ok = await confirm({
+      title: "Bersihkan Form Catat Transaksi?",
+      description:
+        "Semua input nominal, catatan, foto struk, dan pengaturan transaksi yang belum disimpan akan dikosongkan.",
+      confirmText: "Ya, Bersihkan",
+      cancelText: "Batal",
+      variant: "destructive",
+      icon: "trash",
+    });
+
+    if (ok) {
+      resetForm();
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -489,8 +553,12 @@ export function QuickAddModal() {
   if (!isQuickAddOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200"
+      onClick={closeQuickAdd}
+    >
       <form
+        onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
         className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-3xl bg-card border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in zoom-in-95 duration-150"
       >
@@ -501,17 +569,39 @@ export function QuickAddModal() {
               <Sparkles className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-foreground">Catat Transaksi</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-foreground">Catat Transaksi</h2>
+                {hasDraftData && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Draf Tersimpan
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">Manual, dikte suara AI, atau scan struk</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={closeQuickAdd}
-            className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {hasDraftData && (
+              <button
+                type="button"
+                onClick={handleClearForm}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all border border-border/60 hover:border-destructive/30 cursor-pointer shadow-2xs"
+                title="Bersihkan seluruh input form"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Bersihkan</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={closeQuickAdd}
+              className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+              title="Tutup (Draf input tetap tersimpan)"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Modal Content Body */}
@@ -893,10 +983,20 @@ export function QuickAddModal() {
                 placeholder="0"
                 value={amount}
                 onChange={(e) => setAmount(formatInputIDR(e.target.value))}
-                className="pl-10 text-lg font-bold tracking-tight h-12"
+                className={cn("pl-10 text-lg font-bold tracking-tight h-12", amount && "pr-9")}
                 required
                 autoFocus
               />
+              {amount && (
+                <button
+                  type="button"
+                  onClick={() => setAmount("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                  title="Hapus nominal"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -1101,41 +1201,72 @@ export function QuickAddModal() {
                 }}
               />
             </div>
-            <Input
-              type="text"
-              placeholder="Contoh: Sarapan pagi, beli bensin, dll."
-              value={note}
-              onChange={(e) => {
-                const val = e.target.value;
-                setNote(val);
-                const lower = val.toLowerCase();
-                if (lower.includes("pemasukan") || lower.includes("uang masuk") || lower.includes("gaji")) {
-                  setTxType("income");
-                } else if (lower.includes("pengeluaran") || lower.includes("uang keluar") || lower.includes("beli ") || lower.includes("bayar ")) {
-                  setTxType("expense");
-                }
-              }}
-              className="h-10 text-xs"
-            />
+            <div className="relative">
+              <Input
+                type="text"
+                placeholder="Contoh: Sarapan pagi, beli bensin, dll."
+                value={note}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setNote(val);
+                  const lower = val.toLowerCase();
+                  if (lower.includes("pemasukan") || lower.includes("uang masuk") || lower.includes("gaji")) {
+                    setTxType("income");
+                  } else if (lower.includes("pengeluaran") || lower.includes("uang keluar") || lower.includes("beli ") || lower.includes("bayar ")) {
+                    setTxType("expense");
+                  }
+                }}
+                className={cn("h-10 text-xs", note && "pr-8")}
+              />
+              {note && (
+                <button
+                  type="button"
+                  onClick={() => setNote("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                  title="Hapus catatan"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
           </div>
 
           </div>
         </div>
 
         {/* Fixed Pinned Footer Actions */}
-        <div className="border-t border-border/70 px-6 py-3.5 shrink-0 bg-card/95 backdrop-blur-sm flex gap-3 z-10">
-          <Button
-            type="button"
-            variant="outline"
-            className="w-1/3 rounded-xl h-10 text-xs font-semibold cursor-pointer"
-            onClick={closeQuickAdd}
-          >
-            Batal
-          </Button>
+        <div className="border-t border-border/70 px-6 py-3.5 shrink-0 bg-card/95 backdrop-blur-sm flex items-center justify-between gap-3 z-10">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!hasDraftData || isSubmitting}
+              onClick={handleClearForm}
+              className={cn(
+                "rounded-xl h-10 px-3 text-xs font-semibold transition-colors gap-1.5 cursor-pointer",
+                hasDraftData
+                  ? "text-muted-foreground hover:text-destructive hover:border-destructive/40 hover:bg-destructive/10"
+                  : "opacity-40 cursor-not-allowed text-muted-foreground"
+              )}
+              title={hasDraftData ? "Bersihkan seluruh input form" : "Form masih kosong"}
+            >
+              <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+              <span>Bersihkan</span>
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="rounded-xl h-10 text-xs font-semibold cursor-pointer text-muted-foreground hover:text-foreground"
+              onClick={closeQuickAdd}
+              title="Tutup modal (Draf input tetap tersimpan)"
+            >
+              Batal
+            </Button>
+          </div>
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-2/3 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl h-10 text-xs shadow-md cursor-pointer transition-all"
+            className="flex-1 max-w-[240px] bg-primary hover:bg-primary/90 text-white font-bold rounded-xl h-10 text-xs shadow-md cursor-pointer transition-all"
           >
             {isSubmitting ? "Menyimpan..." : "Simpan Transaksi"}
           </Button>

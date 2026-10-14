@@ -1,3 +1,4 @@
+/* Hallmark · component: Sidebar · theme: Bibit-Fintech · genre: modern-minimal */
 "use client";
 
 import React from "react";

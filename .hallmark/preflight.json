@@ -1,0 +1,10 @@
+{
+  "scan_date": "2026-10-14",
+  "framework": "Next.js 15 (App Router)",
+  "font_stack": "Inter / system-ui (system sans-serif)",
+  "palette": "design.md locked system (Bibit-Fintech Emerald #00B569 / #10B981, Mint #ECFDF5, Slate)",
+  "motion": "CSS transitions (motion-cut, fast tactile 150-200ms)",
+  "spacing": "Tailwind 4-pt scale",
+  "system_managed": true,
+  "source_of_truth": "design.md"
+}

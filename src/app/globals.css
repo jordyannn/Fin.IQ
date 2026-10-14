@@ -70,9 +70,23 @@
   * {
     @apply border-border;
   }
+  html,
   body {
+    overflow-x: clip;
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings: "rlig" 1, "calt" 1, "cv11" 1;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Hallmark Typography Purity: Headings are always upright (no italic tells) */
+  h1, h2, h3, h4, h5, h6 {
+    font-style: normal !important;
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+  /* Hallmark State Discipline: Instant, visible focus ring without animated blur */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 

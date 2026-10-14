@@ -1,3 +1,4 @@
+/* Hallmark · macrostructure: Feed / Data-Dense · theme: Bibit-Fintech · genre: modern-minimal · pre-emit critique: P5 H5 E5 S5 R5 V5 */
 "use client";
 
 import React, { useState, useMemo } from "react";

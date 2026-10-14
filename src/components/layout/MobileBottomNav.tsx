@@ -1,3 +1,4 @@
+/* Hallmark · component: MobileBottomNav · theme: Bibit-Fintech · discipline: mobile-first · states: default, hover, focus, active */
 "use client";
 
 import React from "react";
