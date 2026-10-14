@@ -40,7 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="mt-3 flex-1 overflow-y-auto">
+            <div className="mt-3 flex-1 overflow-hidden flex flex-col min-h-0">
               <Sidebar isMobile onItemClick={() => setSidebarOpen(false)} />
             </div>
           </div>

@@ -1,20 +1,14 @@
 /* Hallmark · component: TopBar · theme: Bibit-Fintech · genre: modern-minimal */
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   Search,
   Plus,
   Sun,
   Moon,
   BookOpen,
-  User,
-  Settings,
-  ShieldCheck,
-  LogOut,
-  ChevronDown,
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,49 +17,16 @@ import { useTheme } from "next-themes";
 import { trpc } from "@/lib/trpc/client";
 
 export function TopBar() {
-  const router = useRouter();
   const { openQuickAdd, toggleCommandPalette } = useUIStore();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Fetch ledgers and user profile
+  // Fetch ledgers list for the top indicator
   const { data: ledgersList } = trpc.ledgers.list.useQuery();
-  const { data: profile } = trpc.user.getProfile.useQuery();
-
-  const handleLogout = async () => {
-    setIsDropdownOpen(false);
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-      router.push("/login");
-      router.refresh();
-    } catch {
-      router.push("/login");
-    }
-  };
-
-  const userInitials = profile?.displayName
-    ? profile.displayName
-        .split(" ")
-        .map((n) => n[0])
-        .slice(0, 2)
-        .join("")
-        .toUpperCase()
-    : "FQ";
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border/60 bg-card/85 px-3.5 sm:px-6 backdrop-blur-md">
@@ -139,67 +100,6 @@ export function TopBar() {
             )}
           </Button>
         )}
-
-        {/* Interactive Profile Dropdown */}
-        <div className="relative" ref={dropdownRef}>
-          <button
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="flex items-center gap-1.5 p-1 rounded-full hover:ring-2 hover:ring-[#00B569]/30 transition-all outline-none"
-            aria-label="Buka menu profil"
-          >
-            <div className="flex items-center justify-center h-8 w-8 rounded-full bg-emerald-100 text-[#00B569] dark:bg-emerald-950 dark:text-emerald-400 text-xs font-black border border-emerald-300 dark:border-emerald-800 shadow-sm">
-              {userInitials}
-            </div>
-            <ChevronDown className="h-3 w-3 text-muted-foreground hidden sm:block" />
-          </button>
-
-          {/* Dropdown Menu Modal */}
-          {isDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-border/80 bg-card p-2 text-xs shadow-xl shadow-black/10 backdrop-blur-xl animate-in fade-in zoom-in-95 z-50">
-              {/* Header */}
-              <div className="px-3 py-2.5 border-b border-border/60">
-                <p className="font-extrabold text-foreground truncate text-sm">
-                  {profile?.displayName || "Pengguna Fin.IQ"}
-                </p>
-                <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                  {profile?.email || "owner@finiq.app"}
-                </p>
-              </div>
-
-              {/* Menu items */}
-              <div className="py-1.5 space-y-0.5">
-                <Link
-                  href="/settings"
-                  onClick={() => setIsDropdownOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors font-medium"
-                >
-                  <User className="h-4 w-4 text-[#00B569]" />
-                  <span>Profil &amp; Pengaturan</span>
-                </Link>
-
-                <Link
-                  href="/integrity"
-                  onClick={() => setIsDropdownOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors font-medium"
-                >
-                  <ShieldCheck className="h-4 w-4 text-blue-500" />
-                  <span>Integritas Database</span>
-                </Link>
-              </div>
-
-              {/* Logout button */}
-              <div className="pt-1.5 border-t border-border/60">
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors font-semibold"
-                >
-                  <LogOut className="h-4 w-4 text-red-500" />
-                  <span>Keluar Akun</span>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </header>
   );
