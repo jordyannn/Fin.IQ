@@ -21,9 +21,15 @@ import {
   Sparkles,
   User,
   ChevronsUpDown,
+  Plus,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
+import { useTheme } from "next-themes";
+import { Button } from "@/components/ui/button";
+import { useUIStore } from "@/store/ui.store";
 
 const navigationItems = [
   { label: "Overview", href: "/overview", icon: LayoutDashboard },
@@ -57,6 +63,15 @@ export function Sidebar({
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   const { data: profile } = trpc.user.getProfile.useQuery();
+  const { data: ledgersList } = trpc.ledgers.list.useQuery();
+  const { theme, setTheme } = useTheme();
+  const { openQuickAdd } = useUIStore();
+
+  const ledgerName = ledgersList?.[0]?.name || "Buku Kas Utama";
+
+  const toggleTheme = () => {
+    setTheme(theme === "dark" ? "light" : "dark");
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -100,9 +115,9 @@ export function Sidebar({
           : "hidden lg:flex w-64 h-screen sticky top-0 border-r border-border/60 bg-card/80 backdrop-blur-md px-3.5 py-4 z-20"
       )}
     >
-      {/* ===================================================================== */}
-      {/* 1. BRAND HEADER */}
-      {/* ===================================================================== */}
+      {/* =====================================================================
+          1. BRAND HEADER
+      ===================================================================== */}
       {!isMobile && (
         <div className="px-2 pt-0.5 pb-2.5">
           <Link href="/overview" className="block group">
@@ -116,9 +131,9 @@ export function Sidebar({
         </div>
       )}
 
-      {/* ===================================================================== */}
-      {/* 2. FIXED USER PROFILE CARD (LANGSUNG TAMPIL DI AWAL, TANPA SCROLL!) */}
-      {/* ===================================================================== */}
+      {/* =====================================================================
+          2. FIXED USER PROFILE CARD
+      ===================================================================== */}
       <div className="relative mb-3.5" ref={profileMenuRef}>
         <button
           type="button"
@@ -147,7 +162,7 @@ export function Sidebar({
           <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-1 group-hover:text-foreground transition-colors" />
         </button>
 
-        {/* Dropdown Menu (Muncul ke bawah karena berada di bagian atas sidebar) */}
+        {/* Dropdown Menu */}
         {isProfileMenuOpen && (
           <div className="absolute top-full left-0 right-0 mt-1.5 rounded-2xl border border-border/80 bg-card p-2 text-xs shadow-2xl shadow-black/15 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-150 z-50">
             {/* Header info */}
@@ -204,9 +219,55 @@ export function Sidebar({
         )}
       </div>
 
-      {/* ===================================================================== */}
-      {/* 3. NAVIGATION SECTION */}
-      {/* ===================================================================== */}
+      {/* =====================================================================
+          3. QUICK ACTIONS — dipindahkan dari TopBar
+      ===================================================================== */}
+      <div className="mb-3 flex-shrink-0">
+        {/* Kas Utama (Ledger) */}
+        <Link
+          href="/ledgers"
+          className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs font-semibold transition-all group hover:bg-muted/60"
+        >
+          <Wallet className="h-4 w-4 shrink-0 text-[#00B569]" />
+          <span className="truncate">{ledgerName}</span>
+        </Link>
+
+        {/* AI Studio */}
+        <Button asChild variant="secondary" className="w-full justify-start gap-2 mb-2">
+          <Link href="/ai">
+            <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+            AI Studio
+          </Link>
+        </Button>
+
+        {/* Tambah Transaksi */}
+        <Button
+          onClick={openQuickAdd}
+          className="w-full justify-start gap-2 mb-2 bg-[#00B569] hover:bg-[#009E5B] text-white"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Tambah Transaksi
+        </Button>
+
+        {/* Theme Toggle */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleTheme}
+          className="w-full justify-start gap-2 text-xs"
+        >
+          {theme === "dark" ? (
+            <Sun className="h-4 w-4 text-amber-400" />
+          ) : (
+            <Moon className="h-4 w-4 text-slate-700" />
+          )}
+          <span>Ganti Tema</span>
+        </Button>
+      </div>
+
+      {/* =====================================================================
+          4. NAVIGATION SECTION
+      ===================================================================== */}
       <div className="flex-1 overflow-y-auto pr-1 -mr-1 space-y-3 scrollbar-none">
         {/* Menu Utama */}
         <nav className="flex flex-col gap-0.5">
