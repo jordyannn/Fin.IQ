@@ -8,6 +8,7 @@ import { MobileBottomNav } from "./MobileBottomNav";
 import { QuickAddModal } from "@/components/transactions/QuickAddModal";
 import { CommandPalette } from "@/components/cmdk/CommandPalette";
 import { ConfirmModalDialog } from "@/components/ui/ConfirmModalDialog";
+import { MascotNavigator } from "@/components/mascot/MascotNavigator";
 import { useUIStore } from "@/store/ui.store";
 import { X } from "lucide-react";
 
@@ -62,6 +63,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <QuickAddModal />
       <CommandPalette />
       <ConfirmModalDialog />
+      <MascotNavigator />
     </div>
   );
 }

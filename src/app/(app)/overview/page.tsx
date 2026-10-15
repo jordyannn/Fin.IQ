@@ -40,6 +40,7 @@ import {
   CategoryDetailModal,
   type CategoryDetailTarget,
 } from "@/components/analytics/CategoryDetailModal";
+import { OverviewMascotMood } from "@/components/mascot/OverviewMascotMood";
 import {
   AreaChart,
   Area,
@@ -339,12 +340,12 @@ export default function OverviewPage() {
       {/* =========================================================================
           1. HERO PORTOFOLIO FINTECH (Inspirasi Bibit: Saldo Bersih & Aksi Cepat)
       ========================================================================= */}
-      <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-card p-5 sm:p-7 shadow-sm transition-all">
+      <div data-tour="overview-hero" className="relative overflow-hidden rounded-3xl border border-border/70 bg-card p-5 sm:p-7 shadow-sm transition-all">
         {/* Latar Aksen Mint Halus di Pojok Kanan Atas */}
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-primary/5 blur-3xl pointer-events-none" />
 
         {/* Baris Atas: Toolbar Periode & Pemilih Tanggal (Disamakan dengan Halaman Transaksi) */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4 text-xs">
+        <div data-tour="date-filter" className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4 text-xs">
           <div className="flex flex-wrap items-center gap-2">
             {/* Preset Waktu Dropdown */}
             <div className="flex items-center gap-1.5">
@@ -595,7 +596,7 @@ export default function OverviewPage() {
           </div>
 
           {/* Kolom Kanan: Area Chart / Sparkline Pertumbuhan Arus Kas */}
-          <div className="lg:col-span-5 h-44 sm:h-52 w-full flex flex-col justify-between p-2 rounded-2xl bg-muted/20 border border-border/40">
+          <div data-tour="overview-sparkline" className="lg:col-span-5 h-44 sm:h-52 w-full flex flex-col justify-between p-2 rounded-2xl bg-muted/20 border border-border/40">
             <div className="flex items-center justify-between px-2 pt-1">
               <span className="text-[11px] uppercase font-bold text-muted-foreground tracking-wider">
                 Kurva Arus Kas Periode Ini
@@ -647,6 +648,16 @@ export default function OverviewPage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Bang Peci Mascot Companion - Dinamis Sesuai Arus Kas Bersih */}
+        <div className="mt-5 pt-4 border-t border-border/60">
+          <OverviewMascotMood
+            netCashflow={summary.net}
+            income={summary.income}
+            expense={summary.expense}
+            periodLabel={periodLabel}
+          />
         </div>
       </div>
 
@@ -950,7 +961,7 @@ export default function OverviewPage() {
           4.5. HEATMAP AKTIVITAS BULANAN (Data yearHeatmap)
       ========================================================================= */}
       {heatmapData && heatmapData.length > 0 && (
-        <Card className="p-5 sm:p-6 rounded-3xl border-border/80 shadow-xs bg-card">
+        <Card data-tour="overview-heatmap" className="p-5 sm:p-6 rounded-3xl border-border/80 shadow-xs bg-card">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <div className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-xl bg-primary/15 flex items-center justify-center text-primary shrink-0">
@@ -1052,7 +1063,7 @@ export default function OverviewPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {/* Top Pengeluaran */}
-          <Card className="p-5 sm:p-6 rounded-3xl border-border/70 shadow-xs">
+          <Card data-tour="overview-expense-ranks" className="p-5 sm:p-6 rounded-3xl border-border/70 shadow-xs">
             <div className="flex items-center justify-between mb-3.5 border-b border-border/60 pb-2.5">
               <span className="font-extrabold text-xs uppercase tracking-wider text-rose-600 flex items-center gap-1.5">
                 <TrendingDown className="h-3.5 w-3.5" /> Pengeluaran Teratas
