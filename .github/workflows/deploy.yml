@@ -28,6 +28,8 @@ jobs:
             docker compose down --remove-orphans
             docker stop finiq-db 2>/dev/null || true
             docker rm finiq-db 2>/dev/null || true
+            # Hapus container finiq-app lama jika masih ada conflict
+            docker rm -f finiq-app 2>/dev/null || true
             # Build dan jalankan finiq-app yang langsung terkoneksi ke Aiven MySQL
             docker compose build --no-cache finiq-app
             docker compose up -d finiq-app
