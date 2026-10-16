@@ -21,6 +21,7 @@ jobs:
           port: ${{ secrets.SERVER_PORT || 22 }}
           script: |
             cd /var/www/fin-iq
+            export GIT_SSH_COMMAND="ssh -i /home/ubuntu/.ssh/github_push -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
             git fetch origin main
             git reset --hard origin/main
             # Hentikan dan hapus container MariaDB lama jika masih ada
