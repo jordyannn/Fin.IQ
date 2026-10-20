@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finiq-app
+  namespace: finiq
+  labels:
+    app: finiq
+spec:
+  # HPA yang mengatur jumlah replika; jangan di-hardcode kalau HPA aktif.
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      # 0 = tidak boleh ada pod yang mati saat deploy (zero downtime)
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: finiq
+  template:
+    metadata:
+      labels:
+        app: finiq
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: finiq
+          # Tag di-override saat deploy lewat `kubectl set image`
+          image: ghcr.io/jordyannn/fin-iq:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+          # Semua env diambil dari Secret `finiq-secrets` (dibuat manual, lihat README)
+          envFrom:
+            - secretRef:
+                name: finiq-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              # sengaja kecil: node cuma punya ~1.9 GB RAM total
+              memory: 320Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              # kasih waktu Nginx/Service menarik pod dari endpoints sebelum mati
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]

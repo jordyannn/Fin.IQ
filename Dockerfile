@@ -1,5 +1,10 @@
 # syntax=docker/dockerfile:1
 # Multi-stage lightweight Dockerfile for Next.js 15 (Standalone)
+#
+# PENTING: secret TIDAK di-bake ke image. Nilai runtime (DATABASE_URL,
+# GEMINI_API_KEY, dll) diinjeksikan k3s dari Secret saat container jalan.
+# Yang ada di file ini hanya nilai build-time, hidup di stage `builder`
+# yang dibuang, jadi tidak ikut terbawa ke image final.
 
 # -----------------------------------------------------------------------------
 # Stage 1: Base Alpine
@@ -24,9 +29,13 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
-ENV DATABASE_URL="mysql://avnadmin:AVNS_CpIAQBJBbUy_hH9zbT8@finiq-1-jordanngz12-6510.c.aivencloud.com:12551/defaultdb"
+# Build-time only. Next.js butuh DATABASE_URL saat `next build` (static generation).
+# Diteruskan dari GitHub Actions lewat --build-arg, BUKAN ditulis di sini,
+# supaya tidak kebaked ke image final.
+ARG DATABASE_URL
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NODE_ENV=production \
+    DATABASE_URL=$DATABASE_URL
 
 RUN npm run build
 
@@ -36,13 +45,11 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-ENV DATABASE_URL="mysql://avnadmin:AVNS_CpIAQBJBbUy_hH9zbT8@finiq-1-jordanngz12-6510.c.aivencloud.com:12551/defaultdb"
-ENV GEMINI_API_KEY="AQ.Ab8RN6IGdjST8WXK9I-8LIULXF8TAcbXlz-NeN2H6d1v__yN8A"
-ENV DEMO_USER_ID="default-user-uuid-1"
+# Env runtime (DATABASE_URL, GEMINI_API_KEY, dll) diinjeksikan k3s dari Secret.
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME="0.0.0.0"
 
 # Non-root user for security
 RUN addgroup --system --gid 1001 nodejs && \
