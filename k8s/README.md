@@ -37,12 +37,12 @@ kubectl -n finiq create secret docker-registry ghcr-secret \
 ## Alur deploy
 
 GitHub Actions build image → push ke `ghcr.io/jordyannn/fin-iq:<sha>`
-→ runner pull image → `docker save` → scp ke server
-→ `k3s ctr images import` → `kubectl apply -f k8s/` → `kubectl set image` → rollout.
+→ runner pull image → `docker save` → pipa SSH ke server
+→ `k3s ctr images import -` → `kubectl apply -f k8s/` → `kubectl set image` → rollout.
 
 Image di-import dengan tag yang sama (`ghcr.io/jordyannn/fin-iq:<sha>`),
 dan `imagePullPolicy: IfNotPresent`, jadi k3s memakai image lokal
-tanpa pull ulang dari ghcr.
+tanpa pull ulang dari ghcr (server tidak punya kredensial registry).
 
 ## Topologi traffic
 
