@@ -9,6 +9,11 @@ import { detectCategory } from "@/lib/nlp-parser";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import {
+  parseUniversalTable,
+  detectBankHint,
+  UniversalTxItem,
+} from "@/lib/universal-converter";
+import {
   UploadCloud,
   FileSpreadsheet,
   FileText,
@@ -32,6 +37,15 @@ import {
   Filter,
   Check,
   RefreshCw,
+  BookOpen,
+  HelpCircle,
+  Copy,
+  Building2,
+  Smartphone,
+  CreditCard,
+  ArrowRight,
+  Bot,
+  FileCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -213,6 +227,7 @@ interface ParsedFileTxItem {
   amount: number;
   categoryName: string;
   isNlpDetected?: boolean;
+  sourceConfidence?: "high" | "medium" | "ai";
   accountName: string;
   toAccountName?: string | null;
   note: string;
@@ -436,7 +451,29 @@ export default function ImportPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<"file" | "screenshot">("file");
+  const [activeTab, setActiveTab] = useState<"file" | "screenshot" | "tutorial">("file");
+  const [copiedTutorialSample, setCopiedTutorialSample] = useState(false);
+
+  // Sync tab with URL query parameter (?tab=tutorial)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("tab") === "tutorial") {
+        setActiveTab("tutorial");
+      }
+    }
+  }, []);
+
+  const handleCopyTutorialSample = () => {
+    const sampleCsvContent = `Tanggal,Jenis,Nominal,Kategori,Akun,Keterangan
+2026-10-15,expense,45000,Makanan & Minuman,Cash,Kopi & Makan Siang
+2026-10-15,income,10000000,Gaji & Pendapatan,BCA,Gaji Bulanan
+2026-10-14,expense,25000,Transportasi,GoPay,Ongkos Ojek Online
+2026-10-13,expense,150000,Belanja,Mandiri,Kebutuhan Rumah Tangga`;
+    navigator.clipboard.writeText(sampleCsvContent);
+    setCopiedTutorialSample(true);
+    setTimeout(() => setCopiedTutorialSample(false), 2000);
+  };
 
   // Screenshot states
   const [screenshotFiles, setScreenshotFiles] = useState<File[]>([]);
@@ -450,8 +487,19 @@ export default function ImportPage() {
   // File states
   const [fileName, setFileName] = useState("");
   const [fileSize, setFileSize] = useState(0);
-  const [fileType, setFileType] = useState<"csv" | "excel">("csv");
+  const [fileType, setFileType] = useState<"csv" | "excel" | "pdf" | "txt">("csv");
   const [rawRows2D, setRawRows2D] = useState<string[][]>([]);
+  const [detectedBankName, setDetectedBankName] = useState<string | null>(null);
+
+  // Stored raw file for AI enhancement / re-analysis
+  const [currentFileRaw, setCurrentFileRaw] = useState<{
+    file: File;
+    base64?: string;
+    text?: string;
+    mimeType: string;
+  } | null>(null);
+  const [isConvertingWithAi, setIsConvertingWithAi] = useState(false);
+  const [aiConversionMessage, setAiConversionMessage] = useState("");
 
   // NLP & Category Selection states for File Tab
   const [fileTxs, setFileTxs] = useState<ParsedFileTxItem[]>([]);
@@ -460,6 +508,7 @@ export default function ImportPage() {
   const [enableNlpCategory, setEnableNlpCategory] = useState(true);
   const [previewLimit, setPreviewLimit] = useState<number>(25);
   const [bulkCategory, setBulkCategory] = useState<string>("");
+  const [bulkAccount, setBulkAccount] = useState<string>("");
   const [fallbackCategoryId, setFallbackCategoryId] = useState<string>("");
   const manualEditedRowIdsRef = useRef<Set<string>>(new Set());
 
@@ -491,6 +540,7 @@ export default function ImportPage() {
 
   // Mutations
   const parseScreenshotMutation = trpc.import.parseScreenshot.useMutation();
+  const convertDocMutation = trpc.import.convertAnyDocument.useMutation();
 
   const executeBatchMutation = trpc.import.executeBatch.useMutation({
     onSuccess: (data) => {
@@ -738,16 +788,107 @@ export default function ImportPage() {
     };
   }, [screenshotTxs]);
 
-  // Client-side file processing
-  const processFile = async (file: File) => {
-    const ext = file.name.split(".").pop()?.toLowerCase();
-    const isExcel = ext === "xlsx" || ext === "xls";
-    const isCsv = ext === "csv" || ext === "tsv";
+  // Convert document with Gemini AI Fallback / Deep Analysis
+  const convertWithAi = async (
+    file: File,
+    base64Content?: string,
+    textContent?: string,
+    mimeTypeStr?: string
+  ) => {
+    setIsConvertingWithAi(true);
+    setAiConversionMessage(
+      `Gemini AI sedang membaca ${file.name} dan mengekstrak transaksi mutasi...`
+    );
 
-    if (!isExcel && !isCsv) {
+    try {
+      let b64 = base64Content;
+      let text = textContent;
+      const mime = mimeTypeStr || file.type || "application/octet-stream";
+
+      if (!b64 && !text) {
+        if (file.name.toLowerCase().endsWith(".pdf")) {
+          const buf = await file.arrayBuffer();
+          let binary = "";
+          const bytes = new Uint8Array(buf);
+          for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          b64 = btoa(binary);
+        } else {
+          text = await file.text();
+        }
+      }
+
+      const res = await convertDocMutation.mutateAsync({
+        fileBase64: b64,
+        fileText: text,
+        fileName: file.name,
+        mimeType: mime,
+        defaultAccountId: defaultAccountId || undefined,
+      });
+
+      if (!res.transactions || res.transactions.length === 0) {
+        alert({
+          title: "Tidak Ada Transaksi Terbaca",
+          description:
+            "Gemini AI tidak menemukan data transaksi yang valid dalam dokumen ini. Pastikan dokumen memuat mutasi, tanggal, dan nominal.",
+          variant: "warning",
+        });
+        return;
+      }
+
+      const items: ParsedFileTxItem[] = res.transactions.map((tx, idx) => ({
+        id: `ai-tx-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
+        rowNumber: idx + 1,
+        happenedAt: tx.happenedAt,
+        txType: tx.txType,
+        amount: tx.amount,
+        categoryName: tx.categoryName || "Umum",
+        accountName: tx.accountName || "Kas Tunai",
+        toAccountName: tx.toAccountName || null,
+        note: tx.note || "-",
+        tags: ["ai-converter"],
+        sourceConfidence: "ai",
+      }));
+
+      setFileName(file.name);
+      setFileSize(file.size);
+      setDetectedBankName(res.detectedBank || detectBankHint(file.name));
+      setFileTxs(items);
+      manualEditedRowIdsRef.current.clear();
+
+      if (res.detectedBank && accountsData?.accounts) {
+        const matched = accountsData.accounts.find(
+          (a) => a.name.toLowerCase().includes(res.detectedBank!.toLowerCase())
+        );
+        if (matched) {
+          setDefaultAccountId(matched.id);
+        }
+      }
+    } catch (err: any) {
+      console.error("Gagal convert dengan AI:", err);
+      alert({
+        title: "Gagal Mengonversi Dokumen",
+        description: err.message || "Terjadi kesalahan saat menghubungi Gemini AI.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsConvertingWithAi(false);
+      setAiConversionMessage("");
+    }
+  };
+
+  // Client-side file processing with Smart Universal Table Parser & AI Fallback
+  const processFile = async (file: File) => {
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    const isPdf = ext === "pdf";
+    const isExcel = ext === "xlsx" || ext === "xls";
+    const isCsvOrText = ext === "csv" || ext === "tsv" || ext === "txt";
+
+    if (!isPdf && !isExcel && !isCsvOrText) {
       alert({
         title: "Format Tidak Didukung",
-        description: "Hanya format file .csv, .tsv, .xlsx, atau .xls yang didukung.",
+        description: "Fin.IQ mendukung file .csv, .tsv, .xlsx, .xls, .txt, atau .pdf (e-statement).",
         variant: "warning",
       });
       return;
@@ -755,10 +896,32 @@ export default function ImportPage() {
 
     setFileName(file.name);
     setFileSize(file.size);
-    setFileType(isExcel ? "excel" : "csv");
+    setFileType(isPdf ? "pdf" : isExcel ? "excel" : ext === "txt" ? "txt" : "csv");
 
+    // Case 1: PDF Document -> Direct to Gemini AI Converter
+    if (isPdf) {
+      const buf = await file.arrayBuffer();
+      let binary = "";
+      const bytes = new Uint8Array(buf);
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const b64 = btoa(binary);
+
+      setCurrentFileRaw({
+        file,
+        base64: b64,
+        mimeType: "application/pdf",
+      });
+
+      await convertWithAi(file, b64, undefined, "application/pdf");
+      return;
+    }
+
+    // Case 2: Excel or CSV/Text -> Heuristic Universal Parser first!
     try {
       let rows: string[][] = [];
+      let rawText = "";
 
       if (isExcel) {
         const arrayBuffer = await file.arrayBuffer();
@@ -776,58 +939,86 @@ export default function ImportPage() {
         rows = sheetData.map((row) =>
           row.map((cell) => (cell !== undefined && cell !== null ? String(cell) : ""))
         );
+
+        let binary = "";
+        const bytes = new Uint8Array(arrayBuffer);
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        setCurrentFileRaw({
+          file,
+          base64: btoa(binary),
+          mimeType: file.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
       } else {
-        const text = await file.text();
-        const cleaned = text.replace(/^\ufeff/, ""); // strip UTF-8 BOM
+        rawText = await file.text();
+        const cleaned = rawText.replace(/^\ufeff/, ""); // strip UTF-8 BOM
         const parsed = Papa.parse<string[]>(cleaned, {
           skipEmptyLines: "greedy",
         });
         rows = parsed.data || [];
+
+        setCurrentFileRaw({
+          file,
+          text: cleaned,
+          mimeType: "text/plain",
+        });
       }
 
       if (rows.length < 2) {
-        alert({
-          title: "Data Tidak Mencukupi",
-          description: "File tidak memiliki cukup data atau hanya berisi 1 baris.",
-          variant: "warning",
-        });
+        await convertWithAi(file, undefined, rawText, "text/plain");
         return;
       }
 
-      // Find header row: look for row with >= 2 non-empty columns (BeeCount heuristic)
-      let headerRowIndex = 0;
-      for (let i = 0; i < Math.min(10, rows.length); i++) {
-        const nonEmp = rows[i].filter((c) => (c || "").trim().length > 0);
-        if (nonEmp.length >= 2) {
-          headerRowIndex = i;
-          break;
-        }
-      }
-
-      const detectedHeaders = rows[headerRowIndex].map(
-        (h, i) => h?.trim() || `Kolom_${i + 1}`
-      );
-      const dataRows = rows.slice(headerRowIndex + 1).filter((r) =>
-        r.some((c) => (c || "").trim().length > 0)
-      );
-
-      const suggested = autoSuggestMapping(detectedHeaders);
-
-      manualEditedRowIdsRef.current.clear();
-      setHeaders(detectedHeaders);
-      setRawRows2D(dataRows);
-      setSuggestedMapping(suggested);
-      setCurrentMapping(suggested);
-      setMappingDraft(suggested);
-    } catch (err: any) {
-      alert({
-        title: "Gagal Membaca File",
-        description: err.message || String(err),
-        variant: "destructive",
+      const parsedRes = parseUniversalTable(rows, file.name, {
+        userAccounts: accountsData?.accounts,
+        userCategories: categoriesData,
+        defaultAccountName: defaultAccountId
+          ? accountsData?.accounts?.find((a) => a.id === defaultAccountId)?.name
+          : undefined,
       });
-      setFileName("");
-      setFileTxs([]);
-      manualEditedRowIdsRef.current.clear();
+
+      if (parsedRes.items.length > 0) {
+        const convertedItems: ParsedFileTxItem[] = parsedRes.items.map((item) => ({
+          id: item.id,
+          rowNumber: item.rowNumber,
+          happenedAt: item.happenedAt,
+          txType: item.txType,
+          amount: item.amount,
+          categoryName: item.categoryName || "Umum",
+          accountName: item.accountName || "Kas Tunai",
+          toAccountName: item.toAccountName || null,
+          note: item.note || "-",
+          tags: item.tags || [],
+          isNlpDetected: item.isNlpDetected,
+          sourceConfidence: item.sourceConfidence,
+        }));
+
+        manualEditedRowIdsRef.current.clear();
+        setHeaders(parsedRes.headers);
+        setRawRows2D(rows);
+        setDetectedBankName(parsedRes.detectedBank);
+        setFileTxs(convertedItems);
+
+        const legacyMapping = autoSuggestMapping(parsedRes.headers);
+        setSuggestedMapping(legacyMapping);
+        setCurrentMapping(legacyMapping);
+        setMappingDraft(legacyMapping);
+
+        if (parsedRes.detectedBank && accountsData?.accounts) {
+          const matched = accountsData.accounts.find(
+            (a) => a.name.toLowerCase().includes(parsedRes.detectedBank!.toLowerCase())
+          );
+          if (matched) {
+            setDefaultAccountId(matched.id);
+          }
+        }
+      } else {
+        await convertWithAi(file, undefined, rawText, isExcel ? "application/octet-stream" : "text/plain");
+      }
+    } catch (err: any) {
+      console.warn("Smart parser issue, falling back to Gemini AI:", err);
+      await convertWithAi(file);
     }
   };
 
@@ -842,35 +1033,44 @@ export default function ImportPage() {
     if (file) processFile(file);
   };
 
-  // Sync fileTxs when rawRows2D, currentMapping, or categoriesData change
-  useEffect(() => {
-    if (!currentMapping || rawRows2D.length === 0 || headers.length === 0) {
-      setFileTxs([]);
-      return;
-    }
-
-    const fallbackCat = fallbackCategoryId
-      ? categoriesData?.find((c) => c.id === fallbackCategoryId)?.name
-      : undefined;
-
-    const generated = generateParsedItems(
-      rawRows2D,
-      currentMapping,
-      headers,
-      categoriesData || [],
-      enableNlpCategory,
-      fallbackCat,
-      fileTxsRef.current,
-      manualEditedRowIdsRef.current
-    );
-    setFileTxs(generated);
-  }, [rawRows2D, currentMapping, headers, categoriesData, enableNlpCategory, fallbackCategoryId]);
-
-  // Handle single row category change
-  const handleUpdateRowCategory = (id: string, newCatName: string) => {
+  // Row update handlers for interactive preview table
+  const handleUpdateRowField = (id: string, updates: Partial<ParsedFileTxItem>) => {
     manualEditedRowIdsRef.current.add(id);
     setFileTxs((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, categoryName: newCatName, isNlpDetected: false } : t))
+      prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
+    );
+  };
+
+  const handleDeleteRow = (id: string) => {
+    setFileTxs((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const handleAddManualRow = () => {
+    const defaultAcc = accountsData?.accounts?.[0]?.name || "Kas Tunai";
+    const defaultCat = categoriesData?.[0]?.name || "Umum";
+    const newTx: ParsedFileTxItem = {
+      id: `manual-tx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      rowNumber: fileTxs.length + 1,
+      happenedAt: new Date().toISOString(),
+      txType: "expense",
+      amount: 10000,
+      categoryName: defaultCat,
+      accountName: defaultAcc,
+      toAccountName: null,
+      note: "Catatan transaksi manual",
+      tags: [],
+    };
+    setFileTxs((prev) => [newTx, ...prev]);
+  };
+
+  // Bulk apply account to all rows
+  const handleApplyBulkAccount = () => {
+    if (!bulkAccount || fileTxs.length === 0) return;
+    setFileTxs((prev) =>
+      prev.map((t) => {
+        manualEditedRowIdsRef.current.add(t.id);
+        return { ...t, accountName: bulkAccount };
+      })
     );
   };
 
@@ -903,6 +1103,28 @@ export default function ImportPage() {
       new Set()
     );
     setFileTxs(generated);
+  };
+
+  // Apply custom mapping from modal
+  const handleApplyMapping = () => {
+    if (!mappingDraft || rawRows2D.length === 0) return;
+    setCurrentMapping(mappingDraft);
+    manualEditedRowIdsRef.current.clear();
+    const fallbackCat = fallbackCategoryId
+      ? categoriesData?.find((c) => c.id === fallbackCategoryId)?.name
+      : undefined;
+    const generated = generateParsedItems(
+      rawRows2D,
+      mappingDraft,
+      headers,
+      categoriesData || [],
+      enableNlpCategory,
+      fallbackCat,
+      [],
+      new Set()
+    );
+    setFileTxs(generated);
+    setIsMappingOpen(false);
   };
 
   // Compute stats client-side from fileTxs
@@ -1138,7 +1360,7 @@ export default function ImportPage() {
       </div>
 
       {/* Mode Selector Tabs */}
-      <div className="flex gap-1.5 p-1.5 bg-muted/50 rounded-2xl w-fit border border-border/40">
+      <div className="flex flex-wrap gap-1.5 p-1.5 bg-muted/50 rounded-2xl w-fit border border-border/40">
         <button
           type="button"
           onClick={() => setActiveTab("file")}
@@ -1166,7 +1388,48 @@ export default function ImportPage() {
             AI Vision
           </span>
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("tutorial")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === "tutorial"
+              ? "bg-card shadow-sm text-foreground border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 font-bold"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <BookOpen className="h-4 w-4 text-primary" />
+          Panduan & Tutorial E-Statement
+        </button>
       </div>
+
+      {/* Quick Tutorial Callout Banner saat berada di tab File & belum ada file */}
+      {activeTab === "file" && !fileName && (
+        <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <BookOpen className="h-4 w-4" />
+            </div>
+            <div>
+              <span className="font-bold text-foreground">
+                Butuh panduan ekspor mutasi bank (BCA, Mandiri, BRI, BNI) & format CSV?
+              </span>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Buka tutorial langkah demi langkah atau unduh template resmi Fin.IQ.
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setActiveTab("tutorial")}
+            className="text-xs font-bold text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/15 self-start sm:self-auto rounded-xl gap-1.5"
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+            Buka Tutorial E-Statement
+          </Button>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* TAB 1: CSV / Excel Import Flow */}
@@ -1174,7 +1437,8 @@ export default function ImportPage() {
       {activeTab === "file" && (
         <>
           {/* Step 1: Upload / Drop Zone (jika belum ada file) */}
-      {!fileName && (
+      {/* Step 1: Upload / Drop Zone (jika belum ada file) */}
+      {!fileName && !isConvertingWithAi && (
         <Card className="border-dashed border-2 bg-card/60 transition-all hover:bg-card">
           <CardContent
             onDragOver={(e) => e.preventDefault()}
@@ -1185,7 +1449,7 @@ export default function ImportPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,.tsv,.xlsx,.xls"
+              accept=".csv,.tsv,.xlsx,.xls,.txt,.pdf"
               onChange={handleFileChange}
               className="hidden"
             />
@@ -1193,26 +1457,47 @@ export default function ImportPage() {
               <UploadCloud className="h-8 w-8" />
             </div>
             <h3 className="text-base font-bold text-foreground">
-              Pilih atau seret file CSV / Excel ke sini
+              Pilih atau seret dokumen transaksi / e-statement ke sini
             </h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-md">
+            <p className="text-xs text-muted-foreground mt-1 max-w-lg">
               Mendukung file <span className="font-semibold text-foreground">.CSV</span>,{" "}
-              <span className="font-semibold text-foreground">.XLSX</span>, atau{" "}
-              <span className="font-semibold text-foreground">.XLS</span>. Pemetaan kolom akun, nominal, jenis, dan tanggal diproses instan tanpa delay.
+              <span className="font-semibold text-foreground">.XLSX / .XLS</span>,{" "}
+              <span className="font-semibold text-foreground">.TXT</span>, atau{" "}
+              <span className="font-semibold text-foreground">.PDF (E-Statement Bank)</span> dengan template apa saja. AI & Heuristic Parser akan otomatis mengonversi ke template standar Fin.IQ!
             </p>
 
             <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
               <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
-                <FileText className="h-3 w-3" /> Ekspor BeeCount-Cloud
+                <FileCheck className="h-3 w-3 text-emerald-500" /> E-Statement PDF Bank (BCA, Mandiri, BRI, BNI)
               </span>
               <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
-                <FileSpreadsheet className="h-3 w-3" /> Mutasi Bank (BCA, Mandiri, Jenius)
+                <FileSpreadsheet className="h-3 w-3 text-emerald-500" /> Mutasi Excel / CSV (KlikBCA, Livin, BRImo)
               </span>
               <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
-                <FileText className="h-3 w-3" /> E-Wallet (GoPay, OVO, DANA)
+                <Smartphone className="h-3 w-3 text-emerald-500" /> E-Wallet (GoPay, OVO, DANA, ShopeePay)
+              </span>
+              <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 font-semibold">
+                <Sparkles className="h-3 w-3" /> Auto-Convert Universal AI
               </span>
             </div>
           </CardContent>
+        </Card>
+      )}
+
+      {/* AI Processing Overlay saat mengekstrak dokumen */}
+      {isConvertingWithAi && (
+        <Card className="p-8 text-center bg-card/90 border-dashed border-2 border-primary/40 space-y-4 animate-in fade-in">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary mx-auto animate-pulse">
+            <Loader2 className="h-7 w-7 animate-spin" />
+          </div>
+          <div>
+            <h4 className="text-base font-bold text-foreground">
+              {aiConversionMessage || "Gemini AI sedang membaca dan mengonversi dokumen Anda..."}
+            </h4>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1">
+              Mendeteksi struktur mutasi debit/kredit, nominal, tanggal, nama bank, dan mencocokkan rekening tujuan secara otomatis.
+            </p>
+          </div>
         </Card>
       )}
 
@@ -1226,41 +1511,71 @@ export default function ImportPage() {
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
                   {fileType === "excel" ? (
                     <FileSpreadsheet className="h-5 w-5" />
+                  ) : fileType === "pdf" ? (
+                    <FileCheck className="h-5 w-5 text-rose-500" />
                   ) : (
                     <FileText className="h-5 w-5" />
                   )}
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold text-sm text-foreground">{fileName}</span>
                     <Badge variant="outline" className="text-[10px]">
                       {(fileSize / 1024).toFixed(1)} KB
                     </Badge>
+                    {detectedBankName && (
+                      <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-semibold flex items-center gap-1">
+                        <Building2 className="h-3 w-3" />
+                        Bank: {detectedBankName}
+                      </Badge>
+                    )}
+                    {fileTxs.some((t) => t.sourceConfidence === "ai") && (
+                      <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] font-bold flex items-center gap-1">
+                        <Sparkles className="h-2.5 w-2.5" />
+                        AI Converted
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
-                    {isMappingComplete ? (
-                      <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" /> Pemetaan kolom terdeteksi otomatis
-                      </span>
-                    ) : (
-                      <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3" /> Ada kolom wajib yang belum terpetakan
-                      </span>
-                    )}
+                    <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Format berhasil dikonversi ke template sistem ({fileTxs.length} transaksi)
+                    </span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsMappingOpen(true)}
-                  className="text-xs gap-1.5"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                  Sesuaikan Pemetaan Kolom
-                </Button>
+              <div className="flex items-center gap-2 flex-wrap">
+                {currentFileRaw && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      convertWithAi(
+                        currentFileRaw.file,
+                        currentFileRaw.base64,
+                        currentFileRaw.text,
+                        currentFileRaw.mimeType
+                      )
+                    }
+                    disabled={isConvertingWithAi}
+                    className="text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/5"
+                    title="Jalankan ulang analisis cerdas dengan Gemini AI untuk akurasi maksimal"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Tingkatkan dengan AI
+                  </Button>
+                )}
+                {rawRows2D.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsMappingOpen(true)}
+                    className="text-xs gap-1.5"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Pemetaan Kolom
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1268,6 +1583,8 @@ export default function ImportPage() {
                     setFileName("");
                     setRawRows2D([]);
                     setFileTxs([]);
+                    setCurrentFileRaw(null);
+                    setDetectedBankName(null);
                     manualEditedRowIdsRef.current.clear();
                   }}
                   className="text-xs text-muted-foreground hover:text-foreground"
@@ -1429,15 +1746,15 @@ export default function ImportPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <CardTitle className="text-xs uppercase font-bold tracking-wider text-muted-foreground">
-                    Pratinjau & Pilihan Kategori Transaksi
+                    Pratinjau & Edit Transaksi Hasil Konversi
                   </CardTitle>
                   <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 flex items-center gap-1 font-semibold">
                     <Sparkles className="h-3 w-3" />
-                    Auto-Kategori NLP Aktif
+                    Template Universal Aktif
                   </Badge>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  NLP membaca deskripsi / keterangan otomatis untuk menentukan kategori. Anda juga dapat memilih opsi kategori per baris atau menerapkan sekaligus.
+                  Semua transaksi telah diselaraskan ke template sistem. Anda dapat mengedit tanggal, jenis, nominal, kategori, akun, atau menghapus baris sebelum disimpan.
                 </p>
               </div>
 
@@ -1445,8 +1762,18 @@ export default function ImportPage() {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={handleAddManualRow}
+                  className="text-xs gap-1.5 h-8 font-semibold"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Tambah Baris
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={handleRerunNlp}
-                  className="text-xs gap-1.5 h-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 border-emerald-500/30"
+                  className="text-xs gap-1.5 h-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 border-emerald-500/30 font-semibold"
                   title="Jalankan ulang prediksi NLP untuk seluruh baris berdasarkan deskripsi"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
@@ -1470,41 +1797,70 @@ export default function ImportPage() {
             </CardHeader>
 
             {/* Quick Bulk Assignment Toolbar */}
-            <div className="px-5 py-2.5 bg-muted/10 border-b flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground font-medium">Terapkan Kategori ke Semua:</span>
-                <select
-                  value={bulkCategory}
-                  onChange={(e) => setBulkCategory(e.target.value)}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-xs w-48 focus:outline-none"
-                >
-                  <option value="">-- Pilih Kategori --</option>
-                  {categoriesData && categoriesData.length > 0 && (
-                    <optgroup label="Kategori Saya">
-                      {categoriesData.map((c) => (
-                        <option key={c.id} value={c.name}>
-                          {c.name}
+            <div className="px-5 py-3 bg-muted/10 border-b flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex flex-wrap items-center gap-4">
+                {/* Bulk Account Selector */}
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground font-medium">Ubah Akun Semua:</span>
+                  <select
+                    value={bulkAccount}
+                    onChange={(e) => setBulkAccount(e.target.value)}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs w-44 focus:outline-none"
+                  >
+                    <option value="">-- Pilih Akun --</option>
+                    {accountsData?.accounts?.map((acc) => (
+                      <option key={acc.id} value={acc.name}>
+                        {acc.name} ({acc.group})
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={!bulkAccount}
+                    onClick={handleApplyBulkAccount}
+                    className="h-8 text-xs font-semibold"
+                  >
+                    Terapkan
+                  </Button>
+                </div>
+
+                {/* Bulk Category Selector */}
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground font-medium">Kategori Semua:</span>
+                  <select
+                    value={bulkCategory}
+                    onChange={(e) => setBulkCategory(e.target.value)}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs w-44 focus:outline-none"
+                  >
+                    <option value="">-- Pilih Kategori --</option>
+                    {categoriesData && categoriesData.length > 0 && (
+                      <optgroup label="Kategori Saya">
+                        {categoriesData.map((c) => (
+                          <option key={c.id} value={c.name}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    <optgroup label="Kategori Standar">
+                      {STANDARD_CATEGORIES.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
                         </option>
                       ))}
                     </optgroup>
-                  )}
-                  <optgroup label="Kategori Standar">
-                    {STANDARD_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={!bulkCategory}
-                  onClick={handleApplyBulkCategory}
-                  className="h-8 text-xs font-semibold"
-                >
-                  Terapkan
-                </Button>
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={!bulkCategory}
+                    onClick={handleApplyBulkCategory}
+                    className="h-8 text-xs font-semibold"
+                  >
+                    Terapkan
+                  </Button>
+                </div>
               </div>
 
               <div className="flex items-center gap-2 text-muted-foreground">
@@ -1515,7 +1871,7 @@ export default function ImportPage() {
                     onChange={(e) => setEnableNlpCategory(e.target.checked)}
                     className="rounded border-input h-3.5 w-3.5 text-primary focus:ring-0 cursor-pointer"
                   />
-                  <span>Gunakan NLP untuk Kategori Baru / Kosong</span>
+                  <span>Gunakan NLP untuk Kategori Otomatis</span>
                 </label>
               </div>
             </div>
@@ -1524,28 +1880,50 @@ export default function ImportPage() {
               <table className="w-full text-xs text-left">
                 <thead className="bg-muted/40 text-[10px] uppercase text-muted-foreground font-semibold">
                   <tr>
-                    <th className="px-3 py-2.5 w-12 text-center">Baris</th>
+                    <th className="px-3 py-2.5 w-10 text-center">#</th>
                     <th className="px-3 py-2.5 w-36">Waktu</th>
-                    <th className="px-3 py-2.5 w-28">Jenis</th>
-                    <th className="px-3 py-2.5 w-32 text-right">Nominal</th>
-                    <th className="px-3 py-2.5 w-52">Kategori (Pilih Opsi)</th>
-                    <th className="px-3 py-2.5 w-36">Akun</th>
-                    <th className="px-3 py-2.5">Keterangan / Deskripsi (Dibaca NLP)</th>
+                    <th className="px-3 py-2.5 w-32">Jenis</th>
+                    <th className="px-3 py-2.5 w-36 text-right">Nominal (Rp)</th>
+                    <th className="px-3 py-2.5 w-48">Kategori</th>
+                    <th className="px-3 py-2.5 w-40">Akun / Rekening</th>
+                    <th className="px-3 py-2.5">Keterangan / Deskripsi</th>
+                    <th className="px-3 py-2.5 w-12 text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {(previewLimit === 0 ? fileTxs : fileTxs.slice(0, previewLimit)).map((tx) => (
+                  {(previewLimit === 0 ? fileTxs : fileTxs.slice(0, previewLimit)).map((tx, idx) => (
                     <tr key={tx.id} className="hover:bg-muted/10 transition-colors">
                       <td className="px-3 py-2 text-center text-muted-foreground font-mono text-[11px]">
-                        L{tx.rowNumber}
+                        {idx + 1}
                       </td>
-                      <td className="px-3 py-2 text-muted-foreground font-mono text-[11px] whitespace-nowrap">
-                        {formatDate(tx.happenedAt)}
-                      </td>
+
+                      {/* Waktu Transaksi (Editable date input) */}
                       <td className="px-3 py-2">
-                        <Badge
-                          variant="secondary"
-                          className={`text-[10px] px-2 py-0 ${
+                        <Input
+                          type="date"
+                          value={tx.happenedAt ? tx.happenedAt.split("T")[0] : ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val) {
+                              handleUpdateRowField(tx.id, {
+                                happenedAt: new Date(val).toISOString(),
+                              });
+                            }
+                          }}
+                          className="h-8 text-xs font-mono w-32 bg-background"
+                        />
+                      </td>
+
+                      {/* Jenis Transaksi (Editable dropdown) */}
+                      <td className="px-3 py-2">
+                        <select
+                          value={tx.txType}
+                          onChange={(e) =>
+                            handleUpdateRowField(tx.id, {
+                              txType: e.target.value as any,
+                            })
+                          }
+                          className={`h-8 rounded-md border border-input px-2 text-xs font-bold focus:outline-none w-32 ${
                             tx.txType === "expense"
                               ? "bg-rose-500/10 text-rose-600 border-rose-200"
                               : tx.txType === "income"
@@ -1553,36 +1931,48 @@ export default function ImportPage() {
                               : "bg-sky-500/10 text-sky-600 border-sky-200"
                           }`}
                         >
-                          {tx.txType === "expense"
-                            ? "Pengeluaran"
-                            : tx.txType === "income"
-                            ? "Pemasukan"
-                            : "Transfer"}
-                        </Badge>
+                          <option value="expense">Pengeluaran</option>
+                          <option value="income">Pemasukan</option>
+                          <option value="transfer">Transfer</option>
+                        </select>
                       </td>
-                      <td
-                        className={`px-3 py-2 text-right font-bold tabular-nums whitespace-nowrap ${
-                          tx.txType === "expense"
-                            ? "text-rose-600"
-                            : tx.txType === "income"
-                            ? "text-emerald-600"
-                            : "text-sky-600"
-                        }`}
-                      >
-                        {tx.txType === "expense" ? "-" : tx.txType === "income" ? "+" : ""}
-                        {formatCurrency(tx.amount)}
+
+                      {/* Nominal (Editable number input) */}
+                      <td className="px-3 py-2 text-right">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="1000"
+                          value={tx.amount || ""}
+                          onChange={(e) =>
+                            handleUpdateRowField(tx.id, {
+                              amount: Math.max(0, Number(e.target.value)),
+                            })
+                          }
+                          className={`h-8 text-xs font-bold w-32 text-right bg-background ml-auto ${
+                            tx.txType === "expense"
+                              ? "text-rose-600"
+                              : tx.txType === "income"
+                              ? "text-emerald-600"
+                              : "text-sky-600"
+                          }`}
+                        />
                       </td>
 
                       {/* Interactive Category Selector with Options & NLP Badge */}
                       <td className="px-3 py-2">
-                        <div className="flex flex-col gap-1 min-w-[170px]">
+                        <div className="flex flex-col gap-1 min-w-[160px]">
                           <select
                             value={tx.categoryName}
-                            onChange={(e) => handleUpdateRowCategory(tx.id, e.target.value)}
-                            className="h-8 rounded-md border border-input bg-background px-2 text-xs font-semibold focus:outline-none w-full shadow-sm cursor-pointer hover:border-primary/60 transition-colors"
+                            onChange={(e) =>
+                              handleUpdateRowField(tx.id, {
+                                categoryName: e.target.value,
+                                isNlpDetected: false,
+                              })
+                            }
+                            className="h-8 rounded-md border border-input bg-background px-2 text-xs font-semibold focus:outline-none w-full shadow-xs cursor-pointer hover:border-primary/60 transition-colors"
                           >
                             <option value="">-- Pilih Kategori --</option>
-                            {/* If current value is not in any predefined list, keep as unique option */}
                             {tx.categoryName &&
                               !categoriesData?.some(
                                 (c) => c.name.toLowerCase() === tx.categoryName.toLowerCase()
@@ -1632,14 +2022,58 @@ export default function ImportPage() {
                         </div>
                       </td>
 
-                      <td className="px-3 py-2 text-xs">
-                        {tx.txType === "transfer" && tx.toAccountName
-                          ? `${tx.accountName} → ${tx.toAccountName}`
-                          : tx.accountName}
+                      {/* Akun / Rekening (Editable dropdown) */}
+                      <td className="px-3 py-2">
+                        <select
+                          value={tx.accountName}
+                          onChange={(e) =>
+                            handleUpdateRowField(tx.id, {
+                              accountName: e.target.value,
+                            })
+                          }
+                          className="h-8 rounded-md border border-input bg-background px-2 text-xs w-36 focus:outline-none font-medium"
+                        >
+                          {accountsData?.accounts?.map((acc) => (
+                            <option key={acc.id} value={acc.name}>
+                              {acc.name} ({acc.group})
+                            </option>
+                          ))}
+                          {!accountsData?.accounts?.some(
+                            (a) => a.name.toLowerCase() === tx.accountName.toLowerCase()
+                          ) && (
+                            <option value={tx.accountName}>
+                              + {tx.accountName} (buat baru)
+                            </option>
+                          )}
+                        </select>
                       </td>
 
-                      <td className="px-3 py-2 text-muted-foreground truncate max-w-xs font-mono text-[11px]" title={tx.note}>
-                        {tx.note}
+                      {/* Keterangan / Deskripsi (Editable text input) */}
+                      <td className="px-3 py-2">
+                        <Input
+                          type="text"
+                          value={tx.note}
+                          onChange={(e) =>
+                            handleUpdateRowField(tx.id, {
+                              note: e.target.value,
+                            })
+                          }
+                          className="h-8 text-xs bg-background min-w-[180px] font-mono text-[11px]"
+                          placeholder="Deskripsi transaksi"
+                        />
+                      </td>
+
+                      {/* Aksi Hapus Baris */}
+                      <td className="px-3 py-2 text-center">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteRow(tx.id)}
+                          className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                          title="Hapus baris ini dari daftar impor"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -2588,15 +3022,303 @@ export default function ImportPage() {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => {
-                    setCurrentMapping(mappingDraft);
-                    setIsMappingOpen(false);
-                  }}
-                  className="bg-primary text-white"
+                  onClick={handleApplyMapping}
+                  className="bg-primary text-white font-semibold text-xs"
                 >
                   Terapkan & Perbarui
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 3: Tutorial & Panduan Lengkap E-Statement & Format File */}
+      {/* ========================================================================= */}
+      {activeTab === "tutorial" && (
+        <div className="space-y-6 animate-in fade-in">
+          {/* Header Banner Tutorial */}
+          <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-br from-emerald-500/10 via-card to-card border border-emerald-500/30 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
+                <BookOpen className="h-6 w-6" />
+              </div>
+              <div>
+                <h2 className="text-lg sm:text-xl font-black text-foreground tracking-tight">
+                  Panduan & Tutorial Impor E-Statement Bank & CSV
+                </h2>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                  Langkah mudah mengambil mutasi transaksi dari m-Banking, e-wallet, atau Excel ke Fin.IQ
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleDownloadTemplate}
+                className="rounded-xl border-border bg-background text-xs font-semibold gap-1.5"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Unduh Template CSV
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setActiveTab("file");
+                  setTimeout(() => fileInputRef.current?.click(), 100);
+                }}
+                className="rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-bold gap-2 shadow-sm shadow-primary/25"
+              >
+                <UploadCloud className="h-4 w-4" />
+                Mulai Impor File
+              </Button>
+            </div>
+          </div>
+
+          {/* Section 1: Cara Unduh E-Statement per Bank & E-Wallet */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm font-extrabold text-foreground">
+              <span className="h-6 w-6 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-black">
+                1
+              </span>
+              <span>Cara Mengunduh Mutasi / E-Statement dari Bank & E-Wallet</span>
+            </div>
+            <p className="text-xs text-muted-foreground pl-8">
+              Sebagian besar bank di Indonesia menyediakan fitur unduh mutasi rekening dalam format CSV, Excel (.xlsx), atau teks:
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pl-8 pt-1">
+              {/* BCA */}
+              <div className="p-4 rounded-2xl bg-card border border-border/70 hover:border-emerald-500/30 transition-all flex flex-col gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-xl bg-blue-500/15 text-blue-600 flex items-center justify-center font-black text-xs">
+                    BCA
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xs text-foreground">Bank BCA (myBCA / KlikBCA)</h4>
+                    <span className="text-[10px] text-muted-foreground">myBCA, KlikBCA Individu & Bisnis</span>
+                  </div>
+                </div>
+                <ol className="text-[11px] text-muted-foreground space-y-1 list-decimal list-inside leading-relaxed pt-1">
+                  <li>Login ke <strong>KlikBCA</strong> atau aplikasi <strong>myBCA</strong>.</li>
+                  <li>Buka menu <strong>Informasi Rekening</strong> &gt; <strong>Mutasi Rekening</strong>.</li>
+                  <li>Pilih rentang tanggal transaksi yang ingin diekspor (misal 1 bulan terakhir).</li>
+                  <li>Pilih jenis download <strong>CSV</strong> (atau cetak teks), lalu simpan file ke perangkat.</li>
+                  <li>Upload file ke Fin.IQ pada tab <strong>File CSV / Excel</strong>.</li>
+                </ol>
+              </div>
+
+              {/* Mandiri */}
+              <div className="p-4 rounded-2xl bg-card border border-border/70 hover:border-emerald-500/30 transition-all flex flex-col gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-xl bg-amber-500/15 text-amber-600 flex items-center justify-center font-black text-xs">
+                    BMRI
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xs text-foreground">Bank Mandiri (Livin' by Mandiri)</h4>
+                    <span className="text-[10px] text-muted-foreground">Livin' Mandiri & Kopra</span>
+                  </div>
+                </div>
+                <ol className="text-[11px] text-muted-foreground space-y-1 list-decimal list-inside leading-relaxed pt-1">
+                  <li>Buka aplikasi <strong>Livin' by Mandiri</strong> di ponsel Anda.</li>
+                  <li>Pilih rekening tabungan yang ingin dilihat mutasinya.</li>
+                  <li>Klik tombol <strong>E-Statement / Unduh Mutasi</strong>.</li>
+                  <li>Pilih bulan yang ingin diekspor lalu unduh file CSV atau PDF.</li>
+                  <li>Jika formatnya CSV/Excel, upload ke tab File; jika tangkapan layar, gunakan tab <strong>Screenshot</strong>.</li>
+                </ol>
+              </div>
+
+              {/* BRI & BNI */}
+              <div className="p-4 rounded-2xl bg-card border border-border/70 hover:border-emerald-500/30 transition-all flex flex-col gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-xl bg-blue-600/15 text-blue-700 dark:text-blue-400 flex items-center justify-center font-black text-xs">
+                    BRI
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xs text-foreground">Bank BRI (BRImo) & BNI Mobile</h4>
+                    <span className="text-[10px] text-muted-foreground">BRImo, BNI Mobile Banking</span>
+                  </div>
+                </div>
+                <ol className="text-[11px] text-muted-foreground space-y-1 list-decimal list-inside leading-relaxed pt-1">
+                  <li>Buka aplikasi <strong>BRImo</strong> atau <strong>BNI Mobile Banking</strong>.</li>
+                  <li>Masuk ke menu <strong>Mutasi</strong> atau <strong>Rekeningku</strong>.</li>
+                  <li>Pilih menu <strong>E-Statement</strong> dan tentukan bulan/periode mutasi.</li>
+                  <li>Unduh file mutasi rekening ke ponsel atau kirim ke email Anda.</li>
+                  <li>Upload file langsung ke Fin.IQ tanpa perlu mengubah struktur kolom.</li>
+                </ol>
+              </div>
+
+              {/* E-Wallet & Screenshot */}
+              <div className="p-4 rounded-2xl bg-card border border-border/70 hover:border-emerald-500/30 transition-all flex flex-col gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-xl bg-emerald-500/15 text-emerald-600 flex items-center justify-center font-black text-xs">
+                    📱
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xs text-foreground">E-Wallet (GoPay, OVO, DANA, ShopeePay)</h4>
+                    <span className="text-[10px] text-muted-foreground">Riwayat transaksi & AI Vision</span>
+                  </div>
+                </div>
+                <ol className="text-[11px] text-muted-foreground space-y-1 list-decimal list-inside leading-relaxed pt-1">
+                  <li>Buka riwayat transaksi pada aplikasi GoPay, OVO, atau DANA.</li>
+                  <li>Pilih opsi unduh <strong>Rekap Mutasi Bulanan</strong> yang dikirim via email.</li>
+                  <li>Atau cukup <strong>Screenshot (tangkapan layar)</strong> mutasi / struk QRIS Anda di HP.</li>
+                  <li>Gunakan tab <strong>Screenshot / AI Vision</strong> untuk membaca nominal dan tanggal otomatis!</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 2: Format Kolom yang Didukung Fin.IQ */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm font-extrabold text-foreground">
+              <span className="h-6 w-6 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-black">
+                2
+              </span>
+              <span>Format Kolom Fleksibel & Cerdas Fin.IQ</span>
+            </div>
+            <p className="text-xs text-muted-foreground pl-8">
+              Fin.IQ dilengkapi parser pintar berbasis NLP yang otomatis mengenali nama kolom dalam Bahasa Indonesia maupun Inggris:
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-8 pt-1">
+              <div className="p-4 rounded-2xl bg-muted/40 border border-border/60">
+                <div className="font-bold text-foreground text-xs flex items-center gap-1.5 mb-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Kolom Wajib
+                </div>
+                <ul className="text-[11px] text-muted-foreground space-y-1.5 list-disc list-inside">
+                  <li><strong>Tanggal</strong> (Format YYYY-MM-DD, DD/MM/YYYY, atau tanggal teks seperti 15 Okt 2026)</li>
+                  <li><strong>Nominal / Jumlah</strong> (Contoh: 50000, 50.000, atau Rp 50,000)</li>
+                  <li><strong>Tipe / Jenis</strong> (Pemasukan / Pengeluaran, debit / kredit, atau otomatis dari tanda +/-)</li>
+                </ul>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-muted/40 border border-border/60">
+                <div className="font-bold text-foreground text-xs flex items-center gap-1.5 mb-1.5">
+                  <Sparkles className="h-4 w-4 text-primary" /> Kolom Otomatis & Opsional
+                </div>
+                <ul className="text-[11px] text-muted-foreground space-y-1.5 list-disc list-inside">
+                  <li><strong>Kategori</strong> (Jika kolom ini kosong, AI Fin.IQ otomatis mendeteksi kategori dari keterangan!)</li>
+                  <li><strong>Akun / Rekening</strong> (BCA, Mandiri, Cash, GoPay. Jika belum ada, dibuat otomatis)</li>
+                  <li><strong>Keterangan / Catatan</strong> (Nama merchant, rincian transfer, atau catatan belanja)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Contoh Tabel Data CSV yang Valid */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 text-sm font-extrabold text-foreground">
+                <span className="h-6 w-6 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-black">
+                  3
+                </span>
+                <span>Contoh Format Data CSV yang Siap Diimpor</span>
+              </div>
+              <div className="flex items-center gap-2 pl-8 sm:pl-0">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopyTutorialSample}
+                  className="h-7 text-xs gap-1.5 px-2.5 text-muted-foreground hover:text-foreground rounded-lg"
+                >
+                  {copiedTutorialSample ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                  <span>{copiedTutorialSample ? "Tersalin!" : "Salin Contoh"}</span>
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleDownloadTemplate}
+                  className="h-7 text-xs font-bold bg-primary hover:bg-primary/90 text-white gap-1.5 px-3 rounded-lg shadow-xs"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Download Template CSV</span>
+                </Button>
+              </div>
+            </div>
+
+            <div className="pl-8">
+              <div className="overflow-x-auto rounded-2xl border border-border/70 bg-card shadow-xs">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-muted/60 text-muted-foreground font-bold border-b border-border/60">
+                    <tr>
+                      <th className="py-2.5 px-3.5">Tanggal</th>
+                      <th className="py-2.5 px-3.5">Jenis</th>
+                      <th className="py-2.5 px-3.5">Nominal</th>
+                      <th className="py-2.5 px-3.5">Kategori</th>
+                      <th className="py-2.5 px-3.5">Akun</th>
+                      <th className="py-2.5 px-3.5">Keterangan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40 font-medium">
+                    <tr className="hover:bg-muted/30">
+                      <td className="py-2.5 px-3.5 font-mono text-[11px]">2026-10-15</td>
+                      <td className="py-2.5 px-3.5 text-rose-600 font-bold">expense</td>
+                      <td className="py-2.5 px-3.5 font-bold">45.000</td>
+                      <td className="py-2.5 px-3.5">Makanan & Minuman</td>
+                      <td className="py-2.5 px-3.5">Cash</td>
+                      <td className="py-2.5 px-3.5 text-muted-foreground">Kopi & Makan Siang</td>
+                    </tr>
+                    <tr className="hover:bg-muted/30">
+                      <td className="py-2.5 px-3.5 font-mono text-[11px]">2026-10-15</td>
+                      <td className="py-2.5 px-3.5 text-emerald-600 font-bold">income</td>
+                      <td className="py-2.5 px-3.5 font-bold">10.000.000</td>
+                      <td className="py-2.5 px-3.5">Gaji & Pendapatan</td>
+                      <td className="py-2.5 px-3.5">BCA</td>
+                      <td className="py-2.5 px-3.5 text-muted-foreground">Gaji Bulanan</td>
+                    </tr>
+                    <tr className="hover:bg-muted/30">
+                      <td className="py-2.5 px-3.5 font-mono text-[11px]">2026-10-14</td>
+                      <td className="py-2.5 px-3.5 text-rose-600 font-bold">expense</td>
+                      <td className="py-2.5 px-3.5 font-bold">25.000</td>
+                      <td className="py-2.5 px-3.5">Transportasi</td>
+                      <td className="py-2.5 px-3.5">GoPay</td>
+                      <td className="py-2.5 px-3.5 text-muted-foreground">Ongkos Ojek Online</td>
+                    </tr>
+                    <tr className="hover:bg-muted/30">
+                      <td className="py-2.5 px-3.5 font-mono text-[11px]">2026-10-13</td>
+                      <td className="py-2.5 px-3.5 text-rose-600 font-bold">expense</td>
+                      <td className="py-2.5 px-3.5 font-bold">150.000</td>
+                      <td className="py-2.5 px-3.5">Belanja</td>
+                      <td className="py-2.5 px-3.5">Mandiri</td>
+                      <td className="py-2.5 px-3.5 text-muted-foreground">Kebutuhan Rumah Tangga</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Action Footer */}
+          <div className="pt-4 border-t border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <p className="text-xs text-muted-foreground">
+              Sudah memiliki file CSV atau screenshot mutasi? Klik tombol di samping untuk mulai mengimpor.
+            </p>
+            <div className="flex items-center gap-2.5 self-start sm:self-auto">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setActiveTab("screenshot")}
+                className="rounded-xl text-xs font-semibold gap-1.5"
+              >
+                <Camera className="h-3.5 w-3.5 text-emerald-500" />
+                Gunakan AI Screenshot
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setActiveTab("file");
+                  setTimeout(() => fileInputRef.current?.click(), 100);
+                }}
+                className="rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-bold gap-2 shadow-sm shadow-primary/25"
+              >
+                <UploadCloud className="h-4 w-4" />
+                Unggah File Sekarang
+              </Button>
             </div>
           </div>
         </div>

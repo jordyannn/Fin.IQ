@@ -25,20 +25,41 @@ try {
   console.log("[Database] Connecting to database using configured URI");
 }
 
-export const pool = mysql.createPool({
-  uri: connectionUri,
-  ...(isLocalOrDocker
-    ? {}
-    : {
-        ssl: {
-          rejectUnauthorized: false,
-        },
-      }),
-  connectTimeout: 30000,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-});
+type AppDatabase = ReturnType<typeof drizzle<typeof schema, mysql.Pool>>;
 
-export const db = drizzle(pool, { schema, mode: "default" });
+interface GlobalWithDb {
+  __finiq_mysql_pool?: mysql.Pool;
+  __finiq_drizzle_db?: AppDatabase;
+}
+
+const globalForDb = globalThis as unknown as GlobalWithDb;
+
+export const pool =
+  globalForDb.__finiq_mysql_pool ??
+  mysql.createPool({
+    uri: connectionUri,
+    ...(isLocalOrDocker
+      ? {}
+      : {
+          ssl: {
+            rejectUnauthorized: false,
+          },
+        }),
+    connectTimeout: 15000,
+    waitForConnections: true,
+    connectionLimit: 4, // Batasi koneksi per pool untuk mencegah Aiven "Too many connections"
+    maxIdle: 2,
+    idleTimeout: 30000,
+    queueLimit: 0,
+  });
+
+export const db =
+  globalForDb.__finiq_drizzle_db ??
+  drizzle(pool, { schema, mode: "default" });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForDb.__finiq_mysql_pool = pool;
+  globalForDb.__finiq_drizzle_db = db;
+}
+
 export type Database = typeof db;

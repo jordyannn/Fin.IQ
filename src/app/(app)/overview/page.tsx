@@ -24,13 +24,18 @@ import {
   Flame,
   Activity,
   BarChart3,
-  PieChart,
+  PieChart as PieChartIcon,
   FileSpreadsheet,
   Receipt,
   Sparkles,
   ChevronRight as ChevronRightIcon,
   RefreshCw,
   RotateCcw,
+  Check,
+  HelpCircle,
+  ShieldCheck,
+  UploadCloud,
+  FileText,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,6 +45,7 @@ import {
   CategoryDetailModal,
   type CategoryDetailTarget,
 } from "@/components/analytics/CategoryDetailModal";
+import { CsvImportTutorialModal } from "@/components/import/CsvImportTutorialModal";
 import { OverviewMascotMood } from "@/components/mascot/OverviewMascotMood";
 import {
   AreaChart,
@@ -50,7 +56,20 @@ import {
   Bar,
   XAxis,
   YAxis,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
 } from "recharts";
+
+const PIE_COLORS = [
+  "#00B569", // Fin.IQ Emerald Green
+  "#3B82F6", // Blue
+  "#F59E0B", // Amber
+  "#8B5CF6", // Purple
+  "#EC4899", // Pink
+  "#06B6D4", // Cyan
+  "#64748B", // Slate
+];
 
 export default function OverviewPage() {
   const { openQuickAdd } = useUIStore();
@@ -62,6 +81,39 @@ export default function OverviewPage() {
   const [customDateFrom, setCustomDateFrom] = useState<string>("");
   const [customDateTo, setCustomDateTo] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<CategoryDetailTarget | null>(null);
+  const [isCsvTutorialOpen, setIsCsvTutorialOpen] = useState(false);
+
+  // Heatmap Carousel State (4 Halaman, 3 Bulan per Halaman)
+  const [heatmapPage, setHeatmapPage] = useState<number>(() => {
+    return Math.min(3, Math.max(0, Math.floor(new Date().getMonth() / 3)));
+  });
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX - touchEndX;
+    if (diff > 50) {
+      // Swipe kiri -> halaman berikutnya
+      setHeatmapPage((prev) => (prev < 3 ? prev + 1 : 0));
+    } else if (diff < -50) {
+      // Swipe kanan -> halaman sebelumnya
+      setHeatmapPage((prev) => (prev > 0 ? prev - 1 : 3));
+    }
+    setTouchStartX(null);
+  };
+
+  // Sinkronisasi otomatis halaman carousel saat pengguna memilih bulan tertentu
+  React.useEffect(() => {
+    if (datePreset === "this_month") {
+      const targetPage = Math.floor(currentMonth.getMonth() / 3);
+      setHeatmapPage(targetPage);
+    }
+  }, [currentMonth, datePreset]);
 
   // Perhitungan rentang tanggal dan label periode
   const { dateFrom, dateTo, periodLabel } = useMemo(() => {
@@ -156,6 +208,22 @@ export default function OverviewPage() {
       net: 0,
     };
   }, [txListData?.summary, heroData]);
+
+  // Total saldo user (akumulasi seluruh rekening) & daftar akun
+  const totalUserBalance = heroData?.totalNetWorth ?? assetData?.total ?? 0;
+  const accountsList = assetData?.items || [];
+
+  // Data komposisi untuk Donut Chart Recharts langsung di halaman overview
+  const accountChartData = useMemo(() => {
+    return accountsList
+      .filter((a) => a.balance > 0)
+      .map((acc, idx) => ({
+        name: acc.name,
+        value: acc.balance,
+        percent: acc.percent,
+        color: PIE_COLORS[idx % PIE_COLORS.length],
+      }));
+  }, [accountsList]);
 
   // Sparkline kurva saldo akumulatif (dimulai dari 0 hingga exact summary.net)
   const sparklineData = useMemo(() => {
@@ -256,6 +324,25 @@ export default function OverviewPage() {
     });
   }, [heatmapData, datePreset, currentMonth, summary]);
 
+  // Metadata Kuartal untuk 4 Halaman Carousel
+  const quarterMetadata = [
+    { page: 0, label: "Q1", title: "Kuartal 1", range: "Januari — Maret", shortRange: "Jan - Mar" },
+    { page: 1, label: "Q2", title: "Kuartal 2", range: "April — Juni", shortRange: "Apr - Jun" },
+    { page: 2, label: "Q3", title: "Kuartal 3", range: "Juli — September", shortRange: "Jul - Sep" },
+    { page: 3, label: "Q4", title: "Kuartal 4", range: "Oktober — Desember", shortRange: "Okt - Des" },
+  ];
+
+  // Heatmap Data dibagi menjadi 4 Halaman Carousel (3 bulan per halaman)
+  const heatmapPages = useMemo(() => {
+    if (!synchronizedHeatmapData || synchronizedHeatmapData.length === 0) return [];
+    return [
+      synchronizedHeatmapData.slice(0, 3),   // Halaman 1 (Q1): Jan, Feb, Mar
+      synchronizedHeatmapData.slice(3, 6),   // Halaman 2 (Q2): Apr, Mei, Jun
+      synchronizedHeatmapData.slice(6, 9),   // Halaman 3 (Q3): Jul, Agu, Sep
+      synchronizedHeatmapData.slice(9, 12),  // Halaman 4 (Q4): Okt, Nov, Des
+    ];
+  }, [synchronizedHeatmapData]);
+
   // Ranking Kategori dengan total disamakan persis dengan Arus Kas Bersih
   const effectiveExpenseRanks = useMemo(() => {
     const grandTotal = summary.expense;
@@ -338,13 +425,13 @@ export default function OverviewPage() {
   return (
     <div className="flex flex-col gap-5 sm:gap-6 max-w-6xl mx-auto pb-4">
       {/* =========================================================================
-          1. HERO PORTOFOLIO FINTECH (Inspirasi Bibit: Saldo Bersih & Aksi Cepat)
+          1. HERO PORTOFOLIO FINTECH: SALDO USER, CASHFLOW TERPADU & KURVA
       ========================================================================= */}
-      <div data-tour="overview-hero" className="relative overflow-hidden rounded-3xl border border-border/70 bg-card p-5 sm:p-7 shadow-sm transition-all">
+      <div data-tour="overview-hero" className="relative overflow-hidden rounded-[32px] border border-border/70 bg-card p-5 sm:p-7 shadow-sm transition-all flex flex-col gap-5">
         {/* Latar Aksen Mint Halus di Pojok Kanan Atas */}
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-primary/5 blur-3xl pointer-events-none" />
 
-        {/* Baris Atas: Toolbar Periode & Pemilih Tanggal (Disamakan dengan Halaman Transaksi) */}
+        {/* Baris 1: Toolbar Periode & Pemilih Tanggal */}
         <div data-tour="date-filter" className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4 text-xs">
           <div className="flex flex-wrap items-center gap-2">
             {/* Preset Waktu Dropdown */}
@@ -451,213 +538,282 @@ export default function OverviewPage() {
           </div>
         </div>
 
-        {/* Ringkasan Arus Kas / KPI Bar (Sama Persis dengan Halaman Transaksi) */}
-        <div className="pt-3 pb-3 border-b border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="font-semibold text-[11px] bg-background">
-              {summary.count} Transaksi
-            </Badge>
-            <span className="text-muted-foreground text-[11px]">
-              Rentang: <span className="font-medium text-foreground">{periodLabel}</span>
+        {/* Baris 2: TOTAL SALDO USER (Paling Atas) & Tombol Catat Transaksi */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] uppercase tracking-wider font-extrabold text-muted-foreground flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              Total Saldo Rekening
             </span>
+            <div className="text-3xl sm:text-4xl lg:text-5xl font-black text-foreground tracking-tight">
+              {isHeroLoading ? "..." : formatCurrency(totalUserBalance)}
+            </div>
+            <p className="text-xs text-muted-foreground flex items-center gap-2">
+              <span>Akumulasi saldo seluruh rekening kas, bank, dan dompet digital</span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                {accountsList.length} Akun
+              </span>
+            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 sm:gap-4 font-medium text-[11px] sm:text-xs">
-            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-              <TrendingUp className="h-3.5 w-3.5 shrink-0" />
-              <span>Masuk:</span>
-              <span className="font-bold">{formatCurrency(summary.income)}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
-              <TrendingDown className="h-3.5 w-3.5 shrink-0" />
-              <span>Keluar:</span>
-              <span className="font-bold">{formatCurrency(summary.expense)}</span>
-            </div>
-            <div
-              className={`flex items-center gap-1.5 font-bold ${
-                summary.net >= 0
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-rose-600 dark:text-rose-400"
-              }`}
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              onClick={openQuickAdd}
+              className="rounded-2xl bg-primary hover:bg-primary/90 text-white font-bold gap-2 text-xs sm:text-sm px-4 sm:px-5 py-5 shadow-sm shadow-primary/25 active:scale-95"
             >
-              <span>Arus Kas:</span>
-              <span>
-                {summary.net > 0 ? "+" : ""}
-                {formatCurrency(summary.net)}
-              </span>
-            </div>
+              <Plus className="h-4 w-4 stroke-[3px]" />
+              Catat Transaksi
+            </Button>
           </div>
         </div>
 
-        {/* Baris Tengah: Saldo Utama & Sparkline */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-5 items-center">
-          {/* Kolom Kiri: Arus Kas Bersih (Pemasukan - Pengeluaran Sesuai Periode) */}
-          <div className="lg:col-span-7 flex flex-col gap-4">
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5 text-primary" />
-                  Arus Kas Bersih ({periodLabel})
+        {/* Baris 3: LAYER TERPADU (CASH MASUK, CASH KELUAR, DAN SELISIH DIGABUNG) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-2xl bg-muted/30 border border-border/70">
+          {/* 1. Cash Masuk */}
+          <div className="flex flex-col justify-between p-3.5 rounded-xl bg-background/80 border border-border/50 shadow-2xs">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <TrendingUp className="h-3.5 w-3.5" />
                 </span>
-                {summary.net > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                    Surplus
-                  </span>
-                )}
-                {summary.net < 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 border border-rose-500/20">
-                    Defisit
-                  </span>
-                )}
-                {summary.net === 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted text-muted-foreground">
-                    Seimbang
-                  </span>
-                )}
-              </div>
+                Cash Masuk
+              </span>
+              <span className="text-[10px] font-semibold text-muted-foreground">{periodLabel}</span>
+            </div>
+            <div className="text-lg sm:text-xl font-black text-emerald-600 dark:text-emerald-400">
+              +{formatCurrency(summary.income)}
+            </div>
+            <span className="text-[10px] text-muted-foreground mt-0.5">Total penerimaan periode ini</span>
+          </div>
 
-              <div
-                className={`text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight mt-1.5 ${
-                  summary.net > 0
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : summary.net < 0
-                    ? "text-rose-600 dark:text-rose-400"
-                    : "text-foreground"
-                }`}
-              >
-                {isHeroLoading && isTxLoading
-                  ? "..."
-                  : summary.net > 0
-                  ? `+${formatCurrency(summary.net)}`
-                  : formatCurrency(summary.net)}
-              </div>
+          {/* 2. Cash Keluar */}
+          <div className="flex flex-col justify-between p-3.5 rounded-xl bg-background/80 border border-border/50 shadow-2xs">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded-lg bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                  <TrendingDown className="h-3.5 w-3.5" />
+                </span>
+                Cash Keluar
+              </span>
+              <span className="text-[10px] font-semibold text-muted-foreground">{periodLabel}</span>
+            </div>
+            <div className="text-lg sm:text-xl font-black text-rose-600 dark:text-rose-400">
+              -{formatCurrency(summary.expense)}
+            </div>
+            <span className="text-[10px] text-muted-foreground mt-0.5">Total pengeluaran periode ini</span>
+          </div>
 
-              <p className="text-[11px] text-muted-foreground mt-1">
-                Perbandingan pemasukan dikurangi pengeluaran periode ini
-                {heroData?.totalNetWorth !== undefined && (
-                  <span>
-                    {" "}• Total saldo seluruh rekening:{" "}
-                    <span className="font-semibold text-foreground">
-                      {formatCurrency(heroData.totalNetWorth)}
-                    </span>
-                  </span>
-                )}
+          {/* 3. Selisih (Arus Kas Bersih) */}
+          <div className="flex flex-col justify-between p-3.5 rounded-xl bg-background/80 border border-border/50 shadow-2xs">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded-lg bg-primary/15 text-primary flex items-center justify-center shrink-0">
+                  <Sparkles className="h-3.5 w-3.5" />
+                </span>
+                Selisih Arus Kas
+              </span>
+              {summary.net > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                  Surplus
+                </span>
+              )}
+              {summary.net < 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                  Defisit
+                </span>
+              )}
+              {summary.net === 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted text-muted-foreground">
+                  Seimbang
+                </span>
+              )}
+            </div>
+            <div
+              className={`text-lg sm:text-xl font-black ${
+                summary.net > 0
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : summary.net < 0
+                  ? "text-rose-600 dark:text-rose-400"
+                  : "text-foreground"
+              }`}
+            >
+              {summary.net > 0 ? "+" : ""}
+              {formatCurrency(summary.net)}
+            </div>
+            <span className="text-[10px] text-muted-foreground mt-0.5">
+              {summary.net > 0 ? "Pemasukan melampaui pengeluaran" : summary.net < 0 ? "Pengeluaran melampaui pemasukan" : "Arus kas seimbang"}
+            </span>
+          </div>
+        </div>
+
+        {/* Baris 4: EKSPLORASI LAYOUT KURVA ARUS KAS (Kurva Luas, Bernapas, dan Berorientasi Visual Modern) */}
+        <div data-tour="overview-sparkline" className="p-4 sm:p-5 rounded-2xl bg-muted/20 border border-border/50 flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-foreground">
+                  Kurva Pergerakan Arus Kas
+                </span>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-background border border-border/60 text-muted-foreground">
+                  {summary.count} Transaksi
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Fluktuasi akumulatif pemasukan dan pengeluaran sepanjang {periodLabel}
               </p>
             </div>
 
-            {/* Kartu Pemasukan & Pengeluaran Berdampingan */}
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <div className="flex flex-col p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
-                  <TrendingUp className="h-3.5 w-3.5" /> Pemasukan
-                </span>
-                <span className="text-base sm:text-lg font-extrabold text-foreground mt-1">
-                  {formatCurrency(summary.income)}
-                </span>
-              </div>
-
-              <div className="flex flex-col p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20">
-                <span className="text-[11px] font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
-                  <TrendingDown className="h-3.5 w-3.5" /> Pengeluaran
-                </span>
-                <span className="text-base sm:text-lg font-extrabold text-foreground mt-1">
-                  {formatCurrency(summary.expense)}
-                </span>
-              </div>
-            </div>
-
-            {/* Baris Aksi Cepat Fin.IQ (Fintech Buttons) */}
-            <div className="flex flex-wrap items-center gap-2 pt-2">
-              <Button
-                onClick={openQuickAdd}
-                className="rounded-xl bg-primary hover:bg-primary/90 text-white font-bold gap-2 text-xs sm:text-sm px-4 shadow-sm shadow-primary/25 active:scale-95"
+            {/* Chips Metrik Kurva */}
+            <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold">
+              <span className="px-2 py-1 rounded-lg bg-background border border-border/60 text-muted-foreground">
+                Mulai: Rp 0
+              </span>
+              <span
+                className={`px-2 py-1 rounded-lg bg-background border border-border/60 ${
+                  summary.net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                }`}
               >
-                <Plus className="h-4 w-4 stroke-[3px]" />
-                Catat Transaksi
-              </Button>
-              <Link href="/import">
-                <Button
-                  variant="outline"
-                  className="rounded-xl border-border/80 text-foreground hover:bg-muted font-semibold gap-2 text-xs sm:text-sm px-3.5 active:scale-95"
-                >
-                  <FileSpreadsheet className="h-4 w-4 text-primary" />
-                  Impor Spreadsheet
-                </Button>
-              </Link>
-              <Link href="/accounts">
-                <Button
-                  variant="ghost"
-                  className="rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted font-semibold text-xs sm:text-sm px-3"
-                >
-                  Kelola Akun
-                </Button>
-              </Link>
+                Posisi Akhir: {summary.net > 0 ? "+" : ""}{formatCurrency(summary.net)}
+              </span>
             </div>
           </div>
 
-          {/* Kolom Kanan: Area Chart / Sparkline Pertumbuhan Arus Kas */}
-          <div data-tour="overview-sparkline" className="lg:col-span-5 h-44 sm:h-52 w-full flex flex-col justify-between p-2 rounded-2xl bg-muted/20 border border-border/40">
-            <div className="flex items-center justify-between px-2 pt-1">
-              <span className="text-[11px] uppercase font-bold text-muted-foreground tracking-wider">
-                Kurva Arus Kas Periode Ini
-              </span>
-              <span className={`text-[11px] font-bold ${summary.net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                {summary.count} tx • {summary.net > 0 ? "+" : ""}{formatCurrency(summary.net)}
-              </span>
+          {/* Area Kurva Responsive */}
+          {sparklineData.length > 0 ? (
+            <div className="h-44 sm:h-52 w-full pt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={sparklineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="balanceGradPos" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#00B569" stopOpacity={0.38} />
+                      <stop offset="95%" stopColor="#00B569" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="balanceGradNeg" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#EF4444" stopOpacity={0.38} />
+                      <stop offset="95%" stopColor="#EF4444" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="date"
+                    stroke="#888888"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="#888888"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => {
+                      if (Math.abs(v) >= 1000000) return `${(v / 1000000).toFixed(1)}jt`;
+                      if (Math.abs(v) >= 1000) return `${(v / 1000).toFixed(0)}rb`;
+                      return String(v);
+                    }}
+                  />
+                  <Tooltip
+                    formatter={(val: any) => [formatCurrency(val), "Arus Kas Bersih"]}
+                    labelFormatter={(label, payload) => payload?.[0]?.payload?.date || ""}
+                    contentStyle={{
+                      backgroundColor: "var(--card)",
+                      borderColor: "var(--border)",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      borderRadius: "12px",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="running"
+                    stroke={summary.net >= 0 ? "#00B569" : "#EF4444"}
+                    strokeWidth={2.5}
+                    fillOpacity={1}
+                    fill={summary.net >= 0 ? "url(#balanceGradPos)" : "url(#balanceGradNeg)"}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
-
-            {sparklineData.length > 0 ? (
-              <div className="h-36 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={sparklineData}>
-                    <defs>
-                      <linearGradient id="balanceGradPos" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#00B569" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#00B569" stopOpacity={0.0} />
-                      </linearGradient>
-                      <linearGradient id="balanceGradNeg" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#EF4444" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#EF4444" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <Tooltip
-                      formatter={(val: any) => [formatCurrency(val), "Arus Kas Bersih"]}
-                      labelFormatter={(label, payload) => payload?.[0]?.payload?.date || ""}
-                      contentStyle={{
-                        backgroundColor: "var(--card)",
-                        borderColor: "var(--border)",
-                        fontSize: "11px",
-                        fontWeight: "600",
-                        borderRadius: "12px",
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="running"
-                      stroke={summary.net >= 0 ? "#00B569" : "#EF4444"}
-                      strokeWidth={2.5}
-                      fillOpacity={1}
-                      fill={summary.net >= 0 ? "url(#balanceGradPos)" : "url(#balanceGradNeg)"}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="h-32 flex items-center justify-center text-xs text-muted-foreground border rounded-xl border-dashed">
-                Belum ada transaksi di periode ini
-              </div>
-            )}
-          </div>
+          ) : (
+            <div className="h-36 flex flex-col items-center justify-center text-xs text-muted-foreground border rounded-xl border-dashed bg-background/50 gap-1">
+              <span>Belum ada transaksi di periode {periodLabel}</span>
+              <span className="text-[11px] text-muted-foreground/75">Klik Catat Transaksi atau Impor Transaksi untuk mengisi data</span>
+            </div>
+          )}
         </div>
 
-        {/* Bang Peci Mascot Companion - Dinamis Sesuai Arus Kas Bersih */}
-        <div className="mt-5 pt-4 border-t border-border/60">
+        {/* Bang Peci Mascot Companion */}
+        <div className="pt-2 border-t border-border/60">
           <OverviewMascotMood
             netCashflow={summary.net}
             income={summary.income}
             expense={summary.expense}
             periodLabel={periodLabel}
           />
+        </div>
+      </div>
+
+      {/* =========================================================================
+          1.5. CONTAINER PROMOSI & AKSES CEPAT IMPOR TRANSAKSI / E-STATEMENT
+      ========================================================================= */}
+      <div className="relative overflow-hidden rounded-[32px] border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-card to-card dark:from-emerald-950/20 dark:via-card dark:to-card p-6 sm:p-8 shadow-xs">
+        <div className="absolute top-0 right-0 -mr-12 -mt-12 w-48 h-48 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="flex flex-col gap-2 max-w-2xl">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                <Sparkles className="h-3 w-3" />
+                Fitur Praktis • Hemat Waktu
+              </span>
+              <span className="text-[11px] font-semibold text-muted-foreground hidden sm:inline">
+                Didukung AI Fin.IQ
+              </span>
+            </div>
+
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-foreground tracking-tight leading-snug">
+              Kamu bisa import transaksi mu / e-statement mu loh!
+            </h2>
+
+            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+              Punya riwayat transaksi dari m-Banking BCA, Mandiri, BRI, BNI, e-wallet (GoPay, OVO, DANA), atau file Excel?
+              Masukkan ratusan catatan keuangan dalam hitungan detik tanpa perlu repot mengetik satu per satu.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
+              <span className="px-2.5 py-1 rounded-xl bg-background/80 border border-border/60 text-foreground font-medium flex items-center gap-1.5 shadow-2xs">
+                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                E-Statement & Mutasi Bank
+              </span>
+              <span className="px-2.5 py-1 rounded-xl bg-background/80 border border-border/60 text-foreground font-medium flex items-center gap-1.5 shadow-2xs">
+                <FileText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                Excel (.xlsx) & CSV
+              </span>
+              <span className="px-2.5 py-1 rounded-xl bg-background/80 border border-border/60 text-foreground font-medium flex items-center gap-1.5 shadow-2xs">
+                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                Screenshot & AI Vision
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end gap-2.5 shrink-0">
+            <Link href="/import">
+              <Button className="rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs sm:text-sm px-6 py-6 shadow-md shadow-emerald-600/25 gap-2.5 active:scale-95 transition-all">
+                <UploadCloud className="h-5 w-5" />
+                <span>Import Transaksi Sekarang</span>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+
+            <Link
+              href="/import?tab=tutorial"
+              className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1.5 px-1 py-0.5"
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+              <span>Lihat panduan & tutorial e-statement</span>
+              <ChevronRightIcon className="h-3 w-3" />
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -709,10 +865,10 @@ export default function OverviewPage() {
       </div>
 
       {/* =========================================================================
-          3. ALOKASI ASET (Mirip Rekomendasi Portofolio Bibit) & TREN ARUS KAS
+          3. ALOKASI ASET & GRAFIK AKUN KEUANGAN (Grafik Tampil Langsung di Page) & TREN ARUS KAS
       ========================================================================= */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
-        {/* Kartu Alokasi Rekening Finansial */}
+        {/* Kartu Alokasi & Grafik Rekening Finansial */}
         <Card className="p-5 sm:p-6 rounded-3xl border-border/70 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -721,26 +877,84 @@ export default function OverviewPage() {
                   <Wallet className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-sm text-foreground">Alokasi & Saldo Akun</h3>
-                  <p className="text-[11px] text-muted-foreground">Porsi saldo kas, bank, dan dompet digital</p>
+                  <h3 className="font-extrabold text-sm text-foreground">Grafik & Alokasi Akun</h3>
+                  <p className="text-[11px] text-muted-foreground">Komposisi visual & rincian saldo rekening</p>
                 </div>
               </div>
               <Link
                 href="/accounts"
                 className="text-xs text-primary hover:underline font-bold flex items-center gap-1"
+                title="Buka halaman pengelolaan rekening"
               >
-                Atur Akun <ChevronRightIcon className="h-3.5 w-3.5" />
+                Kelola Akun <ChevronRightIcon className="h-3.5 w-3.5" />
               </Link>
             </div>
 
-            <div className="flex flex-col gap-3.5">
-              {assetData?.items?.map((acc) => {
+            {/* Donut Chart Visualisasi Komposisi Akun Langsung di Halaman */}
+            {accountChartData.length > 0 && (
+              <div className="mb-4 p-3 rounded-2xl bg-muted/20 border border-border/50">
+                <div className="h-44 sm:h-48 w-full flex items-center justify-center relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsPieChart>
+                      <Tooltip
+                        formatter={(value: any, name: any) => [
+                          formatCurrency(Number(value)),
+                          name,
+                        ]}
+                        contentStyle={{
+                          backgroundColor: "var(--card)",
+                          borderColor: "var(--border)",
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          borderRadius: "12px",
+                        }}
+                      />
+                      <Pie
+                        data={accountChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={46}
+                        outerRadius={68}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {accountChartData.map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={entry.color}
+                            stroke="transparent"
+                          />
+                        ))}
+                      </Pie>
+                    </RechartsPieChart>
+                  </ResponsiveContainer>
+
+                  {/* Label Total Saldo di Tengah Donut */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+                      Total Saldo
+                    </span>
+                    <span className="text-xs sm:text-sm font-black text-foreground">
+                      {formatCurrency(totalUserBalance)}
+                    </span>
+                    <span className="text-[10px] font-semibold text-primary">
+                      {accountChartData.length} Akun
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Daftar Akun & Persentase */}
+            <div className="flex flex-col gap-2.5 max-h-[280px] overflow-y-auto pr-1">
+              {assetData?.items?.map((acc, idx) => {
                 const isCash = acc.group.toLowerCase().includes("cash");
                 const isBank = acc.group.toLowerCase().includes("bank");
                 const isEwallet =
                   acc.group.toLowerCase().includes("alipay") ||
                   acc.name.toLowerCase().includes("dana") ||
                   acc.name.toLowerCase().includes("gopay");
+                const color = PIE_COLORS[idx % PIE_COLORS.length];
 
                 return (
                   <Link
@@ -750,6 +964,10 @@ export default function OverviewPage() {
                   >
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2.5 font-bold text-foreground">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: color }}
+                        />
                         <div
                           className={`h-7 w-7 rounded-xl flex items-center justify-center shrink-0 ${
                             isCash
@@ -781,8 +999,11 @@ export default function OverviewPage() {
                     {/* Visual Progress Bar ala Bibit */}
                     <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-primary transition-all duration-500"
-                        style={{ width: `${acc.percent}%` }}
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${acc.percent}%`,
+                          backgroundColor: color,
+                        }}
                       />
                     </div>
                   </Link>
@@ -959,89 +1180,226 @@ export default function OverviewPage() {
 
       {/* =========================================================================
           4.5. HEATMAP AKTIVITAS BULANAN (Data yearHeatmap)
+          Redesign: Konsep Simple, Ringan, User-Friendly & Clean Card Spacing (Inspirasi Job Board Grid)
+      ========================================================================= */}
+      {/* =========================================================================
+          4.5. HEATMAP AKTIVITAS BULANAN (Data yearHeatmap)
+          Carousel 4 Halaman (3 Bulan per Halaman) • Simple, Ringan, User-Friendly
       ========================================================================= */}
       {heatmapData && heatmapData.length > 0 && (
-        <Card data-tour="overview-heatmap" className="p-5 sm:p-6 rounded-3xl border-border/80 shadow-xs bg-card">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-xl bg-primary/15 flex items-center justify-center text-primary shrink-0">
-                <CalendarDays className="h-4 w-4" />
+        <Card data-tour="overview-heatmap" className="mt-8 sm:mt-12 p-6 sm:p-8 rounded-[32px] border-border/70 shadow-xs bg-card">
+          {/* Header Section dengan Navigasi Carousel & Kuartal */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-border/60">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0 border border-primary/20">
+                <CalendarDays className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="font-extrabold text-sm text-foreground">
-                  Aktivitas Bulanan {currentMonth.getFullYear()}
-                </h3>
-                <p className="text-[11px] text-muted-foreground">
-                  Arus kas & intensitas transaksi per bulan (klik bulan untuk filter cepat)
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-base sm:text-lg text-foreground tracking-tight">
+                    Aktivitas Bulanan {currentMonth.getFullYear()}
+                  </h3>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                    Hal {heatmapPage + 1} / 4
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {quarterMetadata[heatmapPage]?.title} ({quarterMetadata[heatmapPage]?.range}) • Geser carousel untuk kuartal lain
                 </p>
               </div>
             </div>
 
-            <div className="text-[11px] text-muted-foreground self-start sm:self-auto font-medium">
-              Total {heatmapData.reduce((acc, m) => acc + m.txCount, 0)} transaksi tercatat
+            {/* Quick Quarter Pills + Arrow Controls */}
+            <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+              {/* Quarter Pills */}
+              <div className="flex items-center gap-1 p-1 rounded-2xl bg-muted/60 border border-border/50">
+                {quarterMetadata.map((q) => (
+                  <button
+                    key={q.page}
+                    type="button"
+                    onClick={() => setHeatmapPage(q.page)}
+                    className={`px-3 py-1 text-xs font-bold rounded-xl transition-all ${
+                      heatmapPage === q.page
+                        ? "bg-primary text-white shadow-xs shadow-primary/25"
+                        : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+                    }`}
+                    title={`Buka ${q.title} (${q.range})`}
+                  >
+                    {q.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Prev / Next Buttons */}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  type="button"
+                  onClick={() => setHeatmapPage((prev) => (prev > 0 ? prev - 1 : 3))}
+                  className="h-8 w-8 rounded-xl border-border/70 hover:border-primary/50 hover:text-primary hover:bg-primary/5 active:scale-95 transition-all"
+                  title="Halaman sebelumnya"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  type="button"
+                  onClick={() => setHeatmapPage((prev) => (prev < 3 ? prev + 1 : 0))}
+                  className="h-8 w-8 rounded-xl border-border/70 hover:border-primary/50 hover:text-primary hover:bg-primary/5 active:scale-95 transition-all"
+                  title="Halaman berikutnya"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {synchronizedHeatmapData.map((m) => {
-              const net = m.income - m.expense;
-              const isSelectedMonth =
-                datePreset === "this_month" &&
-                currentMonth.getMonth() === m.monthIndex;
+          {/* Track Carousel 4 Halaman (Slider) */}
+          <div
+            className="overflow-hidden w-full select-none"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            <div
+              className="flex transition-transform duration-500 ease-out"
+              style={{ transform: `translateX(-${heatmapPage * 100}%)` }}
+            >
+              {heatmapPages.map((pageMonths, pIdx) => (
+                <div key={pIdx} className="w-full shrink-0 px-0.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 sm:gap-6">
+                    {pageMonths.map((m) => {
+                      const net = m.income - m.expense;
+                      const isSelectedMonth =
+                        datePreset === "this_month" &&
+                        currentMonth.getMonth() === m.monthIndex;
 
-              return (
-                <div
-                  key={m.monthIndex}
-                  onClick={() => {
-                    setCurrentMonth(new Date(currentMonth.getFullYear(), m.monthIndex, 1));
-                    setDatePreset("this_month");
-                  }}
-                  className={`flex flex-col gap-2 p-3 rounded-2xl border transition-all cursor-pointer text-left group shadow-xs ${
-                    isSelectedMonth
-                      ? "border-primary bg-primary/[0.07] ring-1 ring-primary/40 shadow-sm"
-                      : "border-border/80 bg-background/95 hover:bg-muted/40 hover:border-primary/40"
-                  }`}
-                  title={`Klik untuk memfilter tampilan ke ${m.monthName}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-foreground tracking-tight uppercase group-hover:text-primary transition-colors">
-                      {m.monthName}
-                    </span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-muted text-foreground border border-border/50">
-                      {m.txCount} tx
-                    </span>
-                  </div>
+                      const fullMonthName = new Intl.DateTimeFormat("id-ID", { month: "long" }).format(
+                        new Date(currentMonth.getFullYear(), m.monthIndex, 1)
+                      );
 
-                  <div className="flex flex-col gap-1 text-[11px] font-semibold border-y border-border/60 py-1.5 my-0.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground text-[10px]">Masuk</span>
-                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                        +{formatCurrency(m.income)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground text-[10px]">Keluar</span>
-                      <span className="text-rose-600 dark:text-rose-400 font-bold">
-                        -{formatCurrency(m.expense)}
-                      </span>
-                    </div>
-                  </div>
+                      return (
+                        <div
+                          key={m.monthIndex}
+                          onClick={() => {
+                            setCurrentMonth(new Date(currentMonth.getFullYear(), m.monthIndex, 1));
+                            setDatePreset("this_month");
+                          }}
+                          className={`relative overflow-hidden flex flex-col justify-between p-4 sm:p-5 rounded-[24px] border transition-all duration-200 cursor-pointer text-left group shadow-xs h-full min-h-[175px] ${
+                            isSelectedMonth
+                              ? "border-primary bg-primary/[0.04] ring-2 ring-primary/25 shadow-sm shadow-primary/10"
+                              : "border-border/70 bg-card hover:bg-primary/[0.015] hover:border-primary/40 hover:shadow-md"
+                          }`}
+                          title={`Klik untuk memfilter tampilan ke ${fullMonthName}`}
+                        >
+                          {/* Line Indicator saat bulan aktif / dibuka */}
+                          <div
+                            className={`absolute top-0 left-0 right-0 h-1 transition-all duration-300 ${
+                              isSelectedMonth
+                                ? "bg-primary shadow-xs shadow-primary/50"
+                                : "bg-transparent group-hover:bg-primary/25"
+                            }`}
+                          />
 
-                  <div
-                    className={`text-[10px] font-extrabold px-2 py-1 rounded-lg text-center flex items-center justify-between ${
-                      net > 0
-                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
-                        : net < 0
-                        ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30"
-                        : "bg-muted/70 text-muted-foreground border border-border/50"
-                    }`}
-                  >
-                    <span className="text-[9px] uppercase tracking-wider font-semibold">Nett</span>
-                    <span>{formatCurrency(net)}</span>
+                          {/* Top Bar: Nama Bulan & Status Badge (Surplus / Defisit / Seimbang / Kosong) */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="text-base sm:text-lg font-extrabold text-foreground tracking-tight group-hover:text-primary transition-colors truncate">
+                                {fullMonthName}
+                              </div>
+                              <div className="text-[11px] font-medium text-muted-foreground mt-0.5 truncate">
+                                Tahun {currentMonth.getFullYear()} • {m.txCount} transaksi
+                              </div>
+                            </div>
+
+                            {/* Status Badge Keuangan (tetap Surplus/Defisit/Seimbang/Kosong walau dipilih) */}
+                            {m.txCount === 0 ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-muted/60 text-muted-foreground border border-border/40 shrink-0">
+                                Kosong
+                              </span>
+                            ) : net > 0 ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
+                                Surplus
+                              </span>
+                            ) : net < 0 ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 shrink-0">
+                                Defisit
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20 shrink-0">
+                                Seimbang
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Middle Content: Tag Masuk & Keluar (Grid 2 Kolom konsisten) */}
+                          <div className="my-3.5 grid grid-cols-2 gap-2">
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 min-w-0">
+                              <TrendingUp className="h-3 w-3 shrink-0" />
+                              <span className="truncate">+{formatCurrency(m.income)}</span>
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-xl bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 min-w-0">
+                              <TrendingDown className="h-3 w-3 shrink-0" />
+                              <span className="truncate">-{formatCurrency(m.expense)}</span>
+                            </span>
+                          </div>
+
+                          {/* Bottom Row: Arus Kas Bersih (Tanpa Tombol Pilih) */}
+                          <div className="pt-3 border-t border-border/50 flex items-center justify-between gap-2 mt-auto">
+                            <span className="text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">
+                              Arus Kas Bersih
+                            </span>
+                            <span
+                              className={`text-sm sm:text-base font-extrabold tracking-tight ${
+                                net > 0
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : net < 0
+                                  ? "text-rose-600 dark:text-rose-400"
+                                  : "text-foreground"
+                              }`}
+                            >
+                              {net > 0 ? "+" : ""}
+                              {formatCurrency(net)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              );
-            })}
+              ))}
+            </div>
+          </div>
+
+          {/* Footer Carousel: Indicator Dots & Page Quick Navigation */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-6 pt-4 border-t border-border/60 text-xs">
+            <div className="text-muted-foreground font-medium text-center sm:text-left">
+              Menampilkan <span className="text-foreground font-bold">Halaman {heatmapPage + 1} dari 4</span> ({quarterMetadata[heatmapPage]?.range})
+            </div>
+
+            {/* Interactive Carousel Dots */}
+            <div className="flex items-center gap-2">
+              {[0, 1, 2, 3].map((idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setHeatmapPage(idx)}
+                  className={`transition-all duration-300 rounded-full ${
+                    heatmapPage === idx
+                      ? "w-8 h-2.5 bg-primary shadow-xs"
+                      : "w-2.5 h-2.5 bg-muted-foreground/30 hover:bg-muted-foreground/60"
+                  }`}
+                  title={`Ke Halaman ${idx + 1} (${quarterMetadata[idx]?.label})`}
+                  aria-label={`Halaman ${idx + 1}`}
+                />
+              ))}
+            </div>
+
+            {/* Total Transaksi Info */}
+            <div className="text-muted-foreground font-medium text-center sm:text-right">
+              Total <strong className="text-foreground">{heatmapData.reduce((acc, m) => acc + m.txCount, 0)}</strong> transaksi tahun {currentMonth.getFullYear()}
+            </div>
           </div>
         </Card>
       )}
@@ -1052,7 +1410,7 @@ export default function OverviewPage() {
       <div className="flex flex-col gap-3.5">
         <div className="flex items-center justify-between">
           <h3 className="font-extrabold text-sm sm:text-base flex items-center gap-2">
-            <PieChart className="h-4 w-4 text-primary" />
+            <PieChartIcon className="h-4 w-4 text-primary" />
             Kategori Terbanyak
           </h3>
 
@@ -1184,6 +1542,12 @@ export default function OverviewPage() {
         periodLabel={periodLabel}
         dateFrom={dateFrom || ""}
         dateTo={dateTo || ""}
+      />
+
+      {/* Modal Panduan & Tutorial Impor CSV */}
+      <CsvImportTutorialModal
+        isOpen={isCsvTutorialOpen}
+        onClose={() => setIsCsvTutorialOpen(false)}
       />
     </div>
   );

@@ -276,6 +276,226 @@ ATURAN EKSTRAKSI PENTING:
       };
     }),
 
+  convertAnyDocument: protectedProcedure
+    .input(
+      z.object({
+        fileBase64: z.string().optional(),
+        fileText: z.string().optional(),
+        fileName: z.string(),
+        mimeType: z.string().default("text/plain"),
+        defaultAccountId: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const apiKey = await getEffectiveGeminiKey(ctx);
+      const ai = new GoogleGenAI({ apiKey });
+
+      const userAccounts = await ctx.db
+        .select({ id: accounts.id, name: accounts.name, group: accounts.group })
+        .from(accounts)
+        .where(eq(accounts.userId, ctx.userId));
+
+      const userCategories = await ctx.db
+        .select({ id: categories.id, name: categories.name, kind: categories.kind })
+        .from(categories)
+        .where(eq(categories.userId, ctx.userId));
+
+      const accountNamesStr = userAccounts.map((a) => a.name).join(", ") || "Kas Tunai, BCA, GoPay";
+      const categoryNamesStr =
+        userCategories.map((c) => c.name).join(", ") ||
+        "Umum, Makanan & Minuman, Transportasi, Belanja, Tagihan & Utilitas, Gaji & Pendapatan";
+
+      const defaultAccountName = input.defaultAccountId
+        ? userAccounts.find((a) => a.id === input.defaultAccountId)?.name
+        : undefined;
+
+      let cleanBase64 = (input.fileBase64 || "").replace(/^data:[a-zA-Z0-9.\/+-]+;base64,/, "");
+      if (!cleanBase64 && input.fileText) {
+        cleanBase64 = Buffer.from(input.fileText, "utf-8").toString("base64");
+      }
+      const currentYear = new Date().getFullYear();
+      const isPdf =
+        input.mimeType === "application/pdf" ||
+        input.fileName.toLowerCase().endsWith(".pdf");
+
+      let promptContent: Array<{ text: string } | { inlineData: { data: string; mimeType: string } }> = [];
+
+      const promptInstructions = `Kamu adalah sistem analisis dokumen keuangan dan konversi mutasi transaksi profesional untuk aplikasi Fin.IQ di Indonesia.
+Tugasmu adalah menganalisis dokumen atau file mutasi keuangan yang diunggah (${input.fileName}) dengan template/format APAPUN (BCA, Mandiri Livin', BRImo, BNI, e-wallet, Jenius, rekening koran bank internasional, CSV acak, atau spreadsheet pengguna), lalu mengekstrak SELURUH baris data transaksi ke dalam format JSON standar Fin.IQ.
+
+Daftar akun/rekening pengguna: [${accountNamesStr}].
+Daftar kategori pengguna: [${categoryNamesStr}].
+${defaultAccountName ? `Rekening default jika di dokumen tidak disebutkan: "${defaultAccountName}".` : ""}
+
+ATURAN KONVERSI DOKUMEN:
+1. Analisis struktur tabel dokumen:
+   - Jika dokumen memiliki kolom Debit dan Kredit terpisah: Baris dengan nilai di Debit = "expense", baris dengan nilai di Kredit = "income".
+   - Jika mutasi mencantumkan suffix "DB" (Debit) / "CR" (Kredit): DB = "expense", CR = "income".
+   - Jika mutasi menggunakan minus (-) untuk pengeluaran: jadikan "expense" dengan amount positif.
+   - Abaikan baris saldo awal, saldo akhir, total mutasi, atau header/footer laporan.
+2. Nominal (amount):
+   - Angka integer positif murni dalam Rupiah. Format Indonesia (titik sebagai pemisah ribuan) harus dibersihkan menjadi integer murni (contoh: "Rp 150.000,00" -> 150000).
+3. Tanggal (happenedAt):
+   - Format ISO 8601 string: "YYYY-MM-DDTHH:mm:ss".
+   - Jika hanya ada tanggal tanpa jam, gunakan jam 12:00:00 ("YYYY-MM-DDT12:00:00").
+   - Jika tanpa tahun, gunakan tahun ${currentYear}.
+4. Kategori (categoryName):
+   - Cocokkan dengan salah satu dari [${categoryNamesStr}] berdasarkan deskripsi/merchant transaksi.
+5. Akun (accountName):
+   - Jika di dokumen tertera nama bank/rekening (misal BCA, Mandiri, GoPay), gunakan nama tersebut atau cocokkan ke akun user. Jika tidak ada, gunakan ${
+     defaultAccountName ? `"${defaultAccountName}"` : `akun user yang paling sesuai atau pertama`
+   }.
+6. Keterangan (note):
+   - Bersihkan dan ambil rincian transaksi / nama merchant / keterangan mutasi secara ringkas dan informatif.
+
+FORMAT OUTPUT:
+Kembalikan HANYA objek JSON dengan format seperti ini:
+{
+  "detectedBank": "BCA / Bank Mandiri / dll (atau null)",
+  "transactions": [
+    {
+      "txType": "expense" | "income" | "transfer",
+      "amount": number,
+      "happenedAt": "YYYY-MM-DDTHH:mm:ss",
+      "categoryName": string,
+      "accountName": string,
+      "toAccountName": string | null,
+      "note": string
+    }
+  ]
+}`;
+
+      if (isPdf) {
+        promptContent = [
+          {
+            inlineData: {
+              data: cleanBase64,
+              mimeType: "application/pdf",
+            },
+          },
+          { text: promptInstructions },
+        ];
+      } else {
+        let textContent = "";
+        try {
+          textContent = Buffer.from(cleanBase64, "base64").toString("utf-8");
+        } catch {
+          textContent = cleanBase64;
+        }
+
+        promptContent = [
+          {
+            text: `${promptInstructions}\n\n=== ISI DOKUMEN (${input.fileName}) ===\n${textContent.slice(0, 60000)}`,
+          },
+        ];
+      }
+
+      try {
+        const response = await generateWithFallback(ai, {
+          preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
+          contents: promptContent,
+          config: {
+            responseMimeType: "application/json",
+          },
+        });
+
+        const rawText = response.text || "{}";
+        const jsonStr = rawText
+          .replace(/^```json\s*/i, "")
+          .replace(/^```\s*/i, "")
+          .replace(/\s*```$/i, "")
+          .trim();
+
+        let parsedResult: any = {};
+        try {
+          parsedResult = JSON.parse(jsonStr);
+        } catch (jsonErr) {
+          console.error("Gagal parse JSON Gemini converter:", rawText, jsonErr);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Format jawaban AI tidak dapat dibaca sebagai JSON.",
+          });
+        }
+
+        const rawList = Array.isArray(parsedResult)
+          ? parsedResult
+          : Array.isArray(parsedResult.transactions)
+          ? parsedResult.transactions
+          : [];
+
+        const normalizedTxs: Array<{
+          id: string;
+          txType: "expense" | "income" | "transfer";
+          amount: number;
+          happenedAt: string;
+          categoryName: string;
+          accountName: string;
+          toAccountName?: string | null;
+          note: string;
+        }> = [];
+
+        for (let idx = 0; idx < rawList.length; idx++) {
+          const item = rawList[idx];
+          const rawAmount = Number(item.amount);
+          if (isNaN(rawAmount) || rawAmount <= 0) continue;
+
+          const txType: "expense" | "income" | "transfer" =
+            item.txType === "income" || item.txType === "transfer" ? item.txType : "expense";
+
+          let happenedAtStr = item.happenedAt;
+          if (!happenedAtStr || isNaN(new Date(happenedAtStr).getTime())) {
+            happenedAtStr = new Date().toISOString();
+          }
+
+          const matchedAccName = fuzzyMatchAccount(
+            item.accountName || defaultAccountName,
+            userAccounts
+          );
+          const matchedToAccName =
+            txType === "transfer" && item.toAccountName
+              ? fuzzyMatchAccount(item.toAccountName, userAccounts)
+              : item.toAccountName || null;
+          const matchedCatName = fuzzyMatchCategory(item.categoryName, userCategories);
+
+          normalizedTxs.push({
+            id: `ai-conv-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
+            txType,
+            amount: Math.round(rawAmount),
+            happenedAt: happenedAtStr,
+            categoryName: matchedCatName,
+            accountName: matchedAccName,
+            toAccountName: matchedToAccName,
+            note: (item.note || "").trim() || "Transaksi Impor Dokumen",
+          });
+        }
+
+        return {
+          transactions: normalizedTxs,
+          detectedBank: parsedResult.detectedBank || null,
+          totalCount: normalizedTxs.length,
+        };
+      } catch (genErr: any) {
+        console.error("Error konversi dokumen dengan Gemini:", genErr);
+        const errMsg = genErr?.message || String(genErr);
+        if (errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED")) {
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: "Batas permintaan Gemini AI tercapai (Rate Limit). Silakan tunggu 1 menit lalu coba lagi.",
+          });
+        }
+        if (errMsg.includes("API_KEY_INVALID") || errMsg.includes("INVALID_ARGUMENT") || errMsg.includes("API key not valid")) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "API Key Gemini tidak valid. Silakan periksa kembali GEMINI_API_KEY di .env.local.",
+          });
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Gagal mengonversi dokumen: ${errMsg}`,
+        });
+      }
+    }),
+
   executeBatch: protectedProcedure
     .input(
       z.object({
