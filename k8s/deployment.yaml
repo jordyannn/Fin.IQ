@@ -27,9 +27,12 @@ spec:
         - name: ghcr-secret
       containers:
         - name: finiq
-          # Tag di-override saat deploy lewat `kubectl set image`
+          # Tag di-override saat deploy lewat `kubectl set image`.
+          # Image di-import ke containerd lokal oleh workflow (ditransfer
+          # dari runner Actions), jadi IfNotPresent supaya k3s pakai image
+          # lokal dan tidak pull ulang dari ghcr.
           image: ghcr.io/jordyannn/fin-iq:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 3000

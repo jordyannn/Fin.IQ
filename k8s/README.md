@@ -21,21 +21,28 @@ kubectl -n finiq create secret generic finiq-secrets \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-### 2. `ghcr-secret` — credential untuk pull image privat dari ghcr.io
+### 2. `ghcr-secret` — fallback pull dari ghcr.io (opsional)
+
+Normalnya TIDAK dipakai: workflow mentransfer image ke server lalu
+meng-import-nya ke containerd lokal (lihat "Alur deploy"). Secret ini
+cuma cadangan kalau nanti mau pull langsung dari ghcr.
 
 ```bash
 kubectl -n finiq create secret docker-registry ghcr-secret \
   --docker-server=ghcr.io \
   --docker-username=jordyannn \
-  --docker-password="<PAT dengan scope read:packages>"
+  --docker-password="<PAT>"
 ```
-
-PAT dibuat di https://github.com/settings/tokens (classic, scope `read:packages`).
 
 ## Alur deploy
 
 GitHub Actions build image → push ke `ghcr.io/jordyannn/fin-iq:<sha>`
-→ SSH ke server → `kubectl apply -f k8s/` → `kubectl set image` → rollout.
+→ runner pull image → `docker save` → scp ke server
+→ `k3s ctr images import` → `kubectl apply -f k8s/` → `kubectl set image` → rollout.
+
+Image di-import dengan tag yang sama (`ghcr.io/jordyannn/fin-iq:<sha>`),
+dan `imagePullPolicy: IfNotPresent`, jadi k3s memakai image lokal
+tanpa pull ulang dari ghcr.
 
 ## Topologi traffic
 
