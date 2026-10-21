@@ -148,7 +148,7 @@ export function AccountSelect({
         <div
           onWheel={(e) => e.stopPropagation()}
           className={cn(
-            "absolute left-0 z-50 w-full min-w-[280px] rounded-2xl border border-border/80 bg-card/98 backdrop-blur-md p-2.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-2 text-card-foreground",
+            "absolute left-0 z-50 w-full min-w-[280px] rounded-md border border-border/80 bg-card/98 backdrop-blur-md p-2.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-2 text-card-foreground",
             openUpward
               ? "bottom-full mb-2 origin-bottom shadow-[-4px_-8px_24px_rgba(0,0,0,0.18)]"
               : "top-full mt-2 origin-top shadow-[4px_12px_32px_rgba(0,0,0,0.2)]"

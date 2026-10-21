@@ -3,8 +3,9 @@
 import React, { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { formatCurrency } from "@/lib/utils";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { GeometricIcon } from "@/components/ui/GeometricIcon";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 export default function CalendarPage() {
@@ -47,26 +48,31 @@ export default function CalendarPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Kalender Transaksi</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-md bg-[#A7F3D0]/40 flex items-center justify-center text-[#064E3B] shrink-0">
+              <GeometricIcon name="calendar" className="h-4 w-4" />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Kalender Transaksi</h1>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
             Tinjau rekap pengeluaran dan pemasukan harian dalam tampilan kalender bulanan.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={prevMonth} className="h-8 w-8">
-            <ChevronLeft className="h-4 w-4" />
+        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/60 p-1 rounded-md border border-border/60">
+          <Button variant="ghost" size="icon" onClick={prevMonth} className="h-7 w-7 rounded-sm">
+            <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
-          <span className="text-sm font-bold min-w-36 text-center">{monthName}</span>
-          <Button variant="outline" size="icon" onClick={nextMonth} className="h-8 w-8">
-            <ChevronRight className="h-4 w-4" />
+          <span className="text-xs font-bold min-w-32 text-center text-foreground">{monthName}</span>
+          <Button variant="ghost" size="icon" onClick={nextMonth} className="h-7 w-7 rounded-sm">
+            <ChevronRight className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
 
-      <Card className="p-4 overflow-hidden">
+      <Card className="p-3.5 sm:p-4 rounded-md border border-border/80 bg-card shadow-level-1 overflow-hidden">
         {/* Header Nama Hari */}
-        <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold text-muted-foreground pb-2 border-b">
+        <div className="grid grid-cols-7 gap-1.5 sm:gap-2 text-center text-[11px] font-semibold text-muted-foreground pb-2 border-b border-border/60">
           {daysOfWeek.map((d) => (
             <div key={d} className="py-1">
               {d}
@@ -75,10 +81,10 @@ export default function CalendarPage() {
         </div>
 
         {/* Grid Tanggal */}
-        <div className="grid grid-cols-7 gap-2 pt-2">
+        <div className="grid grid-cols-7 gap-1.5 sm:gap-2 pt-2">
           {/* Empty cells sebelum tanggal 1 */}
           {Array.from({ length: startDayOfWeek }).map((_, idx) => (
-            <div key={`empty-${idx}`} className="h-20 rounded-lg bg-muted/20" />
+            <div key={`empty-${idx}`} className="h-16 sm:h-20 rounded-sm bg-muted/20 border border-transparent" />
           ))}
 
           {/* Hari dalam bulan */}
@@ -90,18 +96,18 @@ export default function CalendarPage() {
             return (
               <div
                 key={`day-${dayNum}`}
-                className="h-20 p-2 rounded-lg border bg-card/60 flex flex-col justify-between hover:border-primary transition-all text-xs"
+                className="h-16 sm:h-20 p-1.5 sm:p-2 rounded-sm border border-border/60 bg-card/60 flex flex-col justify-between hover:border-[#059669]/60 hover:bg-[#A7F3D0]/10 transition-all text-xs"
               >
-                <div className="font-bold text-muted-foreground text-[11px]">{dayNum}</div>
+                <div className="font-bold text-muted-foreground text-[10px] sm:text-[11px]">{dayNum}</div>
                 {daySummary ? (
-                  <div className="flex flex-col gap-0.5 text-[10px]">
+                  <div className="flex flex-col gap-0.5 text-[9px] sm:text-[10px]">
                     {daySummary.income > 0 && (
-                      <span className="text-emerald-600 font-semibold truncate">
+                      <span className="text-[#059669] font-bold truncate px-1.5 py-0.5 rounded-sm bg-emerald-500/10 border border-emerald-500/20">
                         +{formatCurrency(daySummary.income, "IDR", { compact: true })}
                       </span>
                     )}
                     {daySummary.expense > 0 && (
-                      <span className="text-rose-600 font-semibold truncate">
+                      <span className="text-[#BA1A1A] font-bold truncate px-1.5 py-0.5 rounded-sm bg-rose-500/10 border border-rose-500/20">
                         -{formatCurrency(daySummary.expense, "IDR", { compact: true })}
                       </span>
                     )}

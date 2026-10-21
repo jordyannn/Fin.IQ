@@ -43,7 +43,7 @@ interface AccountOverviewModalProps {
 }
 
 const PIE_COLORS = [
-  "#00B569", // Fin.IQ Emerald Green
+  "#059669", // Fin.IQ Emerald Green
   "#3B82F6", // Blue
   "#F59E0B", // Amber
   "#8B5CF6", // Purple
@@ -79,7 +79,7 @@ export function AccountOverviewModal({
         {/* Header Modal */}
         <div className="p-5 sm:p-6 border-b border-border/60 flex items-center justify-between bg-muted/20 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
+            <div className="h-10 w-10 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
               <Wallet className="h-5 w-5" />
             </div>
             <div>
@@ -87,7 +87,7 @@ export function AccountOverviewModal({
                 <h2 className="font-extrabold text-base sm:text-lg text-foreground tracking-tight">
                   Informasi & Grafik Akun Keuangan
                 </h2>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-sm bg-primary/10 text-primary border border-primary/20">
                   {accountsList.length} Akun
                 </span>
               </div>
@@ -99,7 +99,7 @@ export function AccountOverviewModal({
 
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             title="Tutup"
           >
             <X className="h-5 w-5" />
@@ -218,7 +218,7 @@ export function AccountOverviewModal({
                         {!isCash && !isBank && !isEwallet && <Wallet className="h-4 w-4" />}
                       </div>
 
-                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border/50 capitalize">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm bg-muted text-muted-foreground border border-border/50 capitalize">
                         {acc.group}
                       </span>
                     </div>

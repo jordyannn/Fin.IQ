@@ -305,10 +305,10 @@ export function EditTransactionModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
       <form
         onSubmit={handleSubmit}
-        className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-3xl bg-card border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in zoom-in-95 duration-150"
+        className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-md bg-card border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in zoom-in-95 duration-150"
       >
         {/* Header - Fixed & Pinned at Top */}
-        <div className="flex items-center justify-between border-b px-6 py-4 shrink-0 bg-card z-10">
+        <div className="flex items-center justify-between border-b px-5 sm:px-6 py-3.5 shrink-0 bg-card z-10">
           <div>
             <h2 className="text-base font-bold text-foreground">Edit Transaksi</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -318,7 +318,7 @@ export function EditTransactionModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            className="rounded-sm p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -326,23 +326,23 @@ export function EditTransactionModal({
 
         {/* Scrollable Modal Content Body */}
         <div
-          className="flex-1 overflow-y-auto px-6 py-4 space-y-4 overscroll-contain
-            [&::-webkit-scrollbar]:w-2
+          className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4 overscroll-contain
+            [&::-webkit-scrollbar]:w-1.5
             [&::-webkit-scrollbar-track]:bg-muted/20
             [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30
-            [&::-webkit-scrollbar-thumb]:rounded-full
+            [&::-webkit-scrollbar-thumb]:rounded-sm
             hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50
             transition-colors"
         >
 
         {errorMessage && (
-          <div className="mt-4 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium">
+          <div className="mt-4 p-3 rounded-sm bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium">
             {errorMessage}
           </div>
         )}
 
         {/* AI Voice Assistant Bar */}
-        <div className="mt-3 flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-3">
+        <div className="mt-2.5 flex items-center justify-between rounded-md border border-primary/20 bg-primary/5 p-2.5 sm:p-3">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary shrink-0" />
             <div>
@@ -361,12 +361,12 @@ export function EditTransactionModal({
 
         <div className="flex flex-col gap-4">
           {/* Tipe Transaksi (Tabs) */}
-          <div className="grid grid-cols-3 gap-2 rounded-xl bg-muted p-1 text-xs">
+          <div className="grid grid-cols-3 gap-1.5 rounded-md bg-muted p-1 text-xs">
             <button
               type="button"
               onClick={() => handleTxTypeChange("expense")}
               className={cn(
-                "flex items-center justify-center gap-1.5 rounded-lg py-2 font-semibold transition-all",
+                "flex items-center justify-center gap-1.5 rounded-sm py-1.5 font-semibold transition-all",
                 txType === "expense"
                   ? "bg-rose-600 text-white shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -379,7 +379,7 @@ export function EditTransactionModal({
               type="button"
               onClick={() => handleTxTypeChange("income")}
               className={cn(
-                "flex items-center justify-center gap-1.5 rounded-lg py-2 font-semibold transition-all",
+                "flex items-center justify-center gap-1.5 rounded-sm py-1.5 font-semibold transition-all",
                 txType === "income"
                   ? "bg-emerald-600 text-white shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -392,7 +392,7 @@ export function EditTransactionModal({
               type="button"
               onClick={() => handleTxTypeChange("transfer")}
               className={cn(
-                "flex items-center justify-center gap-1.5 rounded-lg py-2 font-semibold transition-all",
+                "flex items-center justify-center gap-1.5 rounded-sm py-1.5 font-semibold transition-all",
                 txType === "transfer"
                   ? "bg-blue-600 text-white shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -635,14 +635,14 @@ export function EditTransactionModal({
       </div>
 
       {/* Fixed Pinned Footer Actions */}
-      <div className="border-t border-border/70 px-6 py-3.5 shrink-0 bg-card/95 backdrop-blur-sm flex items-center justify-end gap-2.5 z-10">
+      <div className="border-t border-border/70 px-5 sm:px-6 py-3 shrink-0 bg-card/95 backdrop-blur-sm flex items-center justify-end gap-2.5 z-10">
         <Button
           type="button"
           variant="outline"
           size="sm"
           onClick={onClose}
           disabled={updateMutation.isPending}
-          className="text-xs h-9 px-4 rounded-xl cursor-pointer"
+          className="text-xs h-8 sm:h-9 px-3.5 rounded-md cursor-pointer"
         >
           Batal
         </Button>
@@ -650,7 +650,7 @@ export function EditTransactionModal({
           type="submit"
           size="sm"
           disabled={updateMutation.isPending}
-          className="bg-[#00B569] hover:bg-[#009E5B] text-white text-xs h-9 px-4 rounded-xl font-bold gap-1.5 shadow-md cursor-pointer transition-all"
+          className="bg-[#059669] hover:bg-[#047857] text-white text-xs h-8 sm:h-9 px-4 rounded-md font-semibold gap-1.5 shadow-level-1 cursor-pointer transition-all"
         >
           <Save className="h-3.5 w-3.5" />
           {updateMutation.isPending ? "Menyimpan..." : "Simpan Perubahan"}

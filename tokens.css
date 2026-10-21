@@ -1,27 +1,27 @@
-/* Hallmark · tokens.css · theme: Bibit-Fintech · genre: modern-minimal */
+/* Geometric Minimalist Intelligence · tokens.css · Fin.IQ */
 :root {
-  /* Colors - Light Mode */
-  --color-brand: #00b569;
-  --color-brand-hover: #009e5b;
-  --color-brand-light: #ecfdf5;
-  --color-brand-dark: #065f46;
+  /* Colors - Geometric Minimalist Emerald System */
+  --color-brand: #059669;
+  --color-brand-hover: #047857;
+  --color-brand-light: #a7f3d0;
+  --color-brand-dark: #064e3b;
 
-  --color-paper: #f9fbfa;
+  --color-paper: #f8fafc;
   --color-surface: #ffffff;
-  --color-surface-hover: #f1f5f3;
-  --color-border: #e5e7eb;
-  --color-border-subtle: #f3f4f6;
+  --color-surface-hover: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-border-subtle: #edf2f7;
 
   --color-ink: #0f172a;
   --color-ink-muted: #64748b;
   --color-ink-faint: #94a3b8;
 
-  --color-income: #00b569;
-  --color-expense: #ef4444;
-  --color-transfer: #3b82f6;
+  --color-income: #059669;
+  --color-expense: #ba1a1a;
+  --color-transfer: #1b6b4f;
 
-  /* Typography */
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* Typography - Plus Jakarta Sans */
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   --text-2xs: 0.6875rem; /* 11px */
@@ -34,46 +34,48 @@
   --text-3xl: 1.875rem;  /* 30px */
   --text-4xl: 2.25rem;   /* 36px */
 
-  /* 4pt Spacing Scale */
-  --space-1: 0.25rem;  /* 4px */
-  --space-2: 0.5rem;   /* 8px */
-  --space-3: 0.75rem;  /* 12px */
-  --space-4: 1rem;     /* 16px */
-  --space-5: 1.25rem;  /* 20px */
-  --space-6: 1.5rem;   /* 24px */
-  --space-8: 2rem;     /* 32px */
-  --space-10: 2.5rem;  /* 40px */
-  --space-12: 3rem;    /* 48px */
-  --space-16: 4rem;    /* 64px */
+  /* 8pt Modular Spacing Cadence */
+  --space-xs: 0.25rem; /* 4px */
+  --space-sm: 0.5rem;  /* 8px */
+  --space-md: 1rem;    /* 16px */
+  --space-lg: 1.5rem;  /* 24px */
+  --space-xl: 2rem;    /* 32px */
 
   /* Radii */
-  --radius-sm: 0.5rem;   /* 8px */
-  --radius-md: 0.75rem;  /* 12px */
-  --radius-lg: 1rem;     /* 16px */
-  --radius-xl: 1.25rem;  /* 20px */
-  --radius-2xl: 1.5rem;  /* 24px */
+  --radius-sm: 0.25rem; /* 4px */
+  --radius-md: 0.5rem;  /* 8px */
+  --radius-lg: 0.75rem; /* 12px */
+  --radius-xl: 1rem;    /* 16px */
+  --radius-2xl: 1.25rem;/* 20px */
   --radius-full: 9999px;
+
+  /* Elevation Shadows */
+  --shadow-level-1: 0px 4px 20px -2px rgba(15, 23, 42, 0.03), 0px 2px 6px -1px rgba(15, 23, 42, 0.02);
+  --shadow-level-2: 0px 12px 32px -4px rgba(15, 23, 42, 0.06), 0px 4px 12px -2px rgba(15, 23, 42, 0.03);
+  --shadow-glow: 0px 8px 20px -4px rgba(5, 150, 105, 0.2);
 
   /* Motion */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --dur-fast: 150ms;
-  --dur-base: 200ms;
+  --dur-normal: 250ms;
 }
 
-.dark {
-  --color-brand: #10b981;
-  --color-brand-hover: #059669;
-  --color-brand-light: #064e3b;
-  --color-brand-dark: #a7f3d0;
-
+[data-theme="dark"] {
   --color-paper: #090d10;
   --color-surface: #131b22;
-  --color-surface-hover: #1e293b;
+  --color-surface-hover: #1c2630;
   --color-border: #1e293b;
-  --color-border-subtle: #0f172a;
+  --color-border-subtle: #17212b;
 
   --color-ink: #f8fafc;
   --color-ink-muted: #94a3b8;
   --color-ink-faint: #64748b;
+
+  --color-income: #10b981;
+  --color-expense: #f87171;
+  --color-transfer: #60a5fa;
+
+  --shadow-level-1: 0px 4px 20px -2px rgba(0, 0, 0, 0.4);
+  --shadow-level-2: 0px 12px 32px -4px rgba(0, 0, 0, 0.6);
 }

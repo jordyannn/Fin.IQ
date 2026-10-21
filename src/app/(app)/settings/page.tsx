@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useConfirm } from "@/store/confirm.store";
+import { GeometricIcon } from "@/components/ui/GeometricIcon";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -184,19 +185,24 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-6 max-w-5xl">
       <div>
-        <h1 className="text-2xl font-black tracking-tight text-foreground">Pengaturan &amp; Profil</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-md bg-[#A7F3D0]/40 flex items-center justify-center text-[#064E3B] shrink-0">
+            <GeometricIcon name="settings" className="h-4 w-4" />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Pengaturan &amp; Profil</h1>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
           Kelola profil pengguna, keamanan akun, mata uang dasar, dan integrasi AI.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Profil & Akun Card */}
-        <Card className="p-6 rounded-2xl shadow-sm border-border/70 flex flex-col justify-between">
+        <Card className="p-4 sm:p-5 rounded-md shadow-level-1 border border-border/80 bg-card flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between pb-4 border-b border-border/60 mb-5">
+            <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-border/60 mb-4 sm:mb-5">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-[#00B569] font-black text-lg border border-emerald-200 dark:border-emerald-800">
+                <div className="flex h-11 w-11 items-center justify-center rounded-md bg-[#A7F3D0]/40 text-[#064E3B] font-black text-base border border-[#059669]/20">
                   {profile?.displayName
                     ? profile.displayName.substring(0, 2).toUpperCase()
                     : "FQ"}
@@ -207,7 +213,7 @@ export default function SettingsPage() {
                   </h3>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs text-muted-foreground">{profile?.email}</span>
-                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-[10px] px-2 py-0 border-none font-semibold">
+                    <Badge className="bg-[#A7F3D0]/40 text-[#064E3B] text-[10px] px-2 py-0 border-none font-semibold rounded-sm">
                       Aktif
                     </Badge>
                   </div>
@@ -219,7 +225,7 @@ export default function SettingsPage() {
                 size="sm"
                 onClick={handleLogout}
                 disabled={isLoggingOut}
-                className="text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 border-red-200 dark:border-red-900 rounded-xl gap-1.5 h-8 px-2.5"
+                className="text-xs font-semibold text-[#BA1A1A] hover:bg-[#BA1A1A]/10 border-[#BA1A1A]/30 rounded-sm gap-1.5 h-8 px-2.5"
               >
                 <LogOut className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Keluar</span>
@@ -229,10 +235,10 @@ export default function SettingsPage() {
             {/* Profile Feedback message */}
             {profileMsg && (
               <div
-                className={`flex items-center gap-2 p-2.5 mb-4 rounded-xl text-xs ${
+                className={`flex items-center gap-2 p-2.5 mb-4 rounded-sm text-xs ${
                   profileMsg.type === "success"
-                    ? "bg-emerald-50 dark:bg-emerald-950/50 text-[#00B569] border border-emerald-200"
-                    : "bg-red-50 dark:bg-red-950/50 text-red-600 border border-red-200"
+                    ? "bg-[#A7F3D0]/30 text-[#064E3B] border border-[#059669]/20"
+                    : "bg-[#BA1A1A]/10 text-[#BA1A1A] border border-[#BA1A1A]/20"
                 }`}
               >
                 {profileMsg.type === "success" ? (
@@ -253,7 +259,7 @@ export default function SettingsPage() {
                   primaryCurrency: currency,
                 });
               }}
-              className="space-y-4 text-xs"
+              className="space-y-3.5 text-xs"
             >
               <div>
                 <label className="font-semibold text-foreground block mb-1">Nama Lengkap</label>
@@ -262,7 +268,7 @@ export default function SettingsPage() {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Nama tampilan Anda"
-                  className="h-10 text-xs rounded-xl"
+                  className="h-9 sm:h-10 text-xs rounded-md"
                   required
                 />
               </div>
@@ -272,13 +278,13 @@ export default function SettingsPage() {
                 <select
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
-                  className="w-full h-10 text-xs rounded-xl border border-input bg-background text-foreground px-3 font-medium outline-none focus:ring-2 focus:ring-primary/20"
+                  className="w-full h-9 sm:h-10 text-xs rounded-md border border-input bg-background text-foreground px-3 font-medium outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669]"
                 >
-                  <option value="IDR">IDR — Rupiah Indonesia (Rp)</option>
-                  <option value="USD">USD — US Dollar ($)</option>
-                  <option value="SGD">SGD — Singapore Dollar (S$)</option>
-                  <option value="EUR">EUR — Euro (€)</option>
-                  <option value="JPY">JPY — Japanese Yen (¥)</option>
+                  <option value="IDR">IDR : Rupiah Indonesia (Rp)</option>
+                  <option value="USD">USD : US Dollar ($)</option>
+                  <option value="SGD">SGD : Singapore Dollar (S$)</option>
+                  <option value="EUR">EUR : Euro (€)</option>
+                  <option value="JPY">JPY : Japanese Yen (¥)</option>
                 </select>
                 <p className="text-[11px] text-muted-foreground mt-1">
                   Mata uang dasar untuk kalkulasi saldo portofolio dan laporan.
@@ -286,10 +292,10 @@ export default function SettingsPage() {
               </div>
 
               {/* Ringkasan Akun & Keuangan */}
-              <div className="grid grid-cols-2 gap-3 pt-3 border-t">
-                <div className="p-3 rounded-xl bg-muted/40 border border-border/50">
+              <div className="grid grid-cols-2 gap-2.5 pt-3 border-t">
+                <div className="p-3 rounded-sm bg-slate-50 dark:bg-slate-900 border border-border/50">
                   <div className="flex items-center gap-1.5 text-muted-foreground text-[11px] font-medium">
-                    <Wallet className="h-3.5 w-3.5 text-[#00B569]" />
+                    <GeometricIcon name="accounts" className="h-3.5 w-3.5" />
                     Jumlah Akun
                   </div>
                   <div className="text-base font-extrabold text-foreground mt-1">
@@ -297,9 +303,9 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-muted/40 border border-border/50">
+                <div className="p-3 rounded-sm bg-slate-50 dark:bg-slate-900 border border-border/50">
                   <div className="flex items-center gap-1.5 text-muted-foreground text-[11px] font-medium">
-                    <Receipt className="h-3.5 w-3.5 text-blue-500" />
+                    <Receipt className="h-3.5 w-3.5 text-[#059669]" />
                     Total Transaksi
                   </div>
                   <div className="text-base font-extrabold text-foreground mt-1">
@@ -308,11 +314,11 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="pt-2">
+              <div className="pt-1">
                 <Button
                   type="submit"
                   disabled={updateProfileMutation.isPending || isProfileLoading}
-                  className="w-full bg-[#00B569] hover:bg-[#009E5B] text-white font-bold h-10 rounded-xl shadow-sm gap-2"
+                  className="w-full bg-[#059669] hover:bg-[#047857] text-white font-semibold h-9 sm:h-10 rounded-md shadow-level-1 gap-2"
                 >
                   <Save className="h-4 w-4" />
                   {updateProfileMutation.isPending ? "Menyimpan..." : "Simpan Perubahan Profil"}
@@ -322,27 +328,27 @@ export default function SettingsPage() {
           </div>
 
           {/* Password Change Toggle */}
-          <div className="pt-4 border-t mt-5">
+          <div className="pt-3.5 border-t mt-4">
             <button
               type="button"
               onClick={() => setShowPasswordChange(!showPasswordChange)}
               className="flex items-center justify-between w-full text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
             >
               <span className="flex items-center gap-2">
-                <Lock className="h-3.5 w-3.5 text-[#00B569]" />
+                <Lock className="h-3.5 w-3.5 text-[#059669]" />
                 Ubah Kata Sandi
               </span>
-              <span className="text-[11px] text-[#00B569]">
+              <span className="text-[11px] text-[#059669]">
                 {showPasswordChange ? "Tutup" : "Buka Formulir"}
               </span>
             </button>
 
             {passwordMsg && (
               <div
-                className={`flex items-center gap-2 p-2 mt-3 rounded-xl text-xs ${
+                className={`flex items-center gap-2 p-2 mt-3 rounded-sm text-xs ${
                   passwordMsg.type === "success"
-                    ? "bg-emerald-50 text-[#00B569] border border-emerald-200"
-                    : "bg-red-50 text-red-600 border border-red-200"
+                    ? "bg-[#A7F3D0]/30 text-[#064E3B] border border-[#059669]/20"
+                    : "bg-[#BA1A1A]/10 text-[#BA1A1A] border border-[#BA1A1A]/20"
                 }`}
               >
                 <span>{passwordMsg.text}</span>
@@ -350,7 +356,7 @@ export default function SettingsPage() {
             )}
 
             {showPasswordChange && (
-              <form onSubmit={handlePasswordSubmit} className="mt-3 space-y-3 text-xs animate-in fade-in">
+              <form onSubmit={handlePasswordSubmit} className="mt-3 space-y-2.5 text-xs animate-in fade-in">
                 <div>
                   <label className="text-muted-foreground font-medium block mb-1">Kata Sandi Saat Ini</label>
                   <Input
@@ -358,7 +364,7 @@ export default function SettingsPage() {
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="h-9 text-xs rounded-xl"
+                    className="h-9 text-xs rounded-md"
                     required
                   />
                 </div>
@@ -370,7 +376,7 @@ export default function SettingsPage() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Min. 6 digit"
-                      className="h-9 text-xs rounded-xl"
+                      className="h-9 text-xs rounded-md"
                       required
                     />
                   </div>
@@ -381,7 +387,7 @@ export default function SettingsPage() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="Ulangi sandi baru"
-                      className="h-9 text-xs rounded-xl"
+                      className="h-9 text-xs rounded-md"
                       required
                     />
                   </div>
@@ -390,7 +396,7 @@ export default function SettingsPage() {
                   type="submit"
                   size="sm"
                   disabled={changePasswordMutation.isPending}
-                  className="w-full bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-bold h-9 rounded-xl"
+                  className="w-full bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-bold h-9 rounded-md"
                 >
                   {changePasswordMutation.isPending ? "Memproses..." : "Perbarui Kata Sandi"}
                 </Button>
@@ -400,12 +406,12 @@ export default function SettingsPage() {
         </Card>
 
         {/* Google Gemini AI Studio Token Card */}
-        <Card className="p-6 rounded-2xl shadow-sm border-border/70 flex flex-col justify-between">
+        <Card className="p-4 sm:p-5 rounded-md shadow-sm border-border/70 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-border/60 mb-4">
               <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Sparkles className="h-4 w-4" />
+                <div className="flex h-7 w-7 items-center justify-center rounded-sm bg-[#A7F3D0]/40 text-[#064E3B]">
+                  <Sparkles className="h-3.5 w-3.5" />
                 </div>
                 <div>
                   <h3 className="font-extrabold text-base text-foreground">
@@ -416,12 +422,12 @@ export default function SettingsPage() {
               </div>
 
               {geminiStatus?.connected ? (
-                <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-none font-semibold text-[10px] gap-1">
+                <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-none font-semibold text-[10px] gap-1 rounded-sm">
                   <CheckCircle2 className="h-3 w-3" />
                   {geminiStatus.source === "personal" ? "Token Pribadi Aktif" : "Token Server Aktif"}
                 </Badge>
               ) : (
-                <Badge variant="outline" className="text-amber-600 border-amber-300 text-[10px] gap-1">
+                <Badge variant="outline" className="text-amber-600 border-amber-300 text-[10px] gap-1 rounded-sm">
                   <AlertCircle className="h-3 w-3" />
                   Belum Terhubung
                 </Badge>
@@ -435,10 +441,10 @@ export default function SettingsPage() {
             {/* Token status feedback */}
             {geminiMsg && (
               <div
-                className={`flex items-center gap-2 p-2.5 mb-4 rounded-xl text-xs ${
+                className={`flex items-center gap-2 p-2.5 mb-4 rounded-sm text-xs ${
                   geminiMsg.type === "success"
-                    ? "bg-emerald-50 dark:bg-emerald-950/50 text-[#00B569] border border-emerald-200"
-                    : "bg-red-50 dark:bg-red-950/50 text-red-600 border border-red-200"
+                    ? "bg-[#A7F3D0]/30 text-[#064E3B] border border-[#059669]/20"
+                    : "bg-[#BA1A1A]/10 text-[#BA1A1A] border border-[#BA1A1A]/20"
                 }`}
               >
                 {geminiMsg.type === "success" ? (
@@ -452,7 +458,7 @@ export default function SettingsPage() {
 
             {/* Active Key Info */}
             {profile?.geminiApiKeyMasked && (
-              <div className="p-3 rounded-xl bg-muted/40 border border-border/60 mb-4 flex items-center justify-between">
+              <div className="p-3 rounded-sm bg-muted/40 border border-border/60 mb-4 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] uppercase font-semibold text-muted-foreground block">
                     Token Tersimpan Saat Ini
@@ -478,7 +484,7 @@ export default function SettingsPage() {
                       removeGeminiKeyMutation.mutate();
                     }
                   }}
-                  className="text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 h-7 px-2.5"
+                  className="text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 h-7 px-2.5 rounded-sm"
                 >
                   <Trash2 className="h-3 w-3 mr-1" />
                   Putuskan
@@ -505,7 +511,7 @@ export default function SettingsPage() {
                     value={geminiKeyInput}
                     onChange={(e) => setGeminiKeyInput(e.target.value)}
                     placeholder="Masukkan Gemini API Key (misal: AIzaSy...)"
-                    className="h-10 text-xs rounded-xl pr-10 font-mono"
+                    className="h-9 sm:h-10 text-xs rounded-md pr-10 font-mono"
                     required
                   />
                   <button
@@ -522,7 +528,7 @@ export default function SettingsPage() {
                 <Button
                   type="submit"
                   disabled={setGeminiKeyMutation.isPending || !geminiKeyInput.trim()}
-                  className="bg-[#00B569] hover:bg-[#009E5B] text-white font-bold h-9 px-4 rounded-xl text-xs gap-1.5"
+                  className="bg-[#059669] hover:bg-[#047857] text-white font-semibold h-8 sm:h-9 px-4 rounded-md text-xs gap-1.5 shadow-level-1"
                 >
                   {setGeminiKeyMutation.isPending ? (
                     <>
@@ -540,7 +546,7 @@ export default function SettingsPage() {
                   href="https://aistudio.google.com/apikey"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-medium sm:ml-auto"
+                  className="inline-flex items-center gap-1 text-[11px] text-[#059669] hover:underline font-medium sm:ml-auto"
                 >
                   Ambil Key di Google AI Studio
                   <ExternalLink className="h-3 w-3" />
@@ -555,10 +561,10 @@ export default function SettingsPage() {
         </Card>
 
         {/* PAT & MCP Token Management Card */}
-        <Card className="p-6 rounded-2xl shadow-sm border-border/70 flex flex-col justify-between">
+        <Card className="p-4 sm:p-5 rounded-md shadow-sm border-border/70 flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2 mb-2 pb-3 border-b">
-              <Key className="h-4 w-4 text-[#00B569]" />
+              <Key className="h-4 w-4 text-[#059669]" />
               <h3 className="font-extrabold text-base text-foreground">
                 Personal Access Token (PAT / MCP)
               </h3>
@@ -580,13 +586,13 @@ export default function SettingsPage() {
                 placeholder="Nama token (misal: Claude Desktop)"
                 value={tokenName}
                 onChange={(e) => setTokenName(e.target.value)}
-                className="h-10 text-xs rounded-xl"
+                className="h-9 sm:h-10 text-xs rounded-md"
                 required
               />
               <Button
                 type="submit"
                 disabled={createTokenMutation.isPending}
-                className="bg-[#00B569] hover:bg-[#009E5B] text-white font-bold h-10 px-4 rounded-xl"
+                className="bg-[#059669] hover:bg-[#047857] text-white font-semibold h-9 sm:h-10 px-4 rounded-md shadow-level-1 shrink-0"
               >
                 {createTokenMutation.isPending ? "..." : "Generate"}
               </Button>
@@ -594,13 +600,13 @@ export default function SettingsPage() {
 
             {/* Raw Token Display Modal/Banner */}
             {generatedRawToken && (
-              <div className="mt-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 text-xs">
+              <div className="mt-4 p-3 rounded-md bg-amber-50 dark:bg-amber-950/60 border border-amber-300 text-xs">
                 <span className="font-bold text-amber-800 dark:text-amber-300">
                   Simpan Token Ini (Hanya Muncul Sekali):
                 </span>
-                <div className="flex items-center gap-2 mt-1.5 font-mono text-[11px] bg-background p-2 rounded-xl border">
+                <div className="flex items-center gap-2 mt-1.5 font-mono text-[11px] bg-background p-2 rounded-sm border">
                   <span className="truncate">{generatedRawToken}</span>
-                  <button onClick={handleCopy} className="ml-auto text-[#00B569] p-1">
+                  <button onClick={handleCopy} className="ml-auto text-[#059669] p-1">
                     {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
                   </button>
                 </div>
@@ -613,12 +619,12 @@ export default function SettingsPage() {
                 Daftar Token Aktif
               </div>
               {tokensList?.map((tok) => (
-                <div key={tok.id} className="flex items-center justify-between p-2.5 rounded-xl border bg-muted/30">
+                <div key={tok.id} className="flex items-center justify-between p-2.5 rounded-sm border bg-muted/30">
                   <div>
                     <div className="font-semibold text-foreground">{tok.name}</div>
                     <div className="font-mono text-[10px] text-muted-foreground">{tok.prefix}...</div>
                   </div>
-                  <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300">
+                  <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300 rounded-sm">
                     Aktif
                   </Badge>
                 </div>
@@ -635,14 +641,14 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="font-bold text-xs flex items-center gap-1.5">
-                  <ShieldCheck className="h-4 w-4 text-[#00B569]" />
+                  <ShieldCheck className="h-4 w-4 text-[#059669]" />
                   Two-Factor Authentication (2FA)
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   Proteksi TOTP (Google Authenticator)
                 </p>
               </div>
-              <Badge variant="outline" className="text-emerald-600 border-emerald-300 text-[10px]">
+              <Badge variant="outline" className="text-emerald-600 border-emerald-300 text-[10px] rounded-sm">
                 Tersedia
               </Badge>
             </div>
@@ -651,9 +657,9 @@ export default function SettingsPage() {
       </div>
 
       {/* Audit Log MCP Calls */}
-      <Card className="p-6 rounded-2xl shadow-sm border-border/70">
+      <Card className="p-4 sm:p-5 rounded-md shadow-sm border-border/70">
         <div className="flex items-center gap-2 mb-2">
-          <Bot className="h-4 w-4 text-[#00B569]" />
+          <GeometricIcon name="ai" className="h-4 w-4" />
           <h3 className="font-extrabold text-base text-foreground">
             Audit Log Panggilan AI / MCP
           </h3>
@@ -665,11 +671,11 @@ export default function SettingsPage() {
         <div className="overflow-x-auto text-xs">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b bg-muted/40 text-muted-foreground">
-                <th className="p-2.5 rounded-l-lg">Waktu</th>
+              <tr className="border-b bg-muted/40 text-muted-foreground font-semibold">
+                <th className="p-2.5 rounded-l-sm">Waktu</th>
                 <th className="p-2.5">Tool Name</th>
                 <th className="p-2.5">Status</th>
-                <th className="p-2.5 rounded-r-lg">Ringkasan Argumen</th>
+                <th className="p-2.5 rounded-r-sm">Ringkasan Argumen</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -680,7 +686,7 @@ export default function SettingsPage() {
                   </td>
                   <td className="p-2.5 font-mono font-semibold">{log.toolName}</td>
                   <td className="p-2.5">
-                    <Badge variant={log.status === "ok" ? "income" : "destructive"}>
+                    <Badge variant={log.status === "ok" ? "income" : "destructive"} className="rounded-sm text-[10px]">
                       {log.status}
                     </Badge>
                   </td>
@@ -689,7 +695,7 @@ export default function SettingsPage() {
               ))}
               {(!mcpLogs || mcpLogs.length === 0) && (
                 <tr>
-                  <td colSpan={4} className="p-8 text-center text-muted-foreground">
+                  <td colSpan={4} className="p-6 sm:p-8 text-center text-muted-foreground">
                     Belum ada riwayat pemanggilan AI tool.
                   </td>
                 </tr>

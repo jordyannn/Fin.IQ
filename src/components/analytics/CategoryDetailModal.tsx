@@ -62,12 +62,12 @@ export function CategoryDetailModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg rounded-3xl bg-card border border-border shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-card-foreground">
+      <div className="relative w-full max-w-lg rounded-md bg-card border border-border shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-card-foreground">
         {/* Header */}
         <div className="p-5 sm:p-6 border-b border-border/70 flex items-start justify-between gap-3 bg-muted/20">
           <div className="flex items-center gap-3.5 min-w-0">
             <div
-              className={`h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${
+              className={`h-11 w-11 rounded-md flex items-center justify-center shrink-0 shadow-xs ${
                 isExpense
                   ? "bg-rose-500/15 text-rose-600 dark:text-rose-400"
                   : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
@@ -87,7 +87,7 @@ export function CategoryDetailModal({
                 </h2>
                 <Badge
                   variant={isExpense ? "destructive" : "default"}
-                  className={`text-[10px] uppercase font-bold px-2 py-0.5 ${
+                  className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-sm ${
                     isExpense
                       ? "bg-rose-500/15 text-rose-600 hover:bg-rose-500/20 border-rose-500/20"
                       : "bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/20 border-emerald-500/20"
@@ -109,7 +109,7 @@ export function CategoryDetailModal({
 
           <button
             onClick={onClose}
-            className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
             title="Tutup"
           >
             <X className="h-5 w-5" />

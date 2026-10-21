@@ -48,10 +48,10 @@ export const BASIC_TOUR_STEPS: TourStep[] = [
     targetAttr: "data-tour='quick-add'",
     title: "2. Catat Transaksi Super Kilat",
     description:
-      "Klik tombol 'Tambah Transaksi' di sidebar untuk mencatat manual, atau gunakan fitur Scan Struk Nota bertenaga AI tanpa perlu repot mengetik.",
+      "Klik tombol 'Catat Transaksi' untuk mencatat manual, atau gunakan fitur Scan Struk Nota bertenaga AI tanpa perlu repot mengetik.",
     mascotExpression: "cuan",
     speechQuote: "Ada nota belanja? Tinggal foto langsung beres!",
-    position: "right",
+    position: "bottom",
   },
   {
     id: "date-filter",
@@ -87,51 +87,41 @@ export const BASIC_TOUR_STEPS: TourStep[] = [
 
 export const TECHNICAL_TOUR_STEPS: TourStep[] = [
   {
-    id: "tech-intro",
-    targetAttr: "data-tour='overview-hero'",
-    title: "1. Mode Analis & Bedah Teknis",
-    description:
-      "Selamat datang di modul teknis Fin.IQ! Di sesi ini, saya (Bang Peci Mode Analis) akan membedah cara membaca grafik, rumus kas, hingga trik budgeting profesional.",
-    mascotExpression: "tech-halo",
-    speechQuote: "Kacamata terpasang, mari kita bedah datanya secara presisi!",
-    position: "bottom",
-  },
-  {
-    id: "tech-cashflow",
-    targetAttr: "data-tour='overview-hero'",
-    title: "2. Bedah Rumus Arus Kas & Saldo",
-    description:
-      "Perhatikan kartu Arus Kas Bersih: Pemasukan dikurangi Pengeluaran sama dengan Arus Kas Bersih (Surplus/Defisit). Ini rumus emas kesehatan finansialmu!",
-    mascotExpression: "tech-teori",
-    speechQuote: "Pemasukan - Pengeluaran = Surplus! Jangan sampai defisit ya!",
-    position: "bottom",
-  },
-  {
-    id: "tech-quickadd",
-    targetAttr: "data-tour='quick-add'",
-    title: "3. Input Transaksi & Scan Struk AI",
-    description:
-      "Pencatatan yang disiplin adalah kunci. Klik tombol 'Tambah Transaksi' di sidebar: pilih kas Pemasukan/Pengeluaran/Transfer, kategori pos belanja, atau scan OCR nota otomatis.",
-    mascotExpression: "tech-penjelasan",
-    speechQuote: "Catat setiap pengeluaran sekecil apapun biar data selalu akurat!",
-    position: "right",
-  },
-  {
     id: "tech-sparkline",
     targetAttr: "data-tour='overview-sparkline'",
-    title: "4. Cara Baca Kurva Kas & Sparkline",
+    title: "1. Analisis Kurva Kas & Fluktuasi Harian",
     description:
-      "Grafik area di kanan menunjukkan akumulasi kas harian. Garis yang menanjak hijau menandakan surplus bertambah, sedangkan turunan merah menandakan belanja besar.",
+      "Grafik area ini memetakan fluktuasi akumulatif keuanganmu sepanjang periode berjalan. Tanjakan garis hijau menandakan surplus kas bertambah, sedangkan penurunan tajam menandakan pengeluaran belanja besar.",
     mascotExpression: "tech-analisis",
     speechQuote: "Perhatikan tanjakan dan turunannya untuk membaca ritme uangmu!",
     position: "bottom",
   },
   {
+    id: "tech-habits",
+    targetAttr: "data-tour='overview-habit-stats'",
+    title: "2. Rasio Kebiasaan Finansial (Habit Tracker)",
+    description:
+      "Tiga metrik kunci untuk mengukur kedisiplinan: Rata-rata belanja harian, frekuensi pencatatan transaksi per hari, dan rasio tabunganmu terhadap total pemasukan.",
+    mascotExpression: "tech-teori",
+    speechQuote: "Konsistensi mencatat adalah fondasi kesehatan finansialmu!",
+    position: "bottom",
+  },
+  {
+    id: "tech-import",
+    targetAttr: "data-tour='overview-import-hub'",
+    title: "3. Hub Impor Dokumen & Mutasi Bank AI",
+    description:
+      "Punya mutasi rekening m-Banking (BCA, Mandiri, BRI, BNI), e-wallet, atau file Excel? Unggah ke Hub Impor Fin.IQ, AI kami akan mengekstrak ratusan transaksi otomatis tanpa perlu input manual!",
+    mascotExpression: "tech-penjelasan",
+    speechQuote: "Tinggal upload statement bank, AI langsung merapikan semuanya!",
+    position: "bottom",
+  },
+  {
     id: "tech-ranks",
     targetAttr: "data-tour='overview-expense-ranks'",
-    title: "5. Analisis Peringkat Pos Boros",
+    title: "4. Audit Pos Pengeluaran & Kebocoran Kas",
     description:
-      "Pantau 3 kategori teratas dengan persentase pengeluaran terbesar. Jika pos hiburan atau jajan mendominasi, saatnya melakukan rem anggaran!",
+      "Pantau 5 kategori teratas dengan persentase dan nominal pengeluaran terbesar. Jika pos hiburan atau jajan mendominasi, jadikan ini sinyal untuk mengerem anggaran!",
     mascotExpression: "tech-warning",
     speechQuote: "Pos teratas adalah tersangka utama kebocoran saldo dompet!",
     position: "top",
@@ -139,9 +129,9 @@ export const TECHNICAL_TOUR_STEPS: TourStep[] = [
   {
     id: "tech-heatmap",
     targetAttr: "data-tour='overview-heatmap'",
-    title: "6. Konsistensi Kalender & Rekomendasi ACC",
+    title: "5. Kalender Aktivitas & Evaluasi Tahunan",
     description:
-      "Heatmap tahunan mencatat intensitas belanja tiap tanggal. Jaga ritme hematmu agar status anggaran selalu 'APPROVED AMAN' dan siap investasi!",
+      "Heatmap tahunan kuartalan mencatat intensitas belanja tiap tanggal. Jaga ritme hematmu agar status anggaran selalu 'APPROVED AMAN' dan siap dialokasikan ke tabungan investasi!",
     mascotExpression: "tech-acc",
     speechQuote: "Disiplin terus biar rapor keuanganmu dapat cap APPROVED AMAN!",
     position: "top",

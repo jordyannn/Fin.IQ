@@ -196,7 +196,7 @@ export function CategorySelect({
         <div
           onWheel={(e) => e.stopPropagation()}
           className={cn(
-            "absolute left-0 z-50 w-full min-w-[300px] rounded-2xl border border-border/80 bg-card/98 backdrop-blur-md p-2.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-2 text-card-foreground",
+            "absolute left-0 z-50 w-full min-w-[300px] rounded-md border border-border/80 bg-card/98 backdrop-blur-md p-2.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-2 text-card-foreground",
             openUpward
               ? "bottom-full mb-2 origin-bottom shadow-[-4px_-8px_24px_rgba(0,0,0,0.18)]"
               : "top-full mt-2 origin-top shadow-[4px_12px_32px_rgba(0,0,0,0.2)]"
@@ -204,9 +204,9 @@ export function CategorySelect({
         >
           {/* Rekomendasi NLP Banner (Pinned) */}
           {recommendedCategory && !isRecommendedAlreadyInList && onCreateRecommended && (
-            <div className="p-2.5 rounded-xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-transparent border border-emerald-500/30 flex items-center justify-between gap-2 shadow-xs">
+            <div className="p-2.5 rounded-md bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-transparent border border-emerald-500/30 flex items-center justify-between gap-2 shadow-xs">
               <div className="flex items-center gap-2 min-w-0">
-                <div className="h-7 w-7 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <div className="h-7 w-7 rounded-md bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
                   <Sparkles className="h-3.5 w-3.5" />
                 </div>
                 <div className="flex flex-col min-w-0">

@@ -104,7 +104,7 @@ export function OverviewMascotMood({
   };
 
   return (
-    <div className="relative group overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-card/90 via-card/70 to-muted/30 p-3.5 sm:p-4 backdrop-blur-md shadow-sm transition-all hover:shadow-md">
+    <div className="relative group overflow-hidden rounded-md border border-border/70 bg-gradient-to-br from-card/90 via-card/70 to-muted/30 p-3.5 sm:p-4 backdrop-blur-md shadow-2xs transition-all hover:shadow-xs">
       {/* Decorative Glow */}
       <div
         className={`absolute -right-8 -top-8 h-32 w-32 rounded-full blur-3xl opacity-20 pointer-events-none transition-colors ${
@@ -152,7 +152,7 @@ export function OverviewMascotMood({
                   • Asisten Fin.IQ
                 </span>
               </span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeColor}`}>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm border ${badgeColor}`}>
                 {badgeText}
               </span>
             </div>
@@ -161,14 +161,14 @@ export function OverviewMascotMood({
             <div className="flex items-center gap-1 text-muted-foreground">
               <button
                 onClick={handleMascotClick}
-                className="p-1 rounded-lg hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+                className="p-1 rounded-md hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
                 title="Ganti Celetukan"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={toggleMute}
-                className="p-1 rounded-lg hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+                className="p-1 rounded-md hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
                 title={isMuted ? "Aktifkan Suara Maskot" : "Bisukan Suara Maskot"}
               >
                 {isMuted ? <VolumeX className="h-3.5 w-3.5 text-muted-foreground" /> : <Volume2 className="h-3.5 w-3.5 text-primary" />}
@@ -177,7 +177,7 @@ export function OverviewMascotMood({
           </div>
 
           {/* Dialog Bubble */}
-          <div className="relative rounded-xl border border-primary/20 bg-primary/5 dark:bg-primary/10 px-3 py-2 text-xs sm:text-sm text-foreground leading-relaxed shadow-sm">
+          <div className="relative rounded-md border border-primary/20 bg-primary/5 dark:bg-primary/10 px-3 py-2 text-xs sm:text-sm text-foreground leading-relaxed shadow-2xs">
             <p className="font-medium text-foreground/90">
               "{activeQuote}"
             </p>

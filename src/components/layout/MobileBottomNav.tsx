@@ -1,16 +1,11 @@
-/* Hallmark · component: MobileBottomNav · theme: Bibit-Fintech · discipline: mobile-first · states: default, hover, focus, active */
+/* Geometric Minimalist Intelligence · MobileBottomNav · Fin.IQ */
 "use client";
 
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Receipt,
-  Plus,
-  Wallet,
-  Menu,
-} from "lucide-react";
+import { Plus, Menu } from "lucide-react";
+import { GeometricIcon } from "@/components/ui/GeometricIcon";
 import { useUIStore } from "@/store/ui.store";
 import { cn } from "@/lib/utils";
 
@@ -19,12 +14,12 @@ export function MobileBottomNav() {
   const { openQuickAdd, toggleSidebar } = useUIStore();
 
   const leftItems = [
-    { label: "Home", href: "/overview", icon: LayoutDashboard },
-    { label: "Transaksi", href: "/transactions", icon: Receipt },
+    { label: "Home", href: "/overview", iconName: "overview" as const },
+    { label: "Transaksi", href: "/transactions", iconName: "transactions" as const },
   ];
 
   const rightItems = [
-    { label: "Akun", href: "/accounts", icon: Wallet },
+    { label: "Akun", href: "/accounts", iconName: "accounts" as const },
   ];
 
   const isMenuRoutes = ![
@@ -34,10 +29,9 @@ export function MobileBottomNav() {
   ].some((r) => pathname === r || pathname?.startsWith(r));
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-16 w-full items-center justify-around border-t border-border/60 bg-card/95 px-3 backdrop-blur-xl lg:hidden shadow-lg shadow-black/5">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-16 w-full items-center justify-around border-t border-border/70 bg-card/95 px-3 backdrop-blur-xl lg:hidden shadow-level-2">
       {/* 2 Item Kiri */}
       {leftItems.map((item) => {
-        const Icon = item.icon;
         const isActive = pathname === item.href || (item.href !== "/overview" && pathname?.startsWith(item.href));
         return (
           <Link
@@ -51,9 +45,14 @@ export function MobileBottomNav() {
             )}
           >
             <div className="relative">
-              <Icon className={cn("h-5 w-5 transition-transform", isActive && "stroke-[2.5px] scale-105")} />
+              <GeometricIcon
+                name={item.iconName}
+                size="sm"
+                active={isActive}
+                className={cn("transition-transform", isActive && "scale-110")}
+              />
               {isActive && (
-                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-primary" />
+                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-xs bg-primary" />
               )}
             </div>
             <span>{item.label}</span>
@@ -62,19 +61,18 @@ export function MobileBottomNav() {
       })}
 
       {/* Floating Center Action Button (Quick Add) */}
-      <div className="relative -top-5 flex items-center justify-center">
+      <div className="relative -top-3 flex items-center justify-center">
         <button
           onClick={openQuickAdd}
-          className="flex h-13 w-13 p-3 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/35 transition-transform active:scale-90 border-4 border-background"
+          className="flex h-11 w-11 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-glow-emerald transition-transform active:scale-90 border-2 border-background"
           aria-label="Catat Transaksi Cepat"
         >
-          <Plus className="h-6 w-6 stroke-[3px]" />
+          <Plus className="h-5 w-5 stroke-[3px]" />
         </button>
       </div>
 
       {/* Item Kanan (Akun) */}
       {rightItems.map((item) => {
-        const Icon = item.icon;
         const isActive = pathname === item.href || pathname?.startsWith(item.href);
         return (
           <Link
@@ -88,9 +86,14 @@ export function MobileBottomNav() {
             )}
           >
             <div className="relative">
-              <Icon className={cn("h-5 w-5 transition-transform", isActive && "stroke-[2.5px] scale-105")} />
+              <GeometricIcon
+                name={item.iconName}
+                size="sm"
+                active={isActive}
+                className={cn("transition-transform", isActive && "scale-110")}
+              />
               {isActive && (
-                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-primary" />
+                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-xs bg-primary" />
               )}
             </div>
             <span>{item.label}</span>
@@ -110,9 +113,9 @@ export function MobileBottomNav() {
         aria-label="Menu Lengkap"
       >
         <div className="relative">
-          <Menu className={cn("h-5 w-5", isMenuRoutes && "stroke-[2.5px] scale-105")} />
+          <Menu className={cn("h-5 w-5", isMenuRoutes && "stroke-[2.5px] text-primary scale-105")} />
           {isMenuRoutes && (
-            <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-primary" />
+            <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-xs bg-primary" />
           )}
         </div>
         <span>Menu</span>

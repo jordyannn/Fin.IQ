@@ -560,19 +560,19 @@ export function QuickAddModal() {
       <form
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
-        className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-3xl bg-card border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in zoom-in-95 duration-150"
+        className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-md bg-card border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in zoom-in-95 duration-150"
       >
         {/* Header - Fixed & Pinned at Top */}
         <div className="flex items-center justify-between border-b px-6 py-4 shrink-0 bg-card z-10">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
               <Sparkles className="h-4 w-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-foreground">Catat Transaksi</h2>
                 {hasDraftData && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
                     Draf Tersimpan
                   </span>
@@ -586,7 +586,7 @@ export function QuickAddModal() {
               <button
                 type="button"
                 onClick={handleClearForm}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all border border-border/60 hover:border-destructive/30 cursor-pointer shadow-2xs"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all border border-border/60 hover:border-destructive/30 cursor-pointer shadow-2xs"
                 title="Bersihkan seluruh input form"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
@@ -596,7 +596,7 @@ export function QuickAddModal() {
             <button
               type="button"
               onClick={closeQuickAdd}
-              className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
               title="Tutup (Draf input tetap tersimpan)"
             >
               <X className="h-4 w-4" />
@@ -733,7 +733,7 @@ export function QuickAddModal() {
                   setNlpInputText("");
                 }
               }}
-              className="h-8 px-3 rounded-xl text-xs font-bold bg-[#00B569] hover:bg-[#009E5B] text-white shrink-0 gap-1 cursor-pointer"
+              className="h-8 px-3 rounded-[10px] text-xs font-semibold bg-[#059669] hover:bg-[#047857] text-white shrink-0 gap-1 cursor-pointer shadow-level-1"
               title="Parse transaksi otomatis dengan NLP lokal"
             >
               <Sparkles className="h-3 w-3" />
@@ -846,7 +846,7 @@ export function QuickAddModal() {
         {/* Modal Zoom Preview Struk */}
         {previewModalOpen && receiptPreviewUrl && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 animate-in fade-in">
-            <div className="relative max-w-md w-full max-h-[85vh] bg-card rounded-2xl overflow-hidden flex flex-col p-4 border shadow-2xl">
+            <div className="relative max-w-md w-full max-h-[85vh] bg-card rounded-md overflow-hidden flex flex-col p-4 border shadow-2xl">
               <div className="flex items-center justify-between pb-3 border-b">
                 <span className="text-sm font-bold flex items-center gap-1.5">
                   <Receipt className="h-4 w-4 text-primary" />
@@ -855,16 +855,16 @@ export function QuickAddModal() {
                 <button
                   type="button"
                   onClick={() => setPreviewModalOpen(false)}
-                  className="p-1 rounded-full text-muted-foreground hover:bg-muted"
+                  className="p-1 rounded-sm text-muted-foreground hover:bg-muted"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <div className="flex-1 overflow-auto py-3 flex items-center justify-center bg-black/5 rounded-xl mt-2">
+              <div className="flex-1 overflow-auto py-3 flex items-center justify-center bg-black/5 rounded-md mt-2">
                 <img
                   src={receiptPreviewUrl}
                   alt="Struk Belanja Penuh"
-                  className="max-h-[60vh] object-contain rounded-lg"
+                  className="max-h-[60vh] object-contain rounded-sm"
                 />
               </div>
               <div className="mt-3 flex justify-end">
@@ -872,7 +872,7 @@ export function QuickAddModal() {
                   type="button"
                   size="sm"
                   onClick={() => setPreviewModalOpen(false)}
-                  className="text-xs"
+                  className="text-xs rounded-md"
                 >
                   Tutup
                 </Button>
@@ -888,7 +888,7 @@ export function QuickAddModal() {
             onClick={() => setShowSourceChoiceModal(false)}
           >
             <div
-              className="w-full max-w-sm rounded-2xl bg-card border border-border p-5 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150"
+              className="w-full max-w-sm rounded-md bg-card border border-border p-5 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between">
@@ -917,9 +917,9 @@ export function QuickAddModal() {
                     setShowSourceChoiceModal(false);
                     cameraInputRef.current?.click();
                   }}
-                  className="flex flex-col items-center justify-center gap-2.5 p-4 rounded-xl border-2 border-border/70 hover:border-primary hover:bg-primary/5 transition-all text-center group cursor-pointer"
+                  className="flex flex-col items-center justify-center gap-2.5 p-4 rounded-md border-2 border-border/70 hover:border-primary hover:bg-primary/5 transition-all text-center group cursor-pointer"
                 >
-                  <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <div className="h-12 w-12 rounded-md bg-primary/10 text-primary flex items-center justify-center group-hover:scale-105 transition-transform">
                     <Camera className="h-6 w-6" />
                   </div>
                   <div className="flex flex-col">
@@ -934,9 +934,9 @@ export function QuickAddModal() {
                     setShowSourceChoiceModal(false);
                     galleryInputRef.current?.click();
                   }}
-                  className="flex flex-col items-center justify-center gap-2.5 p-4 rounded-xl border-2 border-border/70 hover:border-primary hover:bg-primary/5 transition-all text-center group cursor-pointer"
+                  className="flex flex-col items-center justify-center gap-2.5 p-4 rounded-md border-2 border-border/70 hover:border-primary hover:bg-primary/5 transition-all text-center group cursor-pointer"
                 >
-                  <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <div className="h-12 w-12 rounded-md bg-primary/10 text-primary flex items-center justify-center group-hover:scale-105 transition-transform">
                     <ImageIcon className="h-6 w-6" />
                   </div>
                   <div className="flex flex-col">
@@ -952,14 +952,14 @@ export function QuickAddModal() {
         {/* Form Body Fields */}
         <div className="space-y-4 pt-1">
           {/* Tipe Transaksi */}
-          <div className="grid grid-cols-3 gap-2 rounded-xl bg-muted p-1">
+          <div className="grid grid-cols-3 gap-2 rounded-md bg-muted/60 p-1">
             <button
               type="button"
               onClick={() => handleTxTypeChange("expense")}
               className={cn(
-                "flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all",
+                "flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all",
                 txType === "expense"
-                  ? "bg-rose-600 text-white shadow-sm"
+                  ? "bg-rose-600 text-white shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -970,9 +970,9 @@ export function QuickAddModal() {
               type="button"
               onClick={() => handleTxTypeChange("income")}
               className={cn(
-                "flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all",
+                "flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all",
                 txType === "income"
-                  ? "bg-emerald-600 text-white shadow-sm"
+                  ? "bg-emerald-600 text-white shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -983,9 +983,9 @@ export function QuickAddModal() {
               type="button"
               onClick={() => handleTxTypeChange("transfer")}
               className={cn(
-                "flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all",
+                "flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all",
                 txType === "transfer"
-                  ? "bg-blue-600 text-white shadow-sm"
+                  ? "bg-blue-600 text-white shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -1102,9 +1102,9 @@ export function QuickAddModal() {
 
           {/* Rekomendasi Kategori NLP Banner */}
           {nlpRecommendedCategory && !categoriesList?.some((c) => c.name.toLowerCase().trim() === nlpRecommendedCategory.name.toLowerCase().trim()) && (
-            <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-transparent border border-emerald-500/30 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="p-3 rounded-md bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-transparent border border-emerald-500/30 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="h-8 w-8 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <div className="h-8 w-8 rounded-md bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
                   <Sparkles className="h-4 w-4" />
                 </div>
                 <div className="flex flex-col min-w-0">
@@ -1123,7 +1123,7 @@ export function QuickAddModal() {
                 type="button"
                 size="sm"
                 onClick={() => handleCreateRecommendedCategory(nlpRecommendedCategory.name, nlpRecommendedCategory.kind)}
-                className="h-8 px-3 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 gap-1.5 shadow-sm cursor-pointer transition-all"
+                className="h-8 px-3 text-xs font-bold rounded-md bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 gap-1.5 shadow-xs cursor-pointer transition-all"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Buat Kategori
@@ -1279,7 +1279,7 @@ export function QuickAddModal() {
               disabled={!hasDraftData || isSubmitting}
               onClick={handleClearForm}
               className={cn(
-                "rounded-xl h-10 px-3 text-xs font-semibold transition-colors gap-1.5 cursor-pointer",
+                "rounded-md h-9 px-3 text-xs font-semibold transition-colors gap-1.5 cursor-pointer",
                 hasDraftData
                   ? "text-muted-foreground hover:text-destructive hover:border-destructive/40 hover:bg-destructive/10"
                   : "opacity-40 cursor-not-allowed text-muted-foreground"
@@ -1292,7 +1292,7 @@ export function QuickAddModal() {
             <Button
               type="button"
               variant="ghost"
-              className="rounded-xl h-10 text-xs font-semibold cursor-pointer text-muted-foreground hover:text-foreground"
+              className="rounded-md h-9 text-xs font-semibold cursor-pointer text-muted-foreground hover:text-foreground"
               onClick={closeQuickAdd}
               title="Tutup modal (Draf input tetap tersimpan)"
             >
@@ -1302,7 +1302,7 @@ export function QuickAddModal() {
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="flex-1 max-w-[240px] bg-primary hover:bg-primary/90 text-white font-bold rounded-xl h-10 text-xs shadow-md cursor-pointer transition-all"
+            className="flex-1 max-w-[240px] bg-primary hover:bg-primary/90 text-white font-bold rounded-md h-9 text-xs shadow-xs cursor-pointer transition-all"
           >
             {isSubmitting ? "Menyimpan..." : "Simpan Transaksi"}
           </Button>

@@ -163,7 +163,7 @@ export function MascotNavigator() {
       ========================================================================= */}
       {isWelcomePromptOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-primary/30 bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="relative w-full max-w-md overflow-hidden rounded-md border border-primary/30 bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-200">
             {/* Background Glow */}
             <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
 
@@ -172,7 +172,7 @@ export function MascotNavigator() {
                 markWelcomeAsSeen();
                 mascotSound.playPop();
               }}
-              className="absolute right-4 top-4 p-1.5 rounded-full text-muted-foreground hover:bg-muted transition-colors"
+              className="absolute right-4 top-4 p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors"
               aria-label="Tutup"
             >
               <X className="h-4 w-4" />
@@ -193,7 +193,7 @@ export function MascotNavigator() {
               </div>
 
               <div className="mt-2">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-sm text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
                   <Sparkles className="h-3 w-3" />
                   Pemandu Fin.IQ
                 </span>
@@ -212,7 +212,7 @@ export function MascotNavigator() {
                     markWelcomeAsSeen();
                     startBasicTour();
                   }}
-                  className="w-full flex-1 py-2.5 px-4 rounded-xl font-bold text-sm bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2"
+                  className="relative w-full flex-1 py-2.5 px-4 rounded-md font-bold text-sm bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 animate-button-ripple"
                 >
                   <Compass className="h-4 w-4" />
                   Mulai Tur Panduan
@@ -222,7 +222,7 @@ export function MascotNavigator() {
                     markWelcomeAsSeen();
                     mascotSound.playPop();
                   }}
-                  className="w-full sm:w-auto py-2.5 px-4 rounded-xl font-semibold text-xs text-muted-foreground hover:bg-muted transition-colors"
+                  className="w-full sm:w-auto py-2.5 px-4 rounded-md font-semibold text-xs text-muted-foreground hover:bg-muted transition-colors"
                 >
                   Nanti Saja
                 </button>
@@ -237,12 +237,12 @@ export function MascotNavigator() {
       ========================================================================= */}
       {isContinuationPromptOpen && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-primary/30 bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="relative w-full max-w-md overflow-hidden rounded-md border border-primary/30 bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
 
             <button
               onClick={closeContinuationPrompt}
-              className="absolute right-4 top-4 p-1.5 rounded-full text-muted-foreground hover:bg-muted transition-colors"
+              className="absolute right-4 top-4 p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors"
               aria-label="Tutup"
             >
               <X className="h-4 w-4" />
@@ -263,7 +263,7 @@ export function MascotNavigator() {
               </div>
 
               <div className="mt-2">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-sm text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
                   <CheckCircle2 className="h-3 w-3" />
                   Tur Dasar Selesai!
                 </span>
@@ -271,7 +271,7 @@ export function MascotNavigator() {
                   Mau Lanjut Tur Teknis atau Ngulik Sendiri? 🧭
                 </h3>
                 <p className="text-xs sm:text-sm text-muted-foreground mt-2 leading-relaxed">
-                  Hebat! Kamu sudah paham navigasi umum Fin.IQ. Sekarang kamu bisa lanjut ke <strong className="text-foreground">Tutorial Teknis</strong> (cara baca rumus cashflow, sparkline, dan trik catat cepat), atau mau santai <strong className="text-foreground">ngulik sendiri</strong> dulu?
+                  Hebat! Kamu sudah paham navigasi umum Fin.IQ. Sekarang kamu bisa lanjut ke <strong className="text-foreground">Tutorial Teknis</strong> (cara baca kurva fluktuasi kas, metrik habit harian, hub impor mutasi AI, dan audit pos boros), atau mau santai <strong className="text-foreground">ngulik sendiri</strong> dulu?
                 </p>
               </div>
 
@@ -281,14 +281,14 @@ export function MascotNavigator() {
                   onClick={() => {
                     startTechnicalTour();
                   }}
-                  className="w-full flex-1 py-2.5 px-4 rounded-xl font-bold text-sm bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2"
+                  className="relative w-full flex-1 py-2.5 px-4 rounded-md font-bold text-sm bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 animate-button-ripple"
                 >
                   <Compass className="h-4 w-4" />
                   Lanjut Tur Teknis 🚀
                 </button>
                 <button
                   onClick={chooseNgulikSendiri}
-                  className="w-full sm:w-auto py-2.5 px-4 rounded-xl font-semibold text-xs border border-border bg-card text-foreground hover:bg-muted transition-colors"
+                  className="w-full sm:w-auto py-2.5 px-4 rounded-md font-semibold text-xs border border-border bg-card text-foreground hover:bg-muted transition-colors"
                 >
                   Ngulik Sendiri Dulu
                 </button>
@@ -302,20 +302,74 @@ export function MascotNavigator() {
           2. SPOTLIGHT TOUR WALKTHROUGH OVERLAY (Tur 1 & Tur 2)
       ========================================================================= */}
       {isTourActive && (
-        <div className="fixed inset-0 z-[150] pointer-events-auto">
+        <div className="fixed inset-0 z-[150] pointer-events-none">
           {/* Dark Overlay with Target Element Cutout */}
           {targetRect ? (
-            <div
-              className="absolute transition-all duration-300 ease-out pointer-events-none rounded-2xl"
-              style={{
-                top: `${Math.max(0, targetRect.top - 8)}px`,
-                left: `${Math.max(0, targetRect.left - 8)}px`,
-                width: `${targetRect.width + 16}px`,
-                height: `${targetRect.height + 16}px`,
-                boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.72)",
-                border: "2px solid #00B569",
-              }}
-            />
+            <>
+              {/* 4 Blocker Divs that darken background and prevent outside clicks */}
+              <div
+                className="fixed top-0 left-0 right-0 bg-black/75 pointer-events-auto transition-all duration-300"
+                style={{ height: `${Math.max(0, targetRect.top - 8)}px` }}
+              />
+              <div
+                className="fixed left-0 right-0 bottom-0 bg-black/75 pointer-events-auto transition-all duration-300"
+                style={{ top: `${targetRect.bottom + 8}px` }}
+              />
+              <div
+                className="fixed left-0 bg-black/75 pointer-events-auto transition-all duration-300"
+                style={{
+                  top: `${Math.max(0, targetRect.top - 8)}px`,
+                  height: `${targetRect.height + 16}px`,
+                  width: `${Math.max(0, targetRect.left - 8)}px`,
+                }}
+              />
+              <div
+                className="fixed right-0 bg-black/75 pointer-events-auto transition-all duration-300"
+                style={{
+                  top: `${Math.max(0, targetRect.top - 8)}px`,
+                  height: `${targetRect.height + 16}px`,
+                  left: `${targetRect.right + 8}px`,
+                }}
+              />
+
+              {/* Spotlight Frame with Gentle Radar Border & Calm Ripple Waves */}
+              <div
+                className="fixed transition-all duration-300 ease-out pointer-events-none rounded-md z-[155] animate-tour-radar"
+                style={{
+                  top: `${Math.max(0, targetRect.top - 8)}px`,
+                  left: `${Math.max(0, targetRect.left - 8)}px`,
+                  width: `${targetRect.width + 16}px`,
+                  height: `${targetRect.height + 16}px`,
+                }}
+              >
+                {/* 2 Calm & Slow Expanding Ripple Waves */}
+                <span className="absolute -inset-1 rounded-md border border-[#059669]/50 animate-tour-ripple-1 pointer-events-none" />
+                <span className="absolute -inset-2.5 rounded-md border border-[#059669]/30 animate-tour-ripple-2 pointer-events-none" />
+
+                {/* Subtle Target Beacon Badge: "KLIK DI SINI" */}
+                <div
+                  className={`absolute z-20 flex items-center gap-1.5 px-2.5 py-0.5 rounded-sm bg-[#059669] text-white text-[10px] font-bold shadow-md border border-white/50 tracking-wider pointer-events-none select-none transition-all ${
+                    targetRect.top < 65 ? "-bottom-3.5 left-3" : "-top-3.5 left-3"
+                  }`}
+                >
+                  <span className="h-1.5 w-1.5 rounded-xs bg-white/90 shadow-xs" />
+                  <span>
+                    {currentStep.targetAttr.includes("quick-add") ||
+                    currentStep.targetAttr.includes("ai-studio") ||
+                    currentStep.targetAttr.includes("filter")
+                      ? "KLIK DI SINI"
+                      : "AREA TARGET"}
+                  </span>
+                  <span className="text-[11px]">
+                    {currentStep.targetAttr.includes("quick-add") ||
+                    currentStep.targetAttr.includes("ai-studio") ||
+                    currentStep.targetAttr.includes("filter")
+                      ? "👆"
+                      : "🎯"}
+                  </span>
+                </div>
+              </div>
+            </>
           ) : (
             <div className="fixed inset-0 bg-black/75 backdrop-blur-sm pointer-events-auto" />
           )}
@@ -351,7 +405,7 @@ export function MascotNavigator() {
                   }
             }
           >
-            <div className="relative overflow-hidden rounded-3xl border border-primary/30 bg-card p-5 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-200">
+            <div className="relative overflow-hidden rounded-md border border-primary/30 bg-card p-5 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-200">
               {/* Header: Bang Peci expression & Step Badge */}
               <div className="flex items-center justify-between gap-3 pb-3 border-b border-border/70">
                 <div className="flex items-center gap-2.5">
@@ -377,7 +431,7 @@ export function MascotNavigator() {
 
                 <button
                   onClick={endTour}
-                  className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted"
+                  className="p-1.5 rounded-md text-muted-foreground hover:bg-muted"
                   title="Lewati Tur"
                 >
                   <X className="h-4 w-4" />
@@ -390,7 +444,7 @@ export function MascotNavigator() {
                   {currentStep.description}
                 </p>
 
-                <div className="rounded-xl bg-primary/10 border border-primary/20 px-3 py-2 text-xs font-medium text-foreground flex items-center gap-2">
+                <div className="rounded-sm bg-primary/10 border border-primary/20 px-3 py-2 text-xs font-medium text-foreground flex items-center gap-2">
                   <span className="text-sm">💬</span>
                   <span className="italic font-semibold text-primary">
                     "{currentStep.speechQuote}"
@@ -406,7 +460,7 @@ export function MascotNavigator() {
                     <button
                       key={i}
                       onClick={() => setStepIndex(i)}
-                      className={`h-2 rounded-full transition-all ${
+                      className={`h-2 rounded-xs transition-all ${
                         i === currentStepIndex
                           ? "w-6 bg-primary"
                           : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50"
@@ -421,7 +475,7 @@ export function MascotNavigator() {
                   {currentStepIndex > 0 && (
                     <button
                       onClick={prevStep}
-                      className="p-2 rounded-xl border border-input text-foreground hover:bg-muted transition-colors text-xs font-semibold flex items-center gap-1"
+                      className="p-2 rounded-md border border-input text-foreground hover:bg-muted transition-colors text-xs font-semibold flex items-center gap-1"
                     >
                       <ChevronLeft className="h-3.5 w-3.5" />
                       Kembali
@@ -430,7 +484,7 @@ export function MascotNavigator() {
 
                   <button
                     onClick={nextStep}
-                    className="py-2 px-3.5 rounded-xl font-bold text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-transform active:scale-95 flex items-center gap-1.5"
+                    className="relative py-2 px-3.5 rounded-md font-bold text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 animate-button-ripple"
                   >
                     {currentStepIndex === activeSteps.length - 1 ? (
                       <>
@@ -458,7 +512,7 @@ export function MascotNavigator() {
         <div className="fixed bottom-20 lg:bottom-6 right-4 lg:right-6 z-[90] flex flex-col items-end">
           {/* Subtle Teaser Hint Tooltip */}
           {showTooltipHint && !isBubbleOpen && (
-            <div className="mb-2 mr-1 rounded-2xl border border-primary/30 bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 flex items-center gap-2 max-w-xs">
+            <div className="mb-2 mr-1 rounded-md border border-primary/30 bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 flex items-center gap-2 max-w-xs">
               <span>👋 Butuh bantuan atau panduan? Klik Bang Peci!</span>
               <button
                 onClick={() => setShowTooltipHint(false)}
@@ -471,7 +525,7 @@ export function MascotNavigator() {
 
           {/* Interactive Menu Popover */}
           {isBubbleOpen && (
-            <div className="mb-3 w-72 sm:w-80 overflow-hidden rounded-3xl border border-border/80 bg-card/95 p-4 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-200">
+            <div className="mb-3 w-72 sm:w-80 overflow-hidden rounded-md border border-border/80 bg-card/95 p-4 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-200">
               {/* Header */}
               <div className="flex items-center justify-between pb-3 border-b border-border/70">
                 <div className="flex items-center gap-2">
@@ -488,7 +542,7 @@ export function MascotNavigator() {
                   <div>
                     <h4 className="font-extrabold text-sm text-foreground flex items-center gap-1.5">
                       Bang Peci
-                      <span className="text-[10px] font-semibold text-primary px-1.5 py-0.2 rounded-md bg-primary/10">
+                      <span className="text-[10px] font-semibold text-primary px-1.5 py-0.2 rounded-sm bg-primary/10">
                         {mascotOutfit === "analyst" ? "Mode Analis 👓" : "Mode Santai 🧢"}
                       </span>
                     </h4>
@@ -499,14 +553,14 @@ export function MascotNavigator() {
                 <div className="flex items-center gap-1">
                   <button
                     onClick={toggleMute}
-                    className="p-1 rounded-lg text-muted-foreground hover:bg-muted"
+                    className="p-1 rounded-md text-muted-foreground hover:bg-muted"
                     title={isMuted ? "Bunyikan Suara" : "Bisukan Suara"}
                   >
                     {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4 text-primary" />}
                   </button>
                   <button
                     onClick={() => setBubbleOpen(false)}
-                    className="p-1 rounded-lg text-muted-foreground hover:bg-muted"
+                    className="p-1 rounded-md text-muted-foreground hover:bg-muted"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -514,7 +568,7 @@ export function MascotNavigator() {
               </div>
 
               {/* Random Tip Box */}
-              <div className="mt-3 rounded-2xl bg-muted/60 border border-border/60 p-3">
+              <div className="mt-3 rounded-md bg-muted/60 border border-border/60 p-3">
                 <div className="flex items-center justify-between text-[11px] font-bold text-muted-foreground mb-1">
                   <span className="flex items-center gap-1 text-primary">
                     <Lightbulb className="h-3.5 w-3.5" />
@@ -539,7 +593,7 @@ export function MascotNavigator() {
                     startBasicTour();
                     setBubbleOpen(false);
                   }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl border border-input bg-card hover:bg-muted/80 text-foreground font-bold text-xs transition-transform active:scale-98"
+                  className="w-full flex items-center justify-between p-2.5 rounded-md border border-input bg-card hover:bg-muted/80 text-foreground font-bold text-xs transition-transform active:scale-98"
                 >
                   <span className="flex items-center gap-2">
                     <Compass className="h-4 w-4 text-primary" />
@@ -553,18 +607,18 @@ export function MascotNavigator() {
                     startTechnicalTour();
                     setBubbleOpen(false);
                   }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 shadow-sm transition-transform active:scale-98"
+                  className="w-full flex items-center justify-between p-2.5 rounded-md bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 shadow-sm transition-transform active:scale-98"
                 >
                   <span className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4" />
-                    Tur 2: Bedah Teknis & Analisis (6 Langkah)
+                    Tur 2: Bedah Teknis & Analisis (5 Langkah)
                   </span>
                   <ChevronRight className="h-3.5 w-3.5" />
                 </button>
 
                 <button
                   onClick={() => toggleOutfit(true)}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl border border-input bg-card text-foreground font-semibold text-xs hover:bg-muted transition-colors"
+                  className="w-full flex items-center justify-between p-2.5 rounded-md border border-input bg-card text-foreground font-semibold text-xs hover:bg-muted transition-colors"
                   title="Putar horizontal dan ubah outfit Bang Peci!"
                 >
                   <span className="flex items-center gap-2">

@@ -66,7 +66,7 @@ export function CommandPalette() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-      <div className="relative w-full max-w-xl rounded-2xl border bg-card text-card-foreground shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-xl rounded-md border bg-card text-card-foreground shadow-2xl overflow-hidden">
         {/* Search Input Bar */}
         <div className="flex items-center gap-3 border-b px-4 py-3">
           <Search className="h-4 w-4 text-muted-foreground" />

@@ -52,6 +52,11 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useAlert } from "@/store/confirm.store";
+import { GeometricIcon } from "@/components/ui/GeometricIcon";
+import {
+  TransactionPreviewTable,
+  PreviewColumnId,
+} from "@/components/import/TransactionPreviewTable";
 
 interface FieldMapping {
   tx_type: string | null;
@@ -512,6 +517,26 @@ export default function ImportPage() {
   const [fallbackCategoryId, setFallbackCategoryId] = useState<string>("");
   const manualEditedRowIdsRef = useRef<Set<string>>(new Set());
 
+  // Column Visibility States (supports column delete and restore)
+  const [fileVisibleColumns, setFileVisibleColumns] = useState<PreviewColumnId[]>([
+    "happenedAt",
+    "txType",
+    "amount",
+    "categoryName",
+    "accountName",
+    "toAccountName",
+    "note",
+  ]);
+  const [screenshotVisibleColumns, setScreenshotVisibleColumns] = useState<PreviewColumnId[]>([
+    "happenedAt",
+    "txType",
+    "amount",
+    "categoryName",
+    "accountName",
+    "toAccountName",
+    "note",
+  ]);
+
   // Mapping states
   const [headers, setHeaders] = useState<string[]>([]);
   const [suggestedMapping, setSuggestedMapping] = useState<FieldMapping | null>(null);
@@ -703,14 +728,25 @@ export default function ImportPage() {
     const allAccountsCreated: string[] = [];
     const allCategoriesCreated: string[] = [];
 
+    const defaultAccName = defaultAccountId
+      ? accountsData?.accounts?.find((a) => a.id === defaultAccountId)?.name
+      : undefined;
+
+    const isNoteVisible = screenshotVisibleColumns.includes("note");
+    const isCategoryVisible = screenshotVisibleColumns.includes("categoryName");
+    const isAccountVisible = screenshotVisibleColumns.includes("accountName");
+    const isToAccountVisible = screenshotVisibleColumns.includes("toAccountName");
+    const isHappenedAtVisible = screenshotVisibleColumns.includes("happenedAt");
+    const isTxTypeVisible = screenshotVisibleColumns.includes("txType");
+
     const payloadItems = validItems.map((item) => ({
-      txType: item.txType,
+      txType: isTxTypeVisible ? item.txType : "expense",
       amount: item.amount,
-      happenedAt: item.happenedAt,
-      categoryName: item.categoryName || "Umum",
-      accountName: item.accountName || (defaultAccountId ? "cash" : item.accountName),
-      toAccountName: item.toAccountName || null,
-      note: item.note || undefined,
+      happenedAt: isHappenedAtVisible ? item.happenedAt : new Date().toISOString(),
+      categoryName: isCategoryVisible ? (item.categoryName || "Umum") : "Umum",
+      accountName: isAccountVisible ? (item.accountName || defaultAccName || "Kas Tunai") : (defaultAccName || "Kas Tunai"),
+      toAccountName: isToAccountVisible ? (item.toAccountName || null) : null,
+      note: isNoteVisible && item.note && item.note !== "-" ? item.note : undefined,
       tags: ["ocr-screenshot"],
     }));
 
@@ -1237,15 +1273,27 @@ export default function ImportPage() {
       ? categoriesData?.find((c) => c.id === fallbackCategoryId)?.name
       : undefined;
 
+    const defaultAccName = defaultAccountId
+      ? accountsData?.accounts?.find((a) => a.id === defaultAccountId)?.name
+      : undefined;
+
+    const isNoteVisible = fileVisibleColumns.includes("note");
+    const isCategoryVisible = fileVisibleColumns.includes("categoryName");
+    const isAccountVisible = fileVisibleColumns.includes("accountName");
+    const isToAccountVisible = fileVisibleColumns.includes("toAccountName");
+    const isHappenedAtVisible = fileVisibleColumns.includes("happenedAt");
+    const isTxTypeVisible = fileVisibleColumns.includes("txType");
+    const isTagsVisible = fileVisibleColumns.includes("tags");
+
     const itemsToImport = validItems.map((item) => ({
-      txType: item.txType,
+      txType: isTxTypeVisible ? item.txType : "expense",
       amount: item.amount,
-      happenedAt: item.happenedAt,
-      categoryName: item.categoryName || fallbackCat || "Umum",
-      accountName: item.accountName || (defaultAccountId ? "cash" : item.accountName),
-      toAccountName: item.toAccountName || null,
-      note: item.note && item.note !== "-" ? item.note : undefined,
-      tags: item.tags,
+      happenedAt: isHappenedAtVisible ? item.happenedAt : new Date().toISOString(),
+      categoryName: isCategoryVisible ? (item.categoryName || fallbackCat || "Umum") : (fallbackCat || "Umum"),
+      accountName: isAccountVisible ? (item.accountName || defaultAccName || "Kas Tunai") : (defaultAccName || "Kas Tunai"),
+      toAccountName: isToAccountVisible ? (item.toAccountName || null) : null,
+      note: isNoteVisible && item.note && item.note !== "-" ? item.note : undefined,
+      tags: isTagsVisible ? item.tags : [],
     }));
 
     setIsProcessing(true);
@@ -1323,8 +1371,11 @@ export default function ImportPage() {
     document.body.removeChild(link);
   };
 
-  const isMappingComplete =
-    currentMapping?.tx_type && currentMapping?.amount && currentMapping?.happened_at;
+  const canProceedImport = fileTxs.length > 0 && fileTxs.some((t) => t.amount > 0);
+  const isMappingComplete = Boolean(
+    (currentMapping?.tx_type && currentMapping?.amount && currentMapping?.happened_at) ||
+    canProceedImport
+  );
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl mx-auto">
@@ -1332,13 +1383,18 @@ export default function ImportPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link href="/transactions">
-            <Button variant="outline" size="icon" className="h-9 w-9">
+            <Button variant="outline" size="icon" className="h-9 w-9 rounded-[10px]">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Impor Transaksi</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-lg bg-[#A7F3D0]/40 flex items-center justify-center text-[#064E3B] shrink-0">
+                <GeometricIcon name="import" className="h-4 w-4" />
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">Impor Transaksi</h1>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
               {activeTab === "file"
                 ? "Impor mutasi riwayat keuangan langsung dari file CSV atau Excel dengan pemetaan pintar."
                 : "Ekstrak transaksi dari screenshot mutasi rekening, e-wallet, atau struk belanja fisik dengan AI Vision."}
@@ -1351,62 +1407,62 @@ export default function ImportPage() {
             variant="outline"
             size="sm"
             onClick={handleDownloadTemplate}
-            className="text-xs gap-1.5 self-start sm:self-auto"
+            className="text-xs gap-1.5 self-start sm:self-auto rounded-[10px] font-semibold border-border/80 hover:bg-slate-50 dark:hover:bg-slate-800"
           >
-            <Download className="h-3.5 w-3.5" />
-            Download Template CSV
+            <Download className="h-3.5 w-3.5 text-[#059669]" />
+            Unduh Format CSV Fin.IQ
           </Button>
         )}
       </div>
 
       {/* Mode Selector Tabs */}
-      <div className="flex flex-wrap gap-1.5 p-1.5 bg-muted/50 rounded-2xl w-fit border border-border/40">
+      <div className="flex flex-wrap gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/60 rounded-xl w-fit border border-border/60">
         <button
           type="button"
           onClick={() => setActiveTab("file")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-[9px] text-xs font-semibold transition-all ${
             activeTab === "file"
-              ? "bg-card shadow-sm text-foreground"
+              ? "bg-white dark:bg-slate-900 shadow-level-1 text-foreground"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+          <GeometricIcon name="import" className="h-3.5 w-3.5" />
           File CSV / Excel
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("screenshot")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-[9px] text-xs font-semibold transition-all ${
             activeTab === "screenshot"
-              ? "bg-card shadow-sm text-foreground"
+              ? "bg-white dark:bg-slate-900 shadow-level-1 text-foreground"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Camera className="h-4 w-4 text-emerald-500" />
-          Screenshot / Gambar
-          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+          <Camera className="h-3.5 w-3.5 text-[#059669]" />
+          Screenshot / Struk
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#A7F3D0]/40 text-[#064E3B]">
             AI Vision
           </span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("tutorial")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-[9px] text-xs font-semibold transition-all ${
             activeTab === "tutorial"
-              ? "bg-card shadow-sm text-foreground border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 font-bold"
+              ? "bg-white dark:bg-slate-900 shadow-level-1 text-[#059669] font-bold"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <BookOpen className="h-4 w-4 text-primary" />
-          Panduan & Tutorial E-Statement
+          <BookOpen className="h-3.5 w-3.5 text-[#059669]" />
+          Panduan Format Bank
         </button>
       </div>
 
       {/* Quick Tutorial Callout Banner saat berada di tab File & belum ada file */}
       {activeTab === "file" && !fileName && (
-        <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="p-4 rounded-md bg-emerald-500/10 border border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <div className="h-9 w-9 rounded-md bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
               <BookOpen className="h-4 w-4" />
             </div>
             <div>
@@ -1423,7 +1479,7 @@ export default function ImportPage() {
             variant="outline"
             size="sm"
             onClick={() => setActiveTab("tutorial")}
-            className="text-xs font-bold text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/15 self-start sm:self-auto rounded-xl gap-1.5"
+            className="text-xs font-bold text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/15 self-start sm:self-auto rounded-md gap-1.5"
           >
             <HelpCircle className="h-3.5 w-3.5" />
             Buka Tutorial E-Statement
@@ -1437,7 +1493,6 @@ export default function ImportPage() {
       {activeTab === "file" && (
         <>
           {/* Step 1: Upload / Drop Zone (jika belum ada file) */}
-      {/* Step 1: Upload / Drop Zone (jika belum ada file) */}
       {!fileName && !isConvertingWithAi && (
         <Card className="border-dashed border-2 bg-card/60 transition-all hover:bg-card">
           <CardContent
@@ -1453,7 +1508,7 @@ export default function ImportPage() {
               onChange={handleFileChange}
               className="hidden"
             />
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-4 shadow-sm">
+            <div className="flex h-16 w-16 items-center justify-center rounded-md bg-primary/10 text-primary mb-4 shadow-sm">
               <UploadCloud className="h-8 w-8" />
             </div>
             <h3 className="text-base font-bold text-foreground">
@@ -1467,16 +1522,16 @@ export default function ImportPage() {
             </p>
 
             <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-              <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
+              <span className="px-2.5 py-1 rounded-sm text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
                 <FileCheck className="h-3 w-3 text-emerald-500" /> E-Statement PDF Bank (BCA, Mandiri, BRI, BNI)
               </span>
-              <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
+              <span className="px-2.5 py-1 rounded-sm text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
                 <FileSpreadsheet className="h-3 w-3 text-emerald-500" /> Mutasi Excel / CSV (KlikBCA, Livin, BRImo)
               </span>
-              <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
+              <span className="px-2.5 py-1 rounded-sm text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
                 <Smartphone className="h-3 w-3 text-emerald-500" /> E-Wallet (GoPay, OVO, DANA, ShopeePay)
               </span>
-              <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 font-semibold">
+              <span className="px-2.5 py-1 rounded-sm text-[11px] font-medium bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 font-semibold">
                 <Sparkles className="h-3 w-3" /> Auto-Convert Universal AI
               </span>
             </div>
@@ -1487,7 +1542,7 @@ export default function ImportPage() {
       {/* AI Processing Overlay saat mengekstrak dokumen */}
       {isConvertingWithAi && (
         <Card className="p-8 text-center bg-card/90 border-dashed border-2 border-primary/40 space-y-4 animate-in fade-in">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary mx-auto animate-pulse">
+          <div className="flex h-14 w-14 items-center justify-center rounded-md bg-primary/10 text-primary mx-auto animate-pulse">
             <Loader2 className="h-7 w-7 animate-spin" />
           </div>
           <div>
@@ -1740,360 +1795,28 @@ export default function ImportPage() {
             </Card>
           </div>
 
-          {/* Sample / Interactive Transactions Preview Table */}
-          <Card className="overflow-hidden shadow-sm">
-            <CardHeader className="py-3 px-5 border-b bg-muted/20 flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-xs uppercase font-bold tracking-wider text-muted-foreground">
-                    Pratinjau & Edit Transaksi Hasil Konversi
-                  </CardTitle>
-                  <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 flex items-center gap-1 font-semibold">
-                    <Sparkles className="h-3 w-3" />
-                    Template Universal Aktif
-                  </Badge>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Semua transaksi telah diselaraskan ke template sistem. Anda dapat mengedit tanggal, jenis, nominal, kategori, akun, atau menghapus baris sebelum disimpan.
-                </p>
-              </div>
-
-              <div className="flex items-center flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAddManualRow}
-                  className="text-xs gap-1.5 h-8 font-semibold"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Tambah Baris
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRerunNlp}
-                  className="text-xs gap-1.5 h-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 border-emerald-500/30 font-semibold"
-                  title="Jalankan ulang prediksi NLP untuk seluruh baris berdasarkan deskripsi"
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Deteksi Ulang NLP
-                </Button>
-
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span>Tampilkan:</span>
-                  <select
-                    value={previewLimit}
-                    onChange={(e) => setPreviewLimit(Number(e.target.value))}
-                    className="h-8 rounded-md border border-input bg-background px-2 text-xs font-medium focus:outline-none"
-                  >
-                    <option value={10}>10 Baris</option>
-                    <option value={25}>25 Baris</option>
-                    <option value={50}>50 Baris</option>
-                    <option value={0}>Semua ({fileTxs.length}) Baris</option>
-                  </select>
-                </div>
-              </div>
-            </CardHeader>
-
-            {/* Quick Bulk Assignment Toolbar */}
-            <div className="px-5 py-3 bg-muted/10 border-b flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div className="flex flex-wrap items-center gap-4">
-                {/* Bulk Account Selector */}
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground font-medium">Ubah Akun Semua:</span>
-                  <select
-                    value={bulkAccount}
-                    onChange={(e) => setBulkAccount(e.target.value)}
-                    className="h-8 rounded-md border border-input bg-background px-2 text-xs w-44 focus:outline-none"
-                  >
-                    <option value="">-- Pilih Akun --</option>
-                    {accountsData?.accounts?.map((acc) => (
-                      <option key={acc.id} value={acc.name}>
-                        {acc.name} ({acc.group})
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={!bulkAccount}
-                    onClick={handleApplyBulkAccount}
-                    className="h-8 text-xs font-semibold"
-                  >
-                    Terapkan
-                  </Button>
-                </div>
-
-                {/* Bulk Category Selector */}
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground font-medium">Kategori Semua:</span>
-                  <select
-                    value={bulkCategory}
-                    onChange={(e) => setBulkCategory(e.target.value)}
-                    className="h-8 rounded-md border border-input bg-background px-2 text-xs w-44 focus:outline-none"
-                  >
-                    <option value="">-- Pilih Kategori --</option>
-                    {categoriesData && categoriesData.length > 0 && (
-                      <optgroup label="Kategori Saya">
-                        {categoriesData.map((c) => (
-                          <option key={c.id} value={c.name}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    <optgroup label="Kategori Standar">
-                      {STANDARD_CATEGORIES.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={!bulkCategory}
-                    onClick={handleApplyBulkCategory}
-                    className="h-8 text-xs font-semibold"
-                  >
-                    Terapkan
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={enableNlpCategory}
-                    onChange={(e) => setEnableNlpCategory(e.target.checked)}
-                    className="rounded border-input h-3.5 w-3.5 text-primary focus:ring-0 cursor-pointer"
-                  />
-                  <span>Gunakan NLP untuk Kategori Otomatis</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-muted/40 text-[10px] uppercase text-muted-foreground font-semibold">
-                  <tr>
-                    <th className="px-3 py-2.5 w-10 text-center">#</th>
-                    <th className="px-3 py-2.5 w-36">Waktu</th>
-                    <th className="px-3 py-2.5 w-32">Jenis</th>
-                    <th className="px-3 py-2.5 w-36 text-right">Nominal (Rp)</th>
-                    <th className="px-3 py-2.5 w-48">Kategori</th>
-                    <th className="px-3 py-2.5 w-40">Akun / Rekening</th>
-                    <th className="px-3 py-2.5">Keterangan / Deskripsi</th>
-                    <th className="px-3 py-2.5 w-12 text-center">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {(previewLimit === 0 ? fileTxs : fileTxs.slice(0, previewLimit)).map((tx, idx) => (
-                    <tr key={tx.id} className="hover:bg-muted/10 transition-colors">
-                      <td className="px-3 py-2 text-center text-muted-foreground font-mono text-[11px]">
-                        {idx + 1}
-                      </td>
-
-                      {/* Waktu Transaksi (Editable date input) */}
-                      <td className="px-3 py-2">
-                        <Input
-                          type="date"
-                          value={tx.happenedAt ? tx.happenedAt.split("T")[0] : ""}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (val) {
-                              handleUpdateRowField(tx.id, {
-                                happenedAt: new Date(val).toISOString(),
-                              });
-                            }
-                          }}
-                          className="h-8 text-xs font-mono w-32 bg-background"
-                        />
-                      </td>
-
-                      {/* Jenis Transaksi (Editable dropdown) */}
-                      <td className="px-3 py-2">
-                        <select
-                          value={tx.txType}
-                          onChange={(e) =>
-                            handleUpdateRowField(tx.id, {
-                              txType: e.target.value as any,
-                            })
-                          }
-                          className={`h-8 rounded-md border border-input px-2 text-xs font-bold focus:outline-none w-32 ${
-                            tx.txType === "expense"
-                              ? "bg-rose-500/10 text-rose-600 border-rose-200"
-                              : tx.txType === "income"
-                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-200"
-                              : "bg-sky-500/10 text-sky-600 border-sky-200"
-                          }`}
-                        >
-                          <option value="expense">Pengeluaran</option>
-                          <option value="income">Pemasukan</option>
-                          <option value="transfer">Transfer</option>
-                        </select>
-                      </td>
-
-                      {/* Nominal (Editable number input) */}
-                      <td className="px-3 py-2 text-right">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="1000"
-                          value={tx.amount || ""}
-                          onChange={(e) =>
-                            handleUpdateRowField(tx.id, {
-                              amount: Math.max(0, Number(e.target.value)),
-                            })
-                          }
-                          className={`h-8 text-xs font-bold w-32 text-right bg-background ml-auto ${
-                            tx.txType === "expense"
-                              ? "text-rose-600"
-                              : tx.txType === "income"
-                              ? "text-emerald-600"
-                              : "text-sky-600"
-                          }`}
-                        />
-                      </td>
-
-                      {/* Interactive Category Selector with Options & NLP Badge */}
-                      <td className="px-3 py-2">
-                        <div className="flex flex-col gap-1 min-w-[160px]">
-                          <select
-                            value={tx.categoryName}
-                            onChange={(e) =>
-                              handleUpdateRowField(tx.id, {
-                                categoryName: e.target.value,
-                                isNlpDetected: false,
-                              })
-                            }
-                            className="h-8 rounded-md border border-input bg-background px-2 text-xs font-semibold focus:outline-none w-full shadow-xs cursor-pointer hover:border-primary/60 transition-colors"
-                          >
-                            <option value="">-- Pilih Kategori --</option>
-                            {tx.categoryName &&
-                              !categoriesData?.some(
-                                (c) => c.name.toLowerCase() === tx.categoryName.toLowerCase()
-                              ) &&
-                              !STANDARD_CATEGORIES.some(
-                                (s) => s.toLowerCase() === tx.categoryName.toLowerCase()
-                              ) && (
-                                <option value={tx.categoryName}>
-                                  {tx.categoryName} {tx.isNlpDetected ? "✨ (Prediksi NLP)" : "(File)"}
-                                </option>
-                              )}
-                            {categoriesData && categoriesData.length > 0 && (
-                              <optgroup label="Kategori Saya">
-                                {(tx.txType === "income"
-                                  ? categoriesData.filter((c) => !c.kind || c.kind === "income")
-                                  : categoriesData.filter((c) => !c.kind || c.kind === "expense")
-                                ).map((c) => (
-                                  <option key={c.id} value={c.name}>
-                                    {c.name}
-                                  </option>
-                                ))}
-                                {(tx.txType === "income"
-                                  ? categoriesData.filter((c) => c.kind === "expense")
-                                  : categoriesData.filter((c) => c.kind === "income")
-                                ).map((c) => (
-                                  <option key={c.id} value={c.name}>
-                                    {c.name}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                            <optgroup label="Kategori Standar">
-                              {STANDARD_CATEGORIES.map((cat) => (
-                                <option key={cat} value={cat}>
-                                  {cat}
-                                </option>
-                              ))}
-                            </optgroup>
-                          </select>
-
-                          {tx.isNlpDetected && (
-                            <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded w-fit">
-                              <Sparkles className="h-2.5 w-2.5" />
-                              NLP AI
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Akun / Rekening (Editable dropdown) */}
-                      <td className="px-3 py-2">
-                        <select
-                          value={tx.accountName}
-                          onChange={(e) =>
-                            handleUpdateRowField(tx.id, {
-                              accountName: e.target.value,
-                            })
-                          }
-                          className="h-8 rounded-md border border-input bg-background px-2 text-xs w-36 focus:outline-none font-medium"
-                        >
-                          {accountsData?.accounts?.map((acc) => (
-                            <option key={acc.id} value={acc.name}>
-                              {acc.name} ({acc.group})
-                            </option>
-                          ))}
-                          {!accountsData?.accounts?.some(
-                            (a) => a.name.toLowerCase() === tx.accountName.toLowerCase()
-                          ) && (
-                            <option value={tx.accountName}>
-                              + {tx.accountName} (buat baru)
-                            </option>
-                          )}
-                        </select>
-                      </td>
-
-                      {/* Keterangan / Deskripsi (Editable text input) */}
-                      <td className="px-3 py-2">
-                        <Input
-                          type="text"
-                          value={tx.note}
-                          onChange={(e) =>
-                            handleUpdateRowField(tx.id, {
-                              note: e.target.value,
-                            })
-                          }
-                          className="h-8 text-xs bg-background min-w-[180px] font-mono text-[11px]"
-                          placeholder="Deskripsi transaksi"
-                        />
-                      </td>
-
-                      {/* Aksi Hapus Baris */}
-                      <td className="px-3 py-2 text-center">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteRow(tx.id)}
-                          className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
-                          title="Hapus baris ini dari daftar impor"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {previewLimit !== 0 && previewLimit < fileTxs.length && (
-              <div className="py-2.5 px-4 bg-muted/20 border-t text-center text-xs text-muted-foreground">
-                Menampilkan {Math.min(previewLimit, fileTxs.length)} dari total {fileTxs.length} baris transaksi.{" "}
-                <button
-                  type="button"
-                  onClick={() => setPreviewLimit(0)}
-                  className="font-semibold text-primary hover:underline ml-1"
-                >
-                  Tampilkan Semua ({fileTxs.length}) Baris
-                </button>
-              </div>
-            )}
-          </Card>
+          {/* Sample / Interactive Transactions Preview Table with Full CRUD & Column Deletion */}
+          <TransactionPreviewTable
+            items={fileTxs}
+            onUpdateItems={setFileTxs}
+            onUpdateRow={handleUpdateRowField}
+            onDeleteRow={handleDeleteRow}
+            onAddRow={handleAddManualRow}
+            accounts={accountsData?.accounts || []}
+            categories={categoriesData || []}
+            isNlpAvailable={true}
+            onRerunNlp={handleRerunNlp}
+            defaultAccountName={
+              accountsData?.accounts?.find((a) => a.id === defaultAccountId)?.name
+            }
+            defaultCategoryName={
+              categoriesData?.find((c) => c.id === fallbackCategoryId)?.name
+            }
+            title="Pratinjau & Edit Transaksi Hasil Konversi"
+            subtitle="Semua transaksi telah diselaraskan ke template sistem. Anda dapat menambah, mengedit, menghapus baris transaksi, serta menghapus/mengatur kolom termasuk Deskripsi Transaksi."
+            variant="file"
+            onVisibleColumnsChange={setFileVisibleColumns}
+          />
 
           {/* Step 3: Execution Settings Card */}
           <Card className="p-6 bg-card border shadow-sm">
@@ -2203,7 +1926,7 @@ export default function ImportPage() {
                 </Button>
                 <Button
                   onClick={handleExecuteImport}
-                  disabled={isProcessing || !isMappingComplete}
+                  disabled={isProcessing || !canProceedImport}
                   className="w-1/2 sm:w-auto bg-primary hover:bg-primary/90 text-white font-semibold text-xs shadow-md gap-2"
                 >
                   <CheckCircle2 className="h-4 w-4" />
@@ -2211,7 +1934,7 @@ export default function ImportPage() {
                     ? importProgress
                       ? `Mengimpor ${importProgress.done} / ${importProgress.total}...`
                       : "Sedang Memproses..."
-                    : `Mulai Impor ${stats.totalRows} Transaksi`}
+                    : `Mulai Impor ${stats?.totalRows || fileTxs.length} Transaksi`}
                 </Button>
               </div>
             </div>
@@ -2486,227 +2209,23 @@ export default function ImportPage() {
                 </Card>
               </div>
 
-              {/* Editable Table */}
-              <Card className="overflow-hidden shadow-sm">
-                <CardHeader className="py-3 px-5 border-b bg-muted/20 flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="text-xs uppercase font-bold tracking-wider text-muted-foreground">
-                      Pratinjau & Edit Transaksi Hasil Pembacaan AI
-                    </CardTitle>
-                    <span className="text-[11px] text-muted-foreground">
-                      Klik pada kolom untuk mengoreksi nominal, kategori, akun, atau keterangan secara langsung.
-                    </span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAddManualScreenshotTx}
-                    className="text-xs gap-1.5"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Tambah Baris Manual
-                  </Button>
-                </CardHeader>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left">
-                    <thead className="bg-muted/40 text-[10px] uppercase text-muted-foreground font-semibold">
-                      <tr>
-                        <th className="px-3 py-2.5 w-10 text-center">#</th>
-                        <th className="px-3 py-2.5 w-44">Waktu</th>
-                        <th className="px-3 py-2.5 w-32">Jenis</th>
-                        <th className="px-3 py-2.5 w-36 text-right">Nominal (Rp)</th>
-                        <th className="px-3 py-2.5 w-40">Kategori</th>
-                        <th className="px-3 py-2.5 w-44">Akun</th>
-                        <th className="px-3 py-2.5">Keterangan / Merchant</th>
-                        <th className="px-3 py-2.5 w-12 text-center">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {screenshotTxs.map((tx, idx) => (
-                        <tr key={tx.id} className="hover:bg-muted/10 transition-colors">
-                          <td className="px-3 py-2 text-center text-muted-foreground font-mono text-[11px]">
-                            {idx + 1}
-                          </td>
-
-                          {/* Waktu */}
-                          <td className="px-3 py-2">
-                            <Input
-                              type="datetime-local"
-                              value={toDatetimeLocalString(tx.happenedAt)}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val) {
-                                  handleUpdateScreenshotTx(tx.id, {
-                                    happenedAt: new Date(val).toISOString(),
-                                  });
-                                }
-                              }}
-                              className="h-8 text-xs font-mono w-44 bg-background"
-                            />
-                          </td>
-
-                          {/* Jenis Transaksi */}
-                          <td className="px-3 py-2">
-                            <select
-                              value={tx.txType}
-                              onChange={(e) =>
-                                handleUpdateScreenshotTx(tx.id, {
-                                  txType: e.target.value as any,
-                                })
-                              }
-                              className={`h-8 rounded-md border border-input px-2 text-xs font-semibold focus:outline-none w-32 ${
-                                tx.txType === "expense"
-                                  ? "bg-rose-500/10 text-rose-600 border-rose-200"
-                                  : tx.txType === "income"
-                                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-200"
-                                  : "bg-sky-500/10 text-sky-600 border-sky-200"
-                              }`}
-                            >
-                              <option value="expense">Pengeluaran</option>
-                              <option value="income">Pemasukan</option>
-                              <option value="transfer">Transfer</option>
-                            </select>
-                          </td>
-
-                          {/* Nominal */}
-                          <td className="px-3 py-2 text-right">
-                            <Input
-                              type="number"
-                              min="0"
-                              step="1000"
-                              value={tx.amount || ""}
-                              onChange={(e) =>
-                                handleUpdateScreenshotTx(tx.id, {
-                                  amount: Math.max(0, Number(e.target.value)),
-                                })
-                              }
-                              className={`h-8 text-xs font-bold w-32 text-right bg-background ml-auto ${
-                                tx.txType === "expense"
-                                  ? "text-rose-600"
-                                  : tx.txType === "income"
-                                  ? "text-emerald-600"
-                                  : "text-sky-600"
-                              }`}
-                            />
-                          </td>
-
-                          {/* Kategori */}
-                          <td className="px-3 py-2">
-                            <Input
-                              type="text"
-                              list="ocr-category-datalist"
-                              value={tx.categoryName}
-                              onChange={(e) =>
-                                handleUpdateScreenshotTx(tx.id, {
-                                  categoryName: e.target.value,
-                                })
-                              }
-                              className="h-8 text-xs w-40 bg-background"
-                              placeholder="Pilih/ketik kategori"
-                            />
-                          </td>
-
-                          {/* Akun */}
-                          <td className="px-3 py-2">
-                            <div className="space-y-1">
-                              <select
-                                value={tx.accountName}
-                                onChange={(e) =>
-                                  handleUpdateScreenshotTx(tx.id, {
-                                    accountName: e.target.value,
-                                  })
-                                }
-                                className="h-8 rounded-md border border-input bg-background px-2 text-xs w-44 focus:outline-none"
-                              >
-                                {accountsData?.accounts?.map((acc) => (
-                                  <option key={acc.id} value={acc.name}>
-                                    {acc.name} ({acc.group})
-                                  </option>
-                                ))}
-                                {!accountsData?.accounts?.some(
-                                  (a) => a.name.toLowerCase() === tx.accountName.toLowerCase()
-                                ) && (
-                                  <option value={tx.accountName}>
-                                    + {tx.accountName} (buat baru)
-                                  </option>
-                                )}
-                              </select>
-
-                              {/* To Account if transfer */}
-                              {tx.txType === "transfer" && (
-                                <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                  <span>Ke:</span>
-                                  <select
-                                    value={tx.toAccountName || ""}
-                                    onChange={(e) =>
-                                      handleUpdateScreenshotTx(tx.id, {
-                                        toAccountName: e.target.value || null,
-                                      })
-                                    }
-                                    className="h-7 rounded-md border border-input bg-background px-2 text-[11px] w-36 focus:outline-none"
-                                  >
-                                    <option value="">-- Pilih Tujuan --</option>
-                                    {accountsData?.accounts?.map((acc) => (
-                                      <option key={acc.id} value={acc.name}>
-                                        {acc.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Keterangan */}
-                          <td className="px-3 py-2">
-                            <Input
-                              type="text"
-                              value={tx.note}
-                              onChange={(e) =>
-                                handleUpdateScreenshotTx(tx.id, {
-                                  note: e.target.value,
-                                })
-                              }
-                              className="h-8 text-xs bg-background min-w-[180px]"
-                              placeholder="Nama merchant atau deskripsi"
-                            />
-                          </td>
-
-                          {/* Aksi Hapus */}
-                          <td className="px-3 py-2 text-center">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDeleteScreenshotTx(tx.id)}
-                              className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
-                              title="Hapus baris ini"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Datalist for categories */}
-                <datalist id="ocr-category-datalist">
-                  {categoriesData?.map((c) => (
-                    <option key={c.id} value={c.name} />
-                  ))}
-                  <option value="Makanan & Minuman" />
-                  <option value="Belanja" />
-                  <option value="Transportasi" />
-                  <option value="Tagihan & Utilitas" />
-                  <option value="Hiburan" />
-                  <option value="Kesehatan" />
-                  <option value="Gaji & Pendapatan" />
-                  <option value="Transfer Saldo" />
-                  <option value="Umum" />
-                </datalist>
-              </Card>
+              {/* Editable Table with Full CRUD & Column Deletion */}
+              <TransactionPreviewTable
+                items={screenshotTxs}
+                onUpdateItems={(newItems) => setScreenshotTxs(newItems as any)}
+                onUpdateRow={handleUpdateScreenshotTx}
+                onDeleteRow={handleDeleteScreenshotTx}
+                onAddRow={handleAddManualScreenshotTx}
+                accounts={accountsData?.accounts || []}
+                categories={categoriesData || []}
+                isNlpAvailable={false}
+                defaultAccountName={accountsData?.accounts?.[0]?.name}
+                defaultCategoryName={categoriesData?.[0]?.name}
+                title="Pratinjau & Edit Transaksi Hasil Pembacaan AI"
+                subtitle="Klik pada kolom untuk mengoreksi nominal, kategori, akun, atau deskripsi transaksi secara langsung. Anda juga dapat menghapus kolom atau menambah baris."
+                variant="screenshot"
+                onVisibleColumnsChange={setScreenshotVisibleColumns}
+              />
 
               {/* Execution Settings Card */}
               <Card className="p-6 bg-card border shadow-sm">

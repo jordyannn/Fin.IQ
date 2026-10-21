@@ -547,6 +547,7 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
       const accountMap = new Map<string, any>();
       for (const a of userAccounts) {
         accountMap.set(a.name.toLowerCase().trim(), a);
+        accountMap.set(a.id, a);
       }
 
       let defaultAccount = userAccounts[0];
@@ -570,6 +571,7 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
         defaultAccount = initialAcc as any;
         accountMap.set("kas tunai", initialAcc);
         accountMap.set("cash", initialAcc);
+        accountMap.set(newAccId, initialAcc);
       }
 
       // 3. Cache user categories
@@ -577,6 +579,7 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
       const categoryMap = new Map<string, any>();
       for (const c of userCategories) {
         categoryMap.set(c.name.toLowerCase().trim(), c);
+        categoryMap.set(c.id, c);
       }
 
       // 4. Deduplication timestamps
@@ -615,7 +618,7 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
             .replace(/[\u4e00-\u9fa5]+/g, "")
             .trim() || "Umum";
 
-        let matchedCat = categoryMap.get(cleanCatName.toLowerCase());
+        let matchedCat = categoryMap.get(cleanCatName.toLowerCase()) || categoryMap.get(cleanCatName);
         if (!matchedCat) {
           const resolvedName = fuzzyMatchCategory(cleanCatName, userCategories);
           matchedCat = categoryMap.get(resolvedName.toLowerCase());
@@ -639,12 +642,16 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
           await ctx.db.insert(categories).values(newCat);
           matchedCat = newCat;
           categoryMap.set(cleanCatName.toLowerCase(), newCat);
+          categoryMap.set(newCatId, newCat);
           categoriesCreated.push(cleanCatName);
         }
 
         // Account resolution
         const accName = item.accountName ? item.accountName.trim() : defaultAccount?.name || "cash";
-        let matchedAccount = accountMap.get(accName.toLowerCase()) || defaultAccount;
+        let matchedAccount =
+          accountMap.get(accName.toLowerCase()) ||
+          accountMap.get(accName) ||
+          defaultAccount;
 
         if (!matchedAccount) {
           const groupName = accName.toLowerCase().includes("bank") ? "Bank card" : "Cash";
@@ -661,6 +668,7 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
           await ctx.db.insert(accounts).values(newAcc);
           matchedAccount = newAcc;
           accountMap.set(accName.toLowerCase(), newAcc);
+          accountMap.set(newAccId, newAcc);
           accountsCreated.push(accName);
         }
 
@@ -668,7 +676,7 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
         let matchedToAccount = null;
         if (item.txType === "transfer" && item.toAccountName) {
           const toName = item.toAccountName.trim();
-          matchedToAccount = accountMap.get(toName.toLowerCase());
+          matchedToAccount = accountMap.get(toName.toLowerCase()) || accountMap.get(toName);
           if (!matchedToAccount) {
             const newToAccId = crypto.randomUUID();
             const newToAcc = {
@@ -683,6 +691,7 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
             await ctx.db.insert(accounts).values(newToAcc);
             matchedToAccount = newToAcc;
             accountMap.set(toName.toLowerCase(), newToAcc);
+            accountMap.set(newToAccId, newToAcc);
             accountsCreated.push(toName);
           }
         }
@@ -703,6 +712,7 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
         }
 
         txToInsert.push({
+          id: crypto.randomUUID(),
           userId: ctx.userId,
           ledgerId: targetLedgerId,
           accountId: matchedAccount.id,
@@ -715,6 +725,7 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
           happenedAt: happenedAtDate,
           note: item.note || null,
           tagsJson: tagsList,
+          createdAt: new Date(),
         });
 
         // Track balance delta
@@ -732,18 +743,22 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
       const chunkSize = 200;
       for (let i = 0; i < txToInsert.length; i += chunkSize) {
         const chunk = txToInsert.slice(i, i + chunkSize);
-        await ctx.db.insert(transactions).values(chunk);
+        if (chunk.length > 0) {
+          await ctx.db.insert(transactions).values(chunk);
+        }
       }
 
       // Update balances
       for (const [accId, delta] of balanceDeltas.entries()) {
-        await ctx.db
-          .update(accounts)
-          .set({
-            balance: sql`${accounts.balance} + ${delta}`,
-            updatedAt: new Date(),
-          })
-          .where(eq(accounts.id, accId));
+        if (delta !== 0) {
+          await ctx.db
+            .update(accounts)
+            .set({
+              balance: sql`${accounts.balance} + ${delta}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(accounts.id, accId));
+        }
       }
 
       return {

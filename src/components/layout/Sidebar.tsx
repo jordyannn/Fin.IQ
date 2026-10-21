@@ -1,53 +1,45 @@
-/* Hallmark · component: Sidebar · theme: Bibit-Fintech · genre: modern-minimal */
+/* Geometric Minimalist Intelligence · Sidebar · Fin.IQ */
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
-  Receipt,
-  PieChart,
-  Calendar,
-  Wallet,
-  Tags,
-  PiggyBank,
-  BookOpen,
-  CalendarRange,
-  Settings,
-  ShieldCheck,
-  FileSpreadsheet,
-  LogOut,
-  Sparkles,
-  User,
   ChevronsUpDown,
-  Plus,
   Sun,
   Moon,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useUIStore } from "@/store/ui.store";
+import { GeometricIcon, type GeometricIconName } from "@/components/ui/GeometricIcon";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 
-const navigationItems = [
-  { label: "Overview", href: "/overview", icon: LayoutDashboard },
-  { label: "Transaksi", href: "/transactions", icon: Receipt },
-  { label: "Fin.IQ AI", href: "/ai", icon: Sparkles, isAI: true },
-  { label: "Impor Transaksi", href: "/import", icon: FileSpreadsheet },
-  { label: "Analisis", href: "/analytics", icon: PieChart },
-  { label: "Kalender", href: "/calendar", icon: Calendar },
-  { label: "Akun Keuangan", href: "/accounts", icon: Wallet },
-  { label: "Kategori", href: "/categories", icon: Tags },
-  { label: "Anggaran", href: "/budgets", icon: PiggyBank },
-  { label: "Buku Kas", href: "/ledgers", icon: BookOpen },
-  { label: "Laporan Tahunan", href: "/annual-report", icon: CalendarRange },
+interface NavItem {
+  label: string;
+  href: string;
+  iconName: GeometricIconName;
+  isAI?: boolean;
+}
+
+const navigationItems: NavItem[] = [
+  { label: "Overview", href: "/overview", iconName: "overview" },
+  { label: "Transaksi", href: "/transactions", iconName: "transactions" },
+  { label: "Fin.IQ AI", href: "/ai", iconName: "ai", isAI: true },
+  { label: "Impor Berkas", href: "/import", iconName: "import" },
+  { label: "Analisis", href: "/analytics", iconName: "analytics" },
+  { label: "Kalender", href: "/calendar", iconName: "calendar" },
+  { label: "Akun Keuangan", href: "/accounts", iconName: "accounts" },
+  { label: "Kategori", href: "/categories", iconName: "categories" },
+  { label: "Anggaran", href: "/budgets", iconName: "budgets" },
+  { label: "Buku Kas", href: "/ledgers", iconName: "ledgers" },
+  { label: "Laporan Tahunan", href: "/annual-report", iconName: "annual-report" },
 ];
 
-const secondaryItems = [
-  { label: "Pengaturan & Profil", href: "/settings", icon: Settings },
-  { label: "Integritas Data", href: "/integrity", icon: ShieldCheck },
+const secondaryItems: NavItem[] = [
+  { label: "Pengaturan & Profil", href: "/settings", iconName: "settings" },
+  { label: "Integritas Data", href: "/integrity", iconName: "integrity" },
 ];
 
 export function Sidebar({
@@ -59,7 +51,6 @@ export function Sidebar({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { openQuickAdd } = useUIStore();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -70,9 +61,6 @@ export function Sidebar({
   }, []);
 
   const { data: profile } = trpc.user.getProfile.useQuery();
-  const { data: ledgersList } = trpc.ledgers.list.useQuery();
-
-  const ledgerName = ledgersList?.[0]?.name || "Buku Kas Utama";
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark");
@@ -117,49 +105,33 @@ export function Sidebar({
         "flex flex-col select-none shrink-0",
         isMobile
           ? "w-full h-full py-1"
-          : "hidden lg:flex w-64 h-screen sticky top-0 border-r border-border/60 bg-card/80 backdrop-blur-md px-3.5 py-4 z-20"
+          : "hidden lg:flex w-64 h-screen sticky top-0 border-r border-border/80 bg-card/90 backdrop-blur-md px-3.5 py-4 z-20 shadow-level-1"
       )}
     >
       {/* =====================================================================
-          1. BRAND HEADER
+          1. USER ACCOUNT (Satu-satunya komponen di bagian atas sidebar)
       ===================================================================== */}
-      {!isMobile && (
-        <div className="flex items-center justify-between px-2 pt-0.5 pb-2.5">
-          <Link href="/overview" className="block group">
-            <h1 className="text-xl font-black tracking-tight text-foreground group-hover:text-[#00B569] transition-colors">
-              Fin.IQ
-            </h1>
-            <p className="text-[10px] text-muted-foreground font-medium">
-              Fintech Finance Engine
-            </p>
-          </Link>
-        </div>
-      )}
-
-      {/* =====================================================================
-          2. FIXED USER PROFILE CARD
-      ===================================================================== */}
-      <div className="relative mb-3.5" ref={profileMenuRef}>
+      <div className="relative mb-3 shrink-0" ref={profileMenuRef}>
         <button
           type="button"
           onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
           className={cn(
-            "w-full flex items-center justify-between p-2 rounded-2xl border transition-all text-left outline-none group",
+            "w-full flex items-center justify-between p-2 rounded-md border transition-all text-left outline-none group",
             isProfileMenuOpen
-              ? "bg-muted border-[#00B569]/50 ring-2 ring-[#00B569]/20"
-              : "bg-muted/50 hover:bg-muted/80 border-border/70 hover:border-border"
+              ? "bg-muted border-primary/50 ring-2 ring-primary/20"
+              : "bg-background/80 hover:bg-muted/70 border-border hover:border-border/90"
           )}
           aria-label="Menu Profil Pengguna"
         >
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-[#00B569] dark:bg-emerald-950 dark:text-emerald-400 text-xs font-black shrink-0 border border-emerald-300 dark:border-emerald-800 shadow-sm group-hover:scale-105 transition-transform">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-secondary text-secondary-foreground text-xs font-black shrink-0 border border-emerald-300 dark:border-emerald-800 shadow-2xs group-hover:scale-105 transition-transform">
               {userInitials}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-foreground truncate group-hover:text-[#00B569] transition-colors">
+              <p className="text-xs font-bold text-foreground truncate group-hover:text-primary transition-colors">
                 {profile?.displayName || "Pengguna Fin.IQ"}
               </p>
-              <p className="text-[10px] text-muted-foreground truncate">
+              <p className="text-[10px] text-muted-foreground truncate font-mono">
                 {profile?.email || "owner@finiq.app"}
               </p>
             </div>
@@ -169,21 +141,19 @@ export function Sidebar({
 
         {/* Dropdown Menu */}
         {isProfileMenuOpen && (
-          <div className="absolute top-full left-0 right-0 mt-1.5 rounded-2xl border border-border/80 bg-card p-2 text-xs shadow-2xl shadow-black/15 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-150 z-50">
-            {/* Header info */}
-            <div className="px-2.5 py-2 border-b border-border/60">
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-[#00B569] border border-emerald-500/20">
+          <div className="absolute top-full left-0 right-0 mt-1.5 rounded-md border border-border bg-card p-1.5 text-xs shadow-level-2 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-150 z-50">
+            <div className="px-2.5 py-2 border-b border-border/70">
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-secondary text-secondary-foreground">
                 Akun Aktif
               </span>
-              <p className="font-extrabold text-foreground truncate text-sm mt-1">
+              <p className="font-bold text-foreground truncate text-sm mt-1">
                 {profile?.displayName || "Pengguna Fin.IQ"}
               </p>
-              <p className="text-[11px] text-muted-foreground truncate">
+              <p className="text-[11px] text-muted-foreground truncate font-mono">
                 {profile?.email || "owner@finiq.app"}
               </p>
             </div>
 
-            {/* Menu Items */}
             <div className="py-1 space-y-0.5">
               <Link
                 href="/settings"
@@ -191,10 +161,10 @@ export function Sidebar({
                   setIsProfileMenuOpen(false);
                   onItemClick?.();
                 }}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors font-medium"
+                className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors font-medium"
               >
-                <User className="h-3.5 w-3.5 text-[#00B569]" />
-                <span>Profil &amp; Pengaturan</span>
+                <GeometricIcon name="settings" size="xs" active />
+                <span>Pengaturan &amp; Profil</span>
               </Link>
 
               <Link
@@ -203,20 +173,19 @@ export function Sidebar({
                   setIsProfileMenuOpen(false);
                   onItemClick?.();
                 }}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors font-medium"
+                className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors font-medium"
               >
-                <ShieldCheck className="h-3.5 w-3.5 text-blue-500" />
+                <GeometricIcon name="integrity" size="xs" active />
                 <span>Integritas Database</span>
               </Link>
             </div>
 
-            {/* Logout button */}
-            <div className="pt-1 border-t border-border/60">
+            <div className="pt-1 border-t border-border/70">
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors font-semibold"
+                className="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors font-semibold"
               >
-                <LogOut className="h-3.5 w-3.5 text-red-500" />
+                <LogOut className="h-3.5 w-3.5" />
                 <span>Keluar Akun</span>
               </button>
             </div>
@@ -225,60 +194,7 @@ export function Sidebar({
       </div>
 
       {/* =====================================================================
-          3. QUICK ACTIONS — dipindahkan dari TopBar
-      ===================================================================== */}
-      <div className="mb-3 flex-shrink-0 space-y-1.5">
-        {/* Kas Utama (Ledger) */}
-        <Link
-          href="/ledgers"
-          onClick={onItemClick}
-          className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs font-semibold transition-all group hover:bg-muted/60 border border-border/50"
-        >
-          <Wallet className="h-4 w-4 shrink-0 text-[#00B569]" />
-          <span className="truncate">{ledgerName}</span>
-        </Link>
-
-        {/* AI Studio */}
-        <Button asChild variant="secondary" size="sm" className="w-full justify-start gap-2 h-9 rounded-xl text-xs font-semibold">
-          <Link href="/ai" onClick={onItemClick}>
-            <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
-            AI Studio
-          </Link>
-        </Button>
-
-        {/* Tambah Transaksi */}
-        <Button
-          onClick={() => {
-            openQuickAdd();
-            onItemClick?.();
-          }}
-          size="sm"
-          className="w-full justify-start gap-2 h-9 rounded-xl text-xs font-semibold bg-[#00B569] hover:bg-[#009E5B] text-white shadow-sm"
-        >
-          <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
-          <span>Tambah Transaksi</span>
-        </Button>
-
-        {/* Theme Toggle */}
-        {mounted && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleTheme}
-            className="w-full justify-start gap-2 h-9 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground"
-          >
-            {theme === "dark" ? (
-              <Sun className="h-4 w-4 text-amber-400" />
-            ) : (
-              <Moon className="h-4 w-4 text-slate-700" />
-            )}
-            <span>{theme === "dark" ? "Mode Terang" : "Mode Gelap"}</span>
-          </Button>
-        )}
-      </div>
-
-      {/* =====================================================================
-          4. NAVIGATION SECTION (SCROLLABLE)
+          4. NAVIGATION SECTION (Pure Geometric Duotone Iconography)
       ===================================================================== */}
       <div className="flex-1 overflow-y-auto pr-1 -mr-1 space-y-3 scrollbar-none">
         {/* Menu Utama */}
@@ -287,7 +203,6 @@ export function Sidebar({
             Menu Utama
           </p>
           {navigationItems.map((item) => {
-            const Icon = item.icon;
             const isActive =
               pathname === item.href ||
               (item.href !== "/overview" && pathname?.startsWith(item.href));
@@ -300,35 +215,32 @@ export function Sidebar({
                 onClick={onItemClick}
                 {...(isAI ? { "data-tour": "ai-studio" } : {})}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs font-medium transition-all group",
+                  "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-xs transition-all group",
                   isActive
-                    ? "bg-[#00B569] text-white shadow-sm shadow-emerald-500/20 font-bold"
-                    : isAI
-                    ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 active:scale-[0.98]"
-                    : "text-muted-foreground hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30 hover:text-[#00B569] active:scale-[0.98]"
+                    ? "border-l-[3px] border-primary bg-emerald-500/10 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-bold shadow-2xs"
+                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground active:scale-[0.98]"
                 )}
               >
-                <Icon
+                <GeometricIcon
+                  name={item.iconName}
+                  size="sm"
+                  active={isActive}
                   className={cn(
-                    "h-4 w-4 transition-colors shrink-0",
-                    isActive
-                      ? "text-white"
-                      : isAI
-                      ? "text-emerald-500"
-                      : "text-muted-foreground group-hover:text-[#00B569]"
+                    "transition-transform",
+                    isActive ? "scale-105" : "opacity-70 group-hover:opacity-100"
                   )}
                 />
                 <span className="truncate flex-1">{item.label}</span>
                 {isAI && (
                   <span
                     className={cn(
-                      "text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider",
+                      "text-[9px] font-black px-1.5 py-0.5 rounded-sm uppercase tracking-wider",
                       isActive
-                        ? "bg-white/20 text-white"
-                        : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary text-secondary-foreground"
                     )}
                   >
-                    Studio
+                    AI
                   </span>
                 )}
               </Link>
@@ -337,13 +249,12 @@ export function Sidebar({
         </nav>
 
         {/* Preferensi */}
-        <div className="pt-2 border-t border-border/50">
+        <div className="pt-2 border-t border-border/60">
           <p className="px-2 text-[10px] font-bold tracking-wider text-muted-foreground/80 uppercase mb-0.5">
             Preferensi
           </p>
           <div className="flex flex-col gap-0.5">
             {secondaryItems.map((item) => {
-              const Icon = item.icon;
               const isActive = pathname === item.href;
 
               return (
@@ -352,13 +263,18 @@ export function Sidebar({
                   href={item.href}
                   onClick={onItemClick}
                   className={cn(
-                    "flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-xs font-medium transition-colors",
+                    "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-xs transition-colors",
                     isActive
-                      ? "bg-emerald-50 dark:bg-emerald-950/50 text-[#00B569] font-bold"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.98]"
+                      ? "border-l-[3px] border-primary bg-emerald-500/10 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-bold"
+                      : "text-muted-foreground hover:bg-muted/70 hover:text-foreground active:scale-[0.98]"
                   )}
                 >
-                  <Icon className="h-3.5 w-3.5 shrink-0" />
+                  <GeometricIcon
+                    name={item.iconName}
+                    size="xs"
+                    active={isActive}
+                    className={isActive ? "" : "opacity-70"}
+                  />
                   <span className="truncate">{item.label}</span>
                 </Link>
               );
@@ -366,6 +282,27 @@ export function Sidebar({
           </div>
         </div>
       </div>
+
+      {/* =====================================================================
+          3. FOOTER SECTION (Mode Terang / Mode Gelap di bagian bawah)
+      ===================================================================== */}
+      {mounted && (
+        <div className="pt-2.5 mt-auto border-t border-border/60 shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleTheme}
+            className="w-full justify-start gap-2.5 h-8.5 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+          >
+            {theme === "dark" ? (
+              <Sun className="h-4 w-4 text-amber-400 shrink-0" />
+            ) : (
+              <Moon className="h-4 w-4 text-slate-700 shrink-0" />
+            )}
+            <span>{theme === "dark" ? "Mode Terang" : "Mode Gelap"}</span>
+          </Button>
+        </div>
+      )}
     </aside>
   );
 }

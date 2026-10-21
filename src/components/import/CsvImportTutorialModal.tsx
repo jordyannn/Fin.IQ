@@ -51,11 +51,11 @@ export function CsvImportTutorialModal({ isOpen, onClose }: CsvImportTutorialMod
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-card w-full max-w-2xl rounded-3xl border border-border shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-card w-full max-w-2xl rounded-md border border-border shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header Modal */}
         <div className="p-5 sm:p-6 border-b border-border/60 flex items-center justify-between bg-muted/20 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
+            <div className="h-10 w-10 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
               <FileSpreadsheet className="h-5 w-5" />
             </div>
             <div>
@@ -70,7 +70,7 @@ export function CsvImportTutorialModal({ isOpen, onClose }: CsvImportTutorialMod
 
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             title="Tutup"
           >
             <X className="h-5 w-5" />
@@ -82,7 +82,7 @@ export function CsvImportTutorialModal({ isOpen, onClose }: CsvImportTutorialMod
           {/* Step 1: Format Kolom */}
           <div className="space-y-2.5">
             <div className="flex items-center gap-2 text-sm font-bold text-foreground">
-              <span className="h-6 w-6 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-extrabold">
+              <span className="h-6 w-6 rounded-sm bg-primary/15 text-primary flex items-center justify-center text-xs font-extrabold">
                 1
               </span>
               <span>Format Kolom yang Didukung Fin.IQ</span>
@@ -93,7 +93,7 @@ export function CsvImportTutorialModal({ isOpen, onClose }: CsvImportTutorialMod
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pl-8 pt-1">
-              <div className="p-3 rounded-2xl bg-muted/40 border border-border/60">
+              <div className="p-3 rounded-md bg-muted/40 border border-border/60">
                 <div className="font-bold text-foreground text-xs flex items-center gap-1.5 mb-1">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Kolom Wajib
                 </div>
@@ -104,7 +104,7 @@ export function CsvImportTutorialModal({ isOpen, onClose }: CsvImportTutorialMod
                 </ul>
               </div>
 
-              <div className="p-3 rounded-2xl bg-muted/40 border border-border/60">
+              <div className="p-3 rounded-md bg-muted/40 border border-border/60">
                 <div className="font-bold text-foreground text-xs flex items-center gap-1.5 mb-1">
                   <Sparkles className="h-3.5 w-3.5 text-primary" /> Kolom Opsional
                 </div>
@@ -121,7 +121,7 @@ export function CsvImportTutorialModal({ isOpen, onClose }: CsvImportTutorialMod
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-bold text-foreground">
-                <span className="h-6 w-6 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-extrabold">
+                <span className="h-6 w-6 rounded-sm bg-primary/15 text-primary flex items-center justify-center text-xs font-extrabold">
                   2
                 </span>
                 <span>Contoh Tabel Data CSV yang Valid</span>
@@ -132,7 +132,7 @@ export function CsvImportTutorialModal({ isOpen, onClose }: CsvImportTutorialMod
                   variant="ghost"
                   size="sm"
                   onClick={handleCopySample}
-                  className="h-7 text-[11px] gap-1 px-2 text-muted-foreground hover:text-foreground"
+                  className="h-7 text-[11px] gap-1 px-2 rounded-md text-muted-foreground hover:text-foreground"
                 >
                   {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
                   {copied ? "Tersalin!" : "Salin Teks"}
@@ -141,7 +141,7 @@ export function CsvImportTutorialModal({ isOpen, onClose }: CsvImportTutorialMod
                   type="button"
                   size="sm"
                   onClick={handleDownloadTemplate}
-                  className="h-7 text-[11px] font-bold bg-primary hover:bg-primary/90 text-white gap-1 px-2.5 rounded-xl shadow-xs"
+                  className="h-7 text-[11px] font-bold bg-primary hover:bg-primary/90 text-white gap-1 px-2.5 rounded-md shadow-xs"
                 >
                   <Download className="h-3 w-3" />
                   Unduh Template CSV
@@ -150,7 +150,7 @@ export function CsvImportTutorialModal({ isOpen, onClose }: CsvImportTutorialMod
             </div>
 
             <div className="pl-8">
-              <div className="overflow-x-auto rounded-2xl border border-border/70 bg-muted/20">
+              <div className="overflow-x-auto rounded-md border border-border/70 bg-muted/20">
                 <table className="w-full text-left text-[11px]">
                   <thead className="bg-muted/60 text-muted-foreground font-bold border-b border-border/60">
                     <tr>
@@ -196,20 +196,20 @@ export function CsvImportTutorialModal({ isOpen, onClose }: CsvImportTutorialMod
           {/* Step 3: Tips & Kompatibilitas */}
           <div className="space-y-2.5">
             <div className="flex items-center gap-2 text-sm font-bold text-foreground">
-              <span className="h-6 w-6 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-extrabold">
+              <span className="h-6 w-6 rounded-sm bg-primary/15 text-primary flex items-center justify-center text-xs font-extrabold">
                 3
               </span>
               <span>Tips Sukses Impor Transaksi</span>
             </div>
             <div className="pl-8 space-y-2 text-[11px] text-muted-foreground">
-              <div className="flex items-start gap-2 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300">
+              <div className="flex items-start gap-2 p-3 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300">
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
                 <span>
                   <strong>Deteksi Otomatis:</strong> Fin.IQ akan memetakan kolom secara otomatis. Anda
                   dapat meninjau (preview) dan mengubah mapping kolom sebelum menyimpan ke database.
                 </span>
               </div>
-              <div className="flex items-start gap-2 p-3 rounded-2xl bg-muted/40 border border-border/60">
+              <div className="flex items-start gap-2 p-3 rounded-md bg-muted/40 border border-border/60">
                 <AlertCircle className="h-4 w-4 shrink-0 text-amber-500 mt-0.5" />
                 <span>
                   <strong>Mutasi Bank (BCA / Mandiri / BRI / BNI):</strong> Export mutasi rekening ke
@@ -226,13 +226,13 @@ export function CsvImportTutorialModal({ isOpen, onClose }: CsvImportTutorialMod
             type="button"
             variant="ghost"
             onClick={onClose}
-            className="rounded-xl text-xs font-semibold"
+            className="rounded-md text-xs font-semibold"
           >
             Tutup Panduan
           </Button>
 
           <Link href="/import" onClick={onClose}>
-            <Button className="rounded-xl bg-primary hover:bg-primary/90 text-white font-bold gap-2 text-xs px-4 shadow-sm shadow-primary/25">
+            <Button className="rounded-md bg-primary hover:bg-primary/90 text-white font-bold gap-2 text-xs px-4 shadow-sm shadow-primary/25">
               <span>Buka Halaman Impor</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </Button>

@@ -37,6 +37,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useAlert, useConfirm } from "@/store/confirm.store";
+import { GeometricIcon } from "@/components/ui/GeometricIcon";
 
 function AIPageContent() {
   const searchParams = useSearchParams();
@@ -376,19 +377,19 @@ function AIPageContent() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#00B569]/10 text-[#00B569]">
-              <Sparkles className="h-5 w-5" />
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-md bg-[#A7F3D0]/40 flex items-center justify-center text-[#064E3B] shrink-0">
+              <GeometricIcon name="ai" className="h-4 w-4" />
             </div>
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-foreground flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
                 Fin.IQ AI Studio
-                <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary">
+                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-sm bg-[#A7F3D0]/30 text-[#064E3B] border border-[#059669]/20">
                   Gemini 3 Flash & 3.8
-                </Badge>
+                </span>
               </h1>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Kecerdasan buatan Google Gemini: Scan Struk Kasir (OCR), Smart NLP Parser, dan Financial Advisor.
+                Pengenalan otomatis struk kasir (OCR), parsing bahasa natural, dan asisten keuangan personal.
               </p>
             </div>
           </div>
@@ -397,8 +398,8 @@ function AIPageContent() {
         {/* Token Status Badge / Link */}
         <div className="flex items-center gap-2">
           {geminiStatus?.connected ? (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#A7F3D0]/30 border border-[#059669]/20 text-xs font-semibold text-[#064E3B]">
+              <GeometricIcon name="check" className="h-3.5 w-3.5" />
               <span>Token Gemini Terhubung</span>
               {geminiStatus.maskedKey && (
                 <span className="font-mono text-[10px] opacity-75">({geminiStatus.maskedKey})</span>
@@ -406,9 +407,9 @@ function AIPageContent() {
             </div>
           ) : (
             <Link href="/settings">
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10">
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs rounded-md border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10">
                 <AlertCircle className="h-3.5 w-3.5" />
-                Sambungkan Token di Profil
+                Sambungkan Kunci API
               </Button>
             </Link>
           )}
@@ -417,18 +418,18 @@ function AIPageContent() {
 
       {/* Warning jika token belum terhubung */}
       {!geminiStatus?.connected && !isStatusLoading && (
-        <Card className="p-4 rounded-2xl border-amber-500/30 bg-amber-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <Card className="p-4 rounded-md border-amber-500/30 bg-amber-500/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <div className="flex items-start gap-3">
             <KeyRound className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
             <div>
               <h4 className="font-bold text-foreground">Token Google Gemini Belum Tersambung</h4>
               <p className="text-muted-foreground mt-0.5">
-                Untuk menggunakan OCR Bill Scanner dan Financial Advisor, sambungkan Google Gemini API Key Anda di halaman Pengaturan &amp; Profil.
+                Untuk menggunakan OCR Bill Scanner dan Financial Advisor, masukkan Google Gemini API Key Anda di Pengaturan Akun.
               </p>
             </div>
           </div>
           <Link href="/settings" className="shrink-0">
-            <Button size="sm" className="bg-[#00B569] hover:bg-[#009E5B] text-white text-xs rounded-xl font-bold gap-1.5">
+            <Button size="sm" className="bg-[#059669] hover:bg-[#047857] text-white text-xs rounded-md font-semibold gap-1.5 shadow-level-1">
               Sambungkan Sekarang
               <ArrowRight className="h-3.5 w-3.5" />
             </Button>
@@ -437,40 +438,40 @@ function AIPageContent() {
       )}
 
       {/* Feature Navigation Tabs */}
-      <div className="flex items-center rounded-xl bg-muted p-1 text-xs font-semibold self-start gap-1">
+      <div className="flex items-center rounded-md bg-slate-100 dark:bg-slate-800/60 p-1 text-xs font-semibold self-start gap-1 border border-border/60">
         <button
           onClick={() => setActiveTab("ocr")}
-          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg transition-all ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-sm transition-all ${
             activeTab === "ocr"
-              ? "bg-card text-foreground shadow-sm font-bold"
+              ? "bg-white dark:bg-slate-900 text-foreground shadow-level-1 font-bold"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Camera className="h-3.5 w-3.5 text-primary" />
+          <Camera className="h-3.5 w-3.5 text-[#059669]" />
           <span>Scan Struk Kasir (OCR)</span>
         </button>
 
         <button
           onClick={() => setActiveTab("chat")}
-          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg transition-all ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-sm transition-all ${
             activeTab === "chat"
-              ? "bg-card text-foreground shadow-sm font-bold"
+              ? "bg-white dark:bg-slate-900 text-foreground shadow-level-1 font-bold"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <MessageSquareText className="h-3.5 w-3.5 text-primary" />
+          <GeometricIcon name="ai" className="h-3.5 w-3.5" />
           <span>Financial Advisor (Tanya AI)</span>
         </button>
 
         <button
           onClick={() => setActiveTab("nlp")}
-          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg transition-all ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-sm transition-all ${
             activeTab === "nlp"
-              ? "bg-card text-foreground shadow-sm font-bold"
+              ? "bg-white dark:bg-slate-900 text-foreground shadow-level-1 font-bold"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <FileText className="h-3.5 w-3.5 text-primary" />
+          <FileText className="h-3.5 w-3.5 text-[#059669]" />
           <span>Smart Text Parser</span>
         </button>
       </div>
@@ -479,12 +480,12 @@ function AIPageContent() {
       {/* TAB 1: OCR BILL SCANNER */}
       {/* ==================================================================== */}
       {activeTab === "ocr" && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
           {/* Upload Area (Left) */}
-          <Card className="lg:col-span-5 p-6 rounded-2xl shadow-sm border-border/70 flex flex-col justify-between">
+          <Card className="lg:col-span-5 p-4 sm:p-5 rounded-md shadow-sm border-border/70 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 pb-3 border-b mb-4">
-                <Receipt className="h-4 w-4 text-[#00B569]" />
+                <Receipt className="h-4 w-4 text-[#059669]" />
                 <h3 className="font-extrabold text-sm text-foreground">Unggah Foto Struk / Bill</h3>
               </div>
 
@@ -514,9 +515,9 @@ function AIPageContent() {
                   variant="outline"
                   disabled={isScanningBill}
                   onClick={() => cameraInputRef.current?.click()}
-                  className="h-9 rounded-xl text-xs font-semibold gap-2 border-border/80 hover:bg-primary/10 hover:border-primary/40 hover:text-primary transition-all shadow-2xs cursor-pointer"
+                  className="h-8 sm:h-9 rounded-md text-xs font-semibold gap-2 border-border/80 hover:bg-[#A7F3D0]/20 hover:border-[#059669]/40 hover:text-[#064E3B] transition-all shadow-2xs cursor-pointer"
                 >
-                  <Camera className="h-4 w-4 text-primary" />
+                  <Camera className="h-3.5 w-3.5 text-[#059669]" />
                   <span>Buka Kamera</span>
                 </Button>
                 <Button
@@ -524,9 +525,9 @@ function AIPageContent() {
                   variant="outline"
                   disabled={isScanningBill}
                   onClick={() => galleryInputRef.current?.click()}
-                  className="h-9 rounded-xl text-xs font-semibold gap-2 border-border/80 hover:bg-primary/10 hover:border-primary/40 hover:text-primary transition-all shadow-2xs cursor-pointer"
+                  className="h-8 sm:h-9 rounded-md text-xs font-semibold gap-2 border-border/80 hover:bg-[#A7F3D0]/20 hover:border-[#059669]/40 hover:text-[#064E3B] transition-all shadow-2xs cursor-pointer"
                 >
-                  <ImageIcon className="h-4 w-4 text-primary" />
+                  <ImageIcon className="h-3.5 w-3.5 text-[#059669]" />
                   <span>Buka Galeri</span>
                 </Button>
               </div>
@@ -536,14 +537,14 @@ function AIPageContent() {
                 onClick={() => {
                   if (!isScanningBill) galleryInputRef.current?.click();
                 }}
-                className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 min-h-[180px] ${
+                className={`border-2 border-dashed rounded-md p-5 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 min-h-[170px] ${
                   isScanningBill
-                    ? "border-primary/50 bg-primary/5 cursor-not-allowed"
-                    : "border-border hover:border-primary/50 hover:bg-muted/40"
+                    ? "border-[#059669]/50 bg-[#A7F3D0]/10 cursor-not-allowed"
+                    : "border-border hover:border-[#059669]/50 hover:bg-muted/40"
                 }`}
               >
                 {receiptPreviewUrl ? (
-                  <div className="relative w-full max-h-56 overflow-hidden rounded-xl border">
+                  <div className="relative w-full max-h-56 overflow-hidden rounded-sm border">
                     <img
                       src={receiptPreviewUrl}
                       alt="Pratinjau Struk"
@@ -556,8 +557,8 @@ function AIPageContent() {
                   </div>
                 ) : (
                   <>
-                    <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
-                      <UploadCloud className="h-6 w-6" />
+                    <div className="h-11 w-11 rounded-md bg-[#A7F3D0]/40 text-[#064E3B] flex items-center justify-center">
+                      <UploadCloud className="h-5 w-5" />
                     </div>
                     <div>
                       <span className="text-xs font-bold text-foreground block">
@@ -573,21 +574,21 @@ function AIPageContent() {
 
               {/* Progress atau Error */}
               {isScanningBill && (
-                <div className="mt-4 flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/10 text-xs text-primary animate-pulse">
-                  <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                <div className="mt-4 flex items-center gap-3 p-3 rounded-sm border border-[#059669]/30 bg-[#A7F3D0]/10 text-xs text-[#064E3B] animate-pulse">
+                  <Loader2 className="h-4 w-4 animate-spin shrink-0 text-[#059669]" />
                   <span>Gemini AI sedang memindai dan mengekstrak rincian struk...</span>
                 </div>
               )}
 
               {billError && (
-                <div className="mt-4 flex items-center gap-2 p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-600 dark:text-rose-400">
+                <div className="mt-4 flex items-center gap-2 p-3 rounded-sm border border-rose-500/30 bg-rose-500/10 text-xs text-rose-600 dark:text-rose-400">
                   <AlertCircle className="h-4 w-4 shrink-0" />
                   <span>{billError}</span>
                 </div>
               )}
 
               {saveSuccessMsg && (
-                <div className="mt-4 flex items-center gap-2 p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-600 dark:text-emerald-400">
+                <div className="mt-4 flex items-center gap-2 p-3 rounded-sm border border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-600 dark:text-emerald-400">
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
                   <span>{saveSuccessMsg}</span>
                 </div>
@@ -613,36 +614,36 @@ function AIPageContent() {
           </Card>
 
           {/* Results Area (Right) */}
-          <Card className="lg:col-span-7 p-6 rounded-2xl shadow-sm border-border/70 flex flex-col justify-between">
+          <Card className="lg:col-span-7 p-4 sm:p-5 rounded-md shadow-sm border-border/70 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between pb-3 border-b mb-4">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-[#00B569]" />
+                  <GeometricIcon name="ai" className="h-4 w-4" />
                   <h3 className="font-extrabold text-sm text-foreground">Hasil Analisis AI Vision Gemini</h3>
                 </div>
                 {scannedResult && (
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {scannedResult.documentType === "transfer_proof" && (
-                      <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-600 bg-blue-500/10">
+                      <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-600 bg-blue-500/10 rounded-sm">
                         💳 Bukti Transfer M-Banking
                       </Badge>
                     )}
                     {scannedResult.documentType === "bank_statement" && (
-                      <Badge variant="outline" className="text-[10px] border-purple-500/30 text-purple-600 bg-purple-500/10">
+                      <Badge variant="outline" className="text-[10px] border-purple-500/30 text-purple-600 bg-purple-500/10 rounded-sm">
                         📑 Riwayat Mutasi Rekening
                       </Badge>
                     )}
                     {scannedResult.documentType === "receipt" && (
-                      <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-600 bg-emerald-500/10">
+                      <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-600 bg-emerald-500/10 rounded-sm">
                         🧾 Struk Belanja Kasir
                       </Badge>
                     )}
                     {scannedResult.documentType === "bill" && (
-                      <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-600 bg-amber-500/10">
+                      <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-600 bg-amber-500/10 rounded-sm">
                         ⚡ Tagihan / Faktur
                       </Badge>
                     )}
-                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-none font-semibold text-[10px]">
+                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-none font-semibold text-[10px] rounded-sm">
                       Berhasil Diekstrak
                     </Badge>
                   </div>
@@ -650,9 +651,9 @@ function AIPageContent() {
               </div>
 
               {scannedResult ? (
-                <div className="space-y-4 text-xs">
+                <div className="space-y-3.5 text-xs">
                   {/* Highlight Nominal & Toko */}
-                  <div className="p-4 rounded-2xl bg-muted/40 border border-border/60 flex items-center justify-between">
+                  <div className="p-3.5 sm:p-4 rounded-md bg-muted/40 border border-border/60 flex items-center justify-between">
                     <div>
                       <span className="text-[11px] text-muted-foreground block">
                         {scannedResult.documentType === "transfer_proof"
@@ -678,14 +679,14 @@ function AIPageContent() {
                   </div>
 
                   {/* Metadata Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                    <div className="p-3 rounded-xl border bg-card">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <div className="p-2.5 sm:p-3 rounded-sm border bg-card">
                       <span className="text-[10px] text-muted-foreground block uppercase font-medium">Waktu Transaksi</span>
                       <span className="font-semibold text-foreground mt-0.5 block">
                         {formatDateTime(scannedResult.happenedAt)}
                       </span>
                     </div>
-                    <div className="p-3 rounded-xl border bg-card">
+                    <div className="p-2.5 sm:p-3 rounded-sm border bg-card">
                       <span className="text-[10px] text-muted-foreground block uppercase font-medium">Saran Kategori</span>
                       <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <span className="font-semibold text-foreground">
@@ -700,7 +701,7 @@ function AIPageContent() {
                                 scannedResult.recommendedCategory.kind
                               )
                             }
-                            className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all flex items-center gap-1 cursor-pointer"
+                            className="px-2 py-0.5 rounded-sm text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all flex items-center gap-1 cursor-pointer"
                           >
                             <Plus className="h-2.5 w-2.5" />
                             Buat Kategori
@@ -708,7 +709,7 @@ function AIPageContent() {
                         )}
                       </div>
                     </div>
-                    <div className="p-3 rounded-xl border bg-card col-span-2 sm:col-span-1">
+                    <div className="p-2.5 sm:p-3 rounded-sm border bg-card col-span-2 sm:col-span-1">
                       <span className="text-[10px] text-muted-foreground block uppercase font-medium">Metode / Akun</span>
                       <span className="font-semibold text-foreground mt-0.5 block">
                         {scannedResult.accountHint || "Kas Tunai"}
@@ -718,12 +719,12 @@ function AIPageContent() {
 
                   {/* Line Items Breakdown jika ada (Multi-Product Bills) */}
                   {Array.isArray(scannedResult.items) && scannedResult.items.length > 0 && (
-                    <div className="border rounded-xl p-3 bg-card mt-3">
+                    <div className="border rounded-md p-3 bg-card mt-3">
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-bold text-[11px] text-muted-foreground uppercase tracking-wider block">
                           Daftar Produk Belanja ({scannedResult.items.length} produk)
                         </span>
-                        <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-600">
+                        <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-600 rounded-sm">
                           Multi-Product
                         </Badge>
                       </div>
@@ -744,12 +745,12 @@ function AIPageContent() {
 
                   {/* Multi-Transaction Statement Breakdown jika gambar mutasi rekening */}
                   {scannedResult.isMultipleTransactions && Array.isArray(scannedResult.transactions) && scannedResult.transactions.length > 1 && (
-                    <div className="border rounded-xl p-3 bg-card mt-3">
+                    <div className="border rounded-md p-3 bg-card mt-3">
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-bold text-[11px] text-muted-foreground uppercase tracking-wider block">
                           Daftar Mutasi Terdeteksi ({scannedResult.transactions.length} mutasi)
                         </span>
-                        <Badge variant="outline" className="text-[9px] border-blue-500/30 text-blue-600">
+                        <Badge variant="outline" className="text-[9px] border-blue-500/30 text-blue-600 rounded-sm">
                           Riwayat M-Banking
                         </Badge>
                       </div>
@@ -774,7 +775,7 @@ function AIPageContent() {
                   )}
 
                   {/* Catatan yang akan disimpan */}
-                  <div className="p-3 rounded-xl border bg-card">
+                  <div className="p-3 rounded-sm border bg-card">
                     <span className="text-[10px] text-muted-foreground block uppercase font-medium">Catatan Otomatis</span>
                     <span className="font-medium text-foreground mt-0.5 block leading-relaxed">
                       {scannedResult.note}
@@ -782,7 +783,7 @@ function AIPageContent() {
                   </div>
                 </div>
               ) : (
-                <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
+                <div className="p-8 sm:p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
                   <Receipt className="h-8 w-8 text-muted-foreground/40" />
                   <span className="text-xs">
                     {isScanningBill
@@ -801,7 +802,7 @@ function AIPageContent() {
                 <Button
                   onClick={handleSaveScannedTransaction}
                   disabled={isSavingTx}
-                  className="bg-[#00B569] hover:bg-[#009E5B] text-white font-bold h-9 px-4 rounded-xl text-xs gap-1.5"
+                  className="bg-[#059669] hover:bg-[#047857] text-white font-semibold h-8 sm:h-9 px-4 rounded-md text-xs gap-1.5 shadow-level-1"
                 >
                   {isSavingTx ? (
                     <>
@@ -825,14 +826,14 @@ function AIPageContent() {
       {/* TAB 2: FINANCIAL CHAT ADVISOR */}
       {/* ==================================================================== */}
       {activeTab === "chat" && (
-        <Card className="p-6 rounded-2xl shadow-sm border-border/70 flex flex-col h-[600px] justify-between">
+        <Card className="p-4 sm:p-5 rounded-md shadow-sm border-border/70 flex flex-col h-[560px] sm:h-[600px] justify-between">
           <div>
             <div className="flex items-center justify-between pb-3 border-b mb-3">
               <div className="flex items-center gap-2">
-                <Bot className="h-4 w-4 text-[#00B569]" />
+                <GeometricIcon name="ai" className="h-4 w-4" />
                 <h3 className="font-extrabold text-sm text-foreground">Fin.IQ Financial Advisor (Tanya AI)</h3>
               </div>
-              <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300">
+              <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300 rounded-sm">
                 Data Fin.IQ Riil Aktif
               </Badge>
             </div>
@@ -850,7 +851,7 @@ function AIPageContent() {
                   key={sIdx}
                   onClick={() => handleSendChat(suggestion)}
                   disabled={askAssistantMutation.isPending}
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-medium border border-border/70 bg-muted/30 hover:bg-muted/70 text-foreground transition-all hover:border-primary/40"
+                  className="px-2.5 py-1 rounded-sm text-[11px] font-medium border border-border/70 bg-muted/30 hover:bg-muted/70 text-foreground transition-all hover:border-[#059669]/40"
                 >
                   {suggestion}
                 </button>
@@ -859,21 +860,21 @@ function AIPageContent() {
           </div>
 
           {/* Chat Messages Feed */}
-          <div className="flex-1 overflow-y-auto space-y-3.5 pr-2 py-2">
+          <div className="flex-1 overflow-y-auto space-y-3 pr-2 py-2">
             {chatMessages.map((msg, idx) => (
               <div
                 key={idx}
                 className={`flex gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 {msg.role === "assistant" && (
-                  <div className="h-7 w-7 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                  <div className="h-7 w-7 rounded-sm bg-[#A7F3D0]/40 text-[#064E3B] flex items-center justify-center shrink-0 mt-0.5">
                     <Sparkles className="h-3.5 w-3.5" />
                   </div>
                 )}
                 <div
-                  className={`max-w-[80%] rounded-2xl p-3 text-xs leading-relaxed whitespace-pre-wrap ${
+                  className={`max-w-[80%] rounded-md p-3 text-xs leading-relaxed whitespace-pre-wrap ${
                     msg.role === "user"
-                      ? "bg-primary text-white rounded-tr-none font-medium"
+                      ? "bg-[#059669] text-white rounded-tr-none font-medium"
                       : "bg-muted/50 border border-border/60 text-foreground rounded-tl-none shadow-sm"
                   }`}
                 >
@@ -891,11 +892,11 @@ function AIPageContent() {
 
             {askAssistantMutation.isPending && (
               <div className="flex gap-2.5 items-center text-xs text-muted-foreground">
-                <div className="h-7 w-7 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 animate-pulse">
+                <div className="h-7 w-7 rounded-sm bg-[#A7F3D0]/40 text-[#064E3B] flex items-center justify-center shrink-0 animate-pulse">
                   <Sparkles className="h-3.5 w-3.5" />
                 </div>
-                <div className="p-2.5 rounded-2xl bg-muted/40 border border-border/50 flex items-center gap-2">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                <div className="p-2.5 rounded-md bg-muted/40 border border-border/50 flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#059669]" />
                   <span>Fin.IQ AI sedang menganalisis data keuangan Anda...</span>
                 </div>
               </div>
@@ -915,13 +916,13 @@ function AIPageContent() {
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               placeholder="Tanyakan analisis keuangan, tips budgeting, atau rincian transaksi..."
-              className="h-10 text-xs rounded-xl"
+              className="h-9 sm:h-10 text-xs rounded-md"
               disabled={askAssistantMutation.isPending}
             />
             <Button
               type="submit"
               disabled={askAssistantMutation.isPending || !chatInput.trim()}
-              className="bg-[#00B569] hover:bg-[#009E5B] text-white font-bold h-10 px-4 rounded-xl text-xs gap-1.5 shrink-0"
+              className="bg-[#059669] hover:bg-[#047857] text-white font-semibold h-9 sm:h-10 px-4 rounded-md text-xs gap-1.5 shrink-0 shadow-level-1"
             >
               <Send className="h-3.5 w-3.5" />
               Kirim
@@ -934,37 +935,37 @@ function AIPageContent() {
       {/* TAB 3: SMART NLP TEXT PARSER */}
       {/* ==================================================================== */}
       {activeTab === "nlp" && (
-        <Card className="p-6 rounded-2xl shadow-sm border-border/70 flex flex-col justify-between">
+        <Card className="p-4 sm:p-5 rounded-md shadow-sm border-border/70 flex flex-col justify-between">
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b mb-4 gap-2">
               <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-[#00B569]" />
+                <FileText className="h-4 w-4 text-[#059669]" />
                 <h3 className="font-extrabold text-sm text-foreground">
                   Smart Indonesian Transaction Parser
                 </h3>
               </div>
-              <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-xl text-[11px]">
+              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/60 p-1 rounded-md text-[11px] border border-border/50">
                 <button
                   type="button"
                   onClick={() => setNlpEngine("local")}
-                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                  className={`px-2.5 py-1 rounded-sm font-bold transition-all ${
                     nlpEngine === "local"
-                      ? "bg-[#00B569] text-white shadow-2xs"
+                      ? "bg-[#059669] text-white shadow-2xs"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  ⚡ NLP Lokal (Instan 0ms)
+                  NLP Lokal (Instan)
                 </button>
                 <button
                   type="button"
                   onClick={() => setNlpEngine("gemini")}
-                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                  className={`px-2.5 py-1 rounded-sm font-bold transition-all ${
                     nlpEngine === "gemini"
-                      ? "bg-[#00B569] text-white shadow-2xs"
+                      ? "bg-[#059669] text-white shadow-2xs"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  ✨ Gemini AI
+                  Gemini AI
                 </button>
               </div>
             </div>
@@ -980,7 +981,7 @@ function AIPageContent() {
                   value={nlpText}
                   onChange={(e) => setNlpText(e.target.value)}
                   placeholder="Contoh: Makan siang nasi padang 35rb bayar pakai BCA kemarin jam 12"
-                  className="h-10 text-xs rounded-xl flex-1"
+                  className="h-9 sm:h-10 text-xs rounded-md flex-1"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -994,7 +995,7 @@ function AIPageContent() {
                     (nlpEngine === "local" ? parseTextLocalMutation.isPending : parseTextGeminiMutation.isPending) ||
                     !nlpText.trim()
                   }
-                  className="bg-[#00B569] hover:bg-[#009E5B] text-white font-bold h-10 px-4 rounded-xl text-xs gap-1.5 shrink-0"
+                  className="bg-[#059669] hover:bg-[#047857] text-white font-semibold h-9 sm:h-10 px-4 rounded-md text-xs gap-1.5 shrink-0 shadow-level-1"
                 >
                   {(nlpEngine === "local" ? parseTextLocalMutation.isPending : parseTextGeminiMutation.isPending) ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1030,15 +1031,15 @@ function AIPageContent() {
 
             {/* Hasil Ekstraksi NLP */}
             {nlpResult && (
-              <div className="mt-6 p-4 rounded-2xl bg-muted/40 border border-border/60 space-y-3 text-xs">
+              <div className="mt-5 p-3.5 sm:p-4 rounded-md bg-muted/40 border border-border/60 space-y-3 text-xs">
                 <div className="flex items-center justify-between border-b pb-2">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-foreground">Hasil Ekstraksi Transaksi</span>
-                    <Badge variant="outline" className="text-[10px] font-mono text-[#00B569] border-[#00B569]/30">
-                      {nlpResult.usedGemini ? "Gemini AI" : "⚡ NLP Lokal (Instan)"}
+                    <Badge variant="outline" className="text-[10px] font-mono text-[#059669] border-[#059669]/30 rounded-sm">
+                      {nlpResult.usedGemini ? "Gemini AI" : "NLP Lokal (Instan)"}
                     </Badge>
                   </div>
-                  <Badge variant={nlpResult.txType as any} className="text-[10px] uppercase">
+                  <Badge variant={nlpResult.txType as any} className="text-[10px] uppercase rounded-sm">
                     {nlpResult.txType}
                   </Badge>
                 </div>
@@ -1065,7 +1066,7 @@ function AIPageContent() {
                               nlpResult.recommendedCategory.kind
                             )
                           }
-                          className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all flex items-center gap-1 cursor-pointer"
+                          className="px-2 py-0.5 rounded-sm text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all flex items-center gap-1 cursor-pointer"
                         >
                           <Plus className="h-2.5 w-2.5" />
                           Buat Kategori
@@ -1094,7 +1095,7 @@ function AIPageContent() {
                   <Button
                     onClick={handleSaveNlpTransaction}
                     disabled={isSavingTx}
-                    className="bg-[#00B569] hover:bg-[#009E5B] text-white font-bold h-8 px-3 rounded-xl text-xs gap-1.5"
+                    className="bg-[#059669] hover:bg-[#047857] text-white font-semibold h-8 px-3 rounded-md text-xs gap-1.5 shadow-level-1"
                   >
                     {isSavingTx ? "Menyimpan..." : "Simpan Transaksi"}
                   </Button>
@@ -1117,7 +1118,7 @@ export default function AIPage() {
     <Suspense
       fallback={
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-[#00B569]" />
+          <Loader2 className="h-8 w-8 animate-spin text-[#059669]" />
           <p className="text-sm text-muted-foreground animate-pulse">Memuat Fin.IQ AI Studio...</p>
         </div>
       }

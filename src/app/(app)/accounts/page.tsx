@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { GeometricIcon } from "@/components/ui/GeometricIcon";
 import { useConfirm } from "@/store/confirm.store";
 
 interface EditAccountState {
@@ -170,18 +171,18 @@ export default function AccountsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Akun Keuangan</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Akun &amp; Portofolio Rekening</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Kelola dompet tunai, rekening bank, dan saldo e-wallet Anda. Klik kartu untuk langsung mengubah rincian atau menyesuaikan saldo.
+            Rincian saldo seluruh rekening perbankan, dompet digital, dan kas fisik.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <Button
             onClick={() => setIsAddOpen(true)}
-            className="bg-primary hover:bg-primary/90 text-white gap-2 shadow-sm text-xs"
+            className="bg-primary hover:bg-[#047857] text-white gap-2 shadow-xs text-xs rounded-md font-bold"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4 stroke-[3px]" />
             Tambah Akun Baru
           </Button>
         </div>
@@ -189,61 +190,64 @@ export default function AccountsPage() {
 
       {/* Ringkasan Total Saldo */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="md:col-span-2 bg-gradient-to-tr from-primary to-emerald-600 text-white p-6 rounded-3xl border-0 shadow-md shadow-primary/20 relative overflow-hidden">
-          <div className="relative z-10 flex items-center justify-between">
+        <Card className="md:col-span-2 bg-card p-4 sm:p-5 rounded-md border border-border shadow-2xs relative overflow-hidden flex flex-col justify-between">
+          <div className="relative z-10 flex items-start justify-between gap-4">
             <div>
-              <div className="text-xs font-bold text-white/85 uppercase tracking-wider">
-                Total Seluruh Saldo Aktif
+              <div className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                <GeometricIcon name="accounts" size="xs" active />
+                <span>TOTAL SALDO KEKAYAAN</span>
               </div>
-              <div className="text-3xl sm:text-4xl font-black tracking-tight mt-1.5">
+              <div className="text-3xl sm:text-4xl lg:text-5xl font-black text-foreground tracking-tight mt-1.5">
                 {formatCurrency(accountsData?.totalBalance || 0)}
               </div>
-              <p className="text-xs text-white/80 mt-1 font-medium">
-                Tercatat di {accountsData?.accounts?.filter((a) => !a.isHidden).length || 0} akun aktif
+              <p className="text-xs text-muted-foreground mt-1.5 font-medium flex items-center gap-2">
+                <span>Tercatat pada seluruh instrumen keuangan</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold bg-secondary text-secondary-foreground border border-emerald-300 dark:border-emerald-800">
+                  {accountsData?.accounts?.filter((a) => !a.isHidden).length || 0} Akun Aktif
+                </span>
               </p>
             </div>
-            <div className="h-14 w-14 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/25">
-              <Wallet className="h-7 w-7 text-white" />
+            <div className="h-10 w-10 rounded-md bg-secondary flex items-center justify-center shrink-0 border border-emerald-300 dark:border-emerald-800 shadow-2xs">
+              <GeometricIcon name="accounts" size="sm" active />
             </div>
           </div>
-          {/* Subtle background decoration */}
-          <div className="absolute -right-8 -bottom-8 w-36 h-36 rounded-full bg-white/10 blur-xl pointer-events-none" />
         </Card>
 
-        <Card className="p-6 flex flex-col justify-between shadow-sm">
+        <Card className="p-4 sm:p-5 rounded-md border border-border shadow-2xs flex flex-col justify-between">
           <div>
-            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Statistik Akun
+            <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <GeometricIcon name="integrity" size="xs" active />
+              <span>Status Rekening</span>
             </div>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div className="p-3 bg-muted/40 rounded-xl">
-                <div className="text-[11px] text-muted-foreground">Akun Aktif</div>
+            <div className="grid grid-cols-2 gap-2.5 mt-2.5">
+              <div className="p-2.5 bg-muted/40 rounded-sm border border-border/60">
+                <div className="text-[11px] text-muted-foreground font-semibold">Akun Aktif</div>
                 <div className="text-xl font-bold mt-0.5 text-foreground">
                   {accountsData?.accounts?.filter((a) => !a.isHidden).length || 0}
                 </div>
               </div>
-              <div className="p-3 bg-muted/40 rounded-xl">
-                <div className="text-[11px] text-muted-foreground">Disembunyikan</div>
+              <div className="p-2.5 bg-muted/40 rounded-sm border border-border/60">
+                <div className="text-[11px] text-muted-foreground font-semibold">Disembunyikan</div>
                 <div className="text-xl font-bold mt-0.5 text-muted-foreground">
                   {accountsData?.accounts?.filter((a) => a.isHidden).length || 0}
                 </div>
               </div>
             </div>
           </div>
-          <p className="text-[11px] text-muted-foreground mt-3">
-            Akun yang disembunyikan tidak akan muncul di input transaksi harian.
+          <p className="text-[11px] text-muted-foreground mt-2">
+            Akun yang disembunyikan tidak akan muncul pada dropdown transaksi harian.
           </p>
         </Card>
       </div>
 
       {/* Filter Tabs & Search */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-        <div className="flex items-center gap-1.5 p-1 bg-muted/50 rounded-xl border w-full sm:w-auto">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
+        <div className="flex items-center gap-1 p-0.5 bg-muted/50 rounded-md border w-full sm:w-auto">
           <button
             onClick={() => setFilterTab("all")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`px-3 py-1 rounded-sm text-xs font-medium transition-all ${
               filterTab === "all"
-                ? "bg-card text-foreground shadow-sm"
+                ? "bg-card text-foreground shadow-xs font-bold"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -251,9 +255,9 @@ export default function AccountsPage() {
           </button>
           <button
             onClick={() => setFilterTab("active")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`px-3 py-1 rounded-sm text-xs font-medium transition-all ${
               filterTab === "active"
-                ? "bg-card text-foreground shadow-sm"
+                ? "bg-card text-foreground shadow-xs font-bold"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -261,9 +265,9 @@ export default function AccountsPage() {
           </button>
           <button
             onClick={() => setFilterTab("hidden")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`px-3 py-1 rounded-sm text-xs font-medium transition-all ${
               filterTab === "hidden"
-                ? "bg-card text-foreground shadow-sm"
+                ? "bg-card text-foreground shadow-xs font-bold"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -320,7 +324,7 @@ export default function AccountsPage() {
               <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`flex h-11 w-11 items-center justify-center rounded-xl shadow-sm ${
+                    className={`flex h-9 w-9 items-center justify-center rounded-md shadow-2xs ${
                       isCash
                         ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                         : isBank
@@ -328,20 +332,20 @@ export default function AccountsPage() {
                         : "bg-sky-500/10 text-sky-600 dark:text-sky-400"
                     }`}
                   >
-                    {isCash && <Banknote className="h-5 w-5" />}
-                    {isBank && <CreditCard className="h-5 w-5" />}
-                    {isEwallet && <Smartphone className="h-5 w-5" />}
+                    {isCash && <Banknote className="h-4 w-4" />}
+                    {isBank && <CreditCard className="h-4 w-4" />}
+                    {isEwallet && <Smartphone className="h-4 w-4" />}
                   </div>
                   <div>
-                    <CardTitle className="text-base font-bold uppercase tracking-wider text-foreground">
+                    <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
                       {acc.name}
                     </CardTitle>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <Badge variant="secondary" className="text-[10px] px-2 py-0">
+                      <Badge variant="secondary" className="text-[10px] px-2 py-0.5 rounded-full">
                         {acc.group}
                       </Badge>
                       {acc.isHidden && (
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-amber-600 border-amber-300">
+                        <Badge variant="outline" className="text-[9px] px-2 py-0.5 text-amber-600 border-amber-300 rounded-full">
                           Disembunyikan
                         </Badge>
                       )}
@@ -349,8 +353,8 @@ export default function AccountsPage() {
                   </div>
                 </div>
 
-                {/* Quick actions (stop propagation so card click doesn't clash) */}
-                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                {/* Quick actions */}
+                <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() =>
                       setAdjustingAccount({
@@ -361,10 +365,10 @@ export default function AccountsPage() {
                         currency: acc.currency,
                       })
                     }
-                    className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                    className="p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-sm transition-colors"
                     title="Sesuaikan Saldo Cepat"
                   >
-                    <SlidersHorizontal className="h-4 w-4" />
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
                   </button>
 
                   <button
@@ -380,20 +384,20 @@ export default function AccountsPage() {
                         isHidden: acc.isHidden,
                       })
                     }
-                    className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                    className="p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-sm transition-colors"
                     title="Ubah Rincian Akun"
                   >
-                    <Edit2 className="h-4 w-4" />
+                    <Edit2 className="h-3.5 w-3.5" />
                   </button>
 
                   <button
                     onClick={() =>
                       toggleHiddenMutation.mutate({ id: acc.id, isHidden: !acc.isHidden })
                     }
-                    className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg transition-colors"
+                    className="p-1 text-muted-foreground hover:text-foreground rounded-sm transition-colors"
                     title={acc.isHidden ? "Tampilkan Akun" : "Sembunyikan Akun"}
                   >
-                    {acc.isHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                    {acc.isHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
                   </button>
 
                   <button
@@ -409,10 +413,10 @@ export default function AccountsPage() {
                         deleteMutation.mutate({ id: acc.id });
                       }
                     }}
-                    className="p-1.5 text-muted-foreground hover:text-rose-600 rounded-lg transition-colors"
+                    className="p-1 text-muted-foreground hover:text-rose-600 rounded-sm transition-colors"
                     title="Hapus Akun"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </CardHeader>
@@ -423,27 +427,27 @@ export default function AccountsPage() {
                     <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
                       Saldo Saat Ini
                     </div>
-                    <div className="text-2xl font-bold tracking-tight text-foreground mt-0.5">
+                    <div className="text-xl font-bold tracking-tight text-foreground mt-0.5">
                       {formatCurrency(acc.balance, acc.currency)}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-4 pt-3 border-t">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-3 pt-2.5 border-t">
                   <span>Saldo Awal: {formatCurrency(acc.initialBalance, acc.currency)}</span>
-                  <span className="font-semibold text-foreground px-1.5 py-0.5 bg-muted rounded">
+                  <span className="font-bold text-foreground px-2 py-0.5 bg-muted rounded-sm text-[10px]">
                     {acc.currency}
                   </span>
                 </div>
 
                 {acc.note && (
-                  <p className="text-[11px] text-muted-foreground mt-2 line-clamp-1 italic">
+                  <p className="text-[11px] text-muted-foreground mt-1.5 line-clamp-1 italic">
                     "{acc.note}"
                   </p>
                 )}
 
                 {/* Footer interactive button */}
-                <div className="mt-4 pt-2 flex items-center justify-between" onClick={(e) => e.stopPropagation()}>
+                <div className="mt-3 pt-2 flex items-center justify-between" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() =>
                       setAdjustingAccount({
@@ -485,7 +489,7 @@ export default function AccountsPage() {
         })}
 
         {filteredAccounts.length === 0 && (
-          <div className="col-span-full p-12 text-center text-xs text-muted-foreground border rounded-2xl border-dashed">
+          <div className="col-span-full p-12 text-center text-xs text-muted-foreground border rounded-md border-dashed">
             {isLoading ? "Memuat akun..." : "Tidak ada akun keuangan yang cocok dengan filter."}
           </div>
         )}
@@ -496,17 +500,17 @@ export default function AccountsPage() {
       {/* ========================================================================= */}
       {isAddOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="relative w-full max-w-md rounded-2xl bg-card border shadow-2xl p-6 text-card-foreground">
+          <div className="relative w-full max-w-md rounded-md bg-card border shadow-2xl p-5 text-card-foreground">
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <div>
-                <h2 className="text-base font-bold">Tambah Akun Baru</h2>
+                <h2 className="text-sm font-bold">Tambah Akun Baru</h2>
                 <p className="text-[11px] text-muted-foreground">
                   Daftarkan dompet tunai atau rekening baru Anda.
                 </p>
               </div>
               <button
                 onClick={() => setIsAddOpen(false)}
-                className="p-1 rounded-lg text-muted-foreground hover:text-foreground"
+                className="p-1 rounded-sm text-muted-foreground hover:text-foreground"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -610,17 +614,17 @@ export default function AccountsPage() {
       {/* ========================================================================= */}
       {editingAccount && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="relative w-full max-w-md rounded-2xl bg-card border shadow-2xl p-6 text-card-foreground">
+          <div className="relative w-full max-w-md rounded-md bg-card border shadow-2xl p-5 text-card-foreground">
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <div>
-                <h2 className="text-base font-bold">Ubah Akun Keuangan</h2>
+                <h2 className="text-sm font-bold">Ubah Akun Keuangan</h2>
                 <p className="text-[11px] text-muted-foreground">
                   Sesuaikan nama, tipe kelompok, atau koreksi saldo akun ini.
                 </p>
               </div>
               <button
                 onClick={() => setEditingAccount(null)}
-                className="p-1 rounded-lg text-muted-foreground hover:text-foreground"
+                className="p-1 rounded-sm text-muted-foreground hover:text-foreground"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -769,24 +773,24 @@ export default function AccountsPage() {
       {/* ========================================================================= */}
       {adjustingAccount && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="relative w-full max-w-sm rounded-2xl bg-card border shadow-2xl p-6 text-card-foreground">
+          <div className="relative w-full max-w-sm rounded-md bg-card border shadow-2xl p-5 text-card-foreground">
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <div>
-                <h2 className="text-base font-bold">Sesuaikan Saldo</h2>
+                <h2 className="text-sm font-bold">Sesuaikan Saldo</h2>
                 <p className="text-[11px] text-muted-foreground">
                   Akun: <span className="font-semibold text-foreground">{adjustingAccount.name}</span>
                 </p>
               </div>
               <button
                 onClick={() => setAdjustingAccount(null)}
-                className="p-1 rounded-lg text-muted-foreground hover:text-foreground"
+                className="p-1 rounded-sm text-muted-foreground hover:text-foreground"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             <form onSubmit={handleAdjustBalance} className="space-y-4 text-xs">
-              <div className="p-3 bg-muted/40 rounded-xl space-y-1">
+              <div className="p-3 bg-muted/40 rounded-sm space-y-1">
                 <div className="text-[10px] text-muted-foreground">Saldo Tercatat Saat Ini</div>
                 <div className="text-lg font-bold text-foreground">
                   {formatCurrency(adjustingAccount.currentBalance, adjustingAccount.currency)}

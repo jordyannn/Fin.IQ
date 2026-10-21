@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { GeometricIcon } from "@/components/ui/GeometricIcon";
 import { EditTransactionModal, type TransactionToEdit } from "@/components/transactions/EditTransactionModal";
 import { DateFilterPreset, computeDateRange } from "@/lib/date-filters";
 import { useConfirm, useAlert } from "@/store/confirm.store";
@@ -253,34 +254,34 @@ export default function TransactionsPage() {
       {/* Page Title & Main Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Daftar Transaksi</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Riwayat Transaksi</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Semua riwayat mutasi keuangan, filter multi-akun, dan ekspor data.
+            Daftar pencatatan mutasi kas, perbankan, dan e-wallet dengan filter multi-akun.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <Link href="/import">
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-              <UploadCloud className="h-3.5 w-3.5" />
+            <Button variant="outline" size="sm" className="gap-2 text-xs rounded-md">
+              <GeometricIcon name="import" size="xs" active />
               Impor CSV / Excel
             </Button>
           </Link>
-          <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-1.5 text-xs">
-            <Download className="h-3.5 w-3.5" />
+          <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2 text-xs rounded-md">
+            <GeometricIcon name="ledgers" size="xs" active />
             Ekspor CSV
           </Button>
           <Button
-            variant="outline"
+            variant="chip"
             size="sm"
             onClick={openQuickAddWithScan}
-            className="gap-1.5 text-xs border-primary/30 text-primary hover:bg-primary/10 shadow-sm"
+            className="gap-2 text-xs rounded-md"
           >
-            <Camera className="h-3.5 w-3.5" />
+            <GeometricIcon name="ai" size="xs" active />
             Scan Struk / Bill
           </Button>
-          <Button size="sm" onClick={openQuickAdd} className="bg-primary text-white gap-1.5 text-xs shadow-sm">
-            <Plus className="h-3.5 w-3.5" />
+          <Button size="sm" onClick={openQuickAdd} className="bg-primary hover:bg-[#047857] text-white gap-2 text-xs shadow-xs rounded-md font-bold">
+            <Plus className="h-4 w-4 stroke-[3px]" />
             Catat Transaksi
           </Button>
         </div>
@@ -313,7 +314,7 @@ export default function TransactionsPage() {
           </div>
 
           {/* Tipe Selector Pills */}
-          <div className="flex items-center rounded-lg bg-muted p-1 text-xs self-start md:self-auto overflow-x-auto max-w-full">
+          <div className="flex items-center rounded-md bg-muted/60 p-1 text-xs self-start md:self-auto overflow-x-auto max-w-full">
             <button
               onClick={() => setSelectedType(undefined)}
               className={`px-3 py-1 rounded-md font-medium transition-all whitespace-nowrap ${
@@ -531,24 +532,25 @@ export default function TransactionsPage() {
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 sm:gap-4 font-medium text-[11px] sm:text-xs">
-            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-              <TrendingUp className="h-3.5 w-3.5 shrink-0" />
+          <div className="flex flex-wrap items-center gap-2 font-medium text-[11px] sm:text-xs">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              <GeometricIcon name="trend-up" size="xs" active />
               <span>Masuk:</span>
-              <span className="font-bold">{formatCurrency(summary.income)}</span>
+              <span className="font-bold">+{formatCurrency(summary.income)}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
-              <TrendingDown className="h-3.5 w-3.5 shrink-0" />
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+              <GeometricIcon name="trend-down" size="xs" active />
               <span>Keluar:</span>
-              <span className="font-bold">{formatCurrency(summary.expense)}</span>
+              <span className="font-bold">-{formatCurrency(summary.expense)}</span>
             </div>
             <div
-              className={`flex items-center gap-1.5 font-bold ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-sm font-bold border ${
                 summary.net >= 0
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-rose-600 dark:text-rose-400"
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                  : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
               }`}
             >
+              <GeometricIcon name="sparkles" size="xs" active />
               <span>Arus Kas:</span>
               <span>
                 {summary.net > 0 ? "+" : ""}
@@ -603,20 +605,20 @@ export default function TransactionsPage() {
           return (
             <Card
               key={tx.id}
-              className={`p-3.5 rounded-2xl transition-all border-border/70 ${
+              className={`p-3 rounded-md transition-all border-border/70 shadow-2xs ${
                 isSelected ? "border-primary bg-primary/5" : "bg-card"
               }`}
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3 min-w-0">
+                <div className="flex items-start gap-2.5 min-w-0">
                   <input
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => toggleSelectOne(tx.id)}
-                    className="rounded border-input h-4 w-4 text-primary focus:ring-primary mt-1"
+                    className="rounded-xs border-input h-3.5 w-3.5 text-primary focus:ring-primary mt-1"
                   />
                   <div
-                    className={`h-9 w-9 rounded-2xl flex items-center justify-center shrink-0 ${
+                    className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 ${
                       isIncome
                         ? "bg-emerald-500/15 text-emerald-600"
                         : isExpense
@@ -660,14 +662,14 @@ export default function TransactionsPage() {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setEditingTx(tx as any)}
-                      className="p-1 rounded-lg text-muted-foreground hover:text-[#00B569] hover:bg-emerald-50 dark:hover:bg-emerald-950 transition-colors"
+                      className="p-1 rounded-sm text-muted-foreground hover:text-[#059669] hover:bg-emerald-50 dark:hover:bg-emerald-950 transition-colors"
                       title="Edit Transaksi"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => handleDelete(tx.id)}
-                      className="p-1 rounded-lg text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors"
+                      className="p-1 rounded-sm text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors"
                       title="Hapus Transaksi"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -680,14 +682,14 @@ export default function TransactionsPage() {
         })}
 
         {(!txData?.items || txData.items.length === 0) && (
-          <Card className="p-8 text-center text-xs text-muted-foreground rounded-2xl flex flex-col items-center justify-center gap-2.5">
+          <Card className="p-8 text-center text-xs text-muted-foreground rounded-md flex flex-col items-center justify-center gap-2.5">
             <span>{isLoading ? "Memuat transaksi..." : "Tidak ada transaksi yang cocok dengan filter."}</span>
             {!isLoading && isAnyFilterActive && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleResetAllFilters}
-                className="h-7 text-xs gap-1.5 text-rose-500 hover:text-rose-600"
+                className="h-7 text-xs gap-1.5 text-rose-500 hover:text-rose-600 rounded-sm"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Reset Semua Filter
@@ -698,7 +700,7 @@ export default function TransactionsPage() {
       </div>
 
       {/* Desktop Transactions Table (>= md) */}
-      <Card className="hidden md:block overflow-hidden rounded-2xl border-border/70">
+      <Card className="hidden md:block overflow-hidden rounded-md border-border/70 shadow-2xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
@@ -779,7 +781,7 @@ export default function TransactionsPage() {
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => setEditingTx(tx as any)}
-                          className="p-1 rounded text-muted-foreground hover:text-[#00B569] hover:bg-emerald-50 dark:hover:bg-emerald-950 transition-colors"
+                          className="p-1 rounded text-muted-foreground hover:text-[#059669] hover:bg-emerald-50 dark:hover:bg-emerald-950 transition-colors"
                           title="Edit Transaksi"
                         >
                           <Pencil className="h-3.5 w-3.5" />
