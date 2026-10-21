@@ -13,7 +13,7 @@ import { eq, desc } from "drizzle-orm";
 import { smartParseIndonesianTransaction } from "@/lib/nlp-parser";
 import { GoogleGenAI } from "@google/genai";
 import { fuzzyMatchAccount, fuzzyMatchCategory } from "./import";
-import { formatInputIDR } from "@/lib/utils";
+import { formatInputIDR, formatDate } from "@/lib/utils";
 import {
   GEMINI_AUDIO_MODEL,
   GEMINI_VISION_MODEL,
@@ -656,7 +656,7 @@ ATURAN EKSTRAKSI PENTING:
       const txInfo = recentTx
         .map(
           (t) =>
-            `- [${t.txType.toUpperCase()}] Rp ${t.amount.toLocaleString("id-ID")} (${t.categoryName || "Umum"}): "${t.note || "-"}" pada ${new Date(t.happenedAt).toLocaleDateString("id-ID")}`
+            `- [${t.txType.toUpperCase()}] Rp ${t.amount.toLocaleString("id-ID")} (${t.categoryName || "Umum"}): "${t.note || "-"}" pada ${formatDate(t.happenedAt)}`
         )
         .join("\n");
 

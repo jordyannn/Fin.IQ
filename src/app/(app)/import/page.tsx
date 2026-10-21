@@ -136,15 +136,48 @@ function autoSuggestMapping(headers: string[]): FieldMapping {
   return mapping;
 }
 
+const MONTH_ABBR_MAP: Record<string, number> = {
+  jan: 0, januari: 0, january: 0,
+  feb: 1, februari: 1, february: 1,
+  mar: 2, maret: 2, march: 2,
+  apr: 3, april: 3,
+  mei: 4, may: 4,
+  jun: 5, juni: 5, june: 5,
+  jul: 6, juli: 6, july: 6,
+  agu: 7, agustus: 7, aug: 7, august: 7,
+  sep: 8, september: 8,
+  okt: 9, oktober: 9, oct: 9, october: 9,
+  nov: 10, november: 10,
+  des: 11, desember: 11, dec: 11, december: 11,
+};
+
 function parseDateString(raw: string): string {
   if (!raw) return new Date().toISOString();
   const trimmed = raw.trim();
 
-  // Try direct Date parse
+  // 1. Support text month format: DD/MMM/YYYY or DD-MMM-YYYY (e.g. 15/OKT/2026, 15-JAN-2026, 01/MAR/2026 14:30)
+  const textMonthMatch = trimmed.match(
+    /^(\d{1,2})[\/\-\.\s]([a-zA-Z]{3,})[\/\-\.\s](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/
+  );
+  if (textMonthMatch) {
+    const day = parseInt(textMonthMatch[1], 10);
+    const monthKey = textMonthMatch[2].toLowerCase();
+    const month = MONTH_ABBR_MAP[monthKey] ?? -1;
+    const year = parseInt(textMonthMatch[3], 10);
+    if (month >= 0) {
+      const hours = textMonthMatch[4] ? parseInt(textMonthMatch[4], 10) : 12;
+      const minutes = textMonthMatch[5] ? parseInt(textMonthMatch[5], 10) : 0;
+      const seconds = textMonthMatch[6] ? parseInt(textMonthMatch[6], 10) : 0;
+      const parsed = new Date(year, month, day, hours, minutes, seconds);
+      if (!isNaN(parsed.getTime())) return parsed.toISOString();
+    }
+  }
+
+  // 2. Try direct Date parse
   const d = new Date(trimmed);
   if (!isNaN(d.getTime())) return d.toISOString();
 
-  // Indonesian / European DD/MM/YYYY or DD-MM-YYYY
+  // 3. Indonesian / European DD/MM/YYYY or DD-MM-YYYY
   const dmyMatch = trimmed.match(
     /^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/
   );
@@ -471,10 +504,10 @@ export default function ImportPage() {
 
   const handleCopyTutorialSample = () => {
     const sampleCsvContent = `Tanggal,Jenis,Nominal,Kategori,Akun,Keterangan
-2026-10-15,expense,45000,Makanan & Minuman,Cash,Kopi & Makan Siang
-2026-10-15,income,10000000,Gaji & Pendapatan,BCA,Gaji Bulanan
-2026-10-14,expense,25000,Transportasi,GoPay,Ongkos Ojek Online
-2026-10-13,expense,150000,Belanja,Mandiri,Kebutuhan Rumah Tangga`;
+15/OKT/2026,expense,45000,Makanan & Minuman,Cash,Kopi & Makan Siang
+15/OKT/2026,income,10000000,Gaji & Pendapatan,BCA,Gaji Bulanan
+14/OKT/2026,expense,25000,Transportasi,GoPay,Ongkos Ojek Online
+13/OKT/2026,expense,150000,Belanja,Mandiri,Kebutuhan Rumah Tangga`;
     navigator.clipboard.writeText(sampleCsvContent);
     setCopiedTutorialSample(true);
     setTimeout(() => setCopiedTutorialSample(false), 2000);
@@ -1355,11 +1388,11 @@ export default function ImportPage() {
   const handleDownloadTemplate = () => {
     const csvContent =
       "Tanggal,Jenis,Nominal,Kategori,Akun,Tujuan,Keterangan,Tag\n" +
-      "2026-03-01 08:30,expense,25000,Makanan & Minuman,cash,,Sarapan pagi,kuliner;sarapan\n" +
-      "2026-03-01 12:45,expense,50000,Transportasi,blu,,Bensin motor,operasional\n" +
-      "2026-03-02 09:00,income,5000000,Gaji & Pendapatan,blu,,Gaji Bulanan,gaji\n" +
-      "2026-03-02 14:00,transfer,150000,Transfer Saldo,blu,cash,Tarik tunai ATM,atm\n" +
-      "2026-03-03 19:15,expense,35000,Tagihan & Pulsa,dana,,Paket data internet,pulsa\n";
+      "01/MAR/2026 08:30,expense,25000,Makanan & Minuman,cash,,Sarapan pagi,kuliner;sarapan\n" +
+      "01/MAR/2026 12:45,expense,50000,Transportasi,blu,,Bensin motor,operasional\n" +
+      "02/MAR/2026 09:00,income,5000000,Gaji & Pendapatan,blu,,Gaji Bulanan,gaji\n" +
+      "02/MAR/2026 14:00,transfer,150000,Transfer Saldo,blu,cash,Tarik tunai ATM,atm\n" +
+      "03/MAR/2026 19:15,expense,35000,Tagihan & Pulsa,dana,,Paket data internet,pulsa\n";
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -2775,7 +2808,7 @@ export default function ImportPage() {
                   </thead>
                   <tbody className="divide-y divide-border/40 font-medium">
                     <tr className="hover:bg-muted/30">
-                      <td className="py-2.5 px-3.5 font-mono text-[11px]">2026-10-15</td>
+                      <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold">15/OKT/2026</td>
                       <td className="py-2.5 px-3.5 text-rose-600 font-bold">expense</td>
                       <td className="py-2.5 px-3.5 font-bold">45.000</td>
                       <td className="py-2.5 px-3.5">Makanan & Minuman</td>
@@ -2783,7 +2816,7 @@ export default function ImportPage() {
                       <td className="py-2.5 px-3.5 text-muted-foreground">Kopi & Makan Siang</td>
                     </tr>
                     <tr className="hover:bg-muted/30">
-                      <td className="py-2.5 px-3.5 font-mono text-[11px]">2026-10-15</td>
+                      <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold">15/OKT/2026</td>
                       <td className="py-2.5 px-3.5 text-emerald-600 font-bold">income</td>
                       <td className="py-2.5 px-3.5 font-bold">10.000.000</td>
                       <td className="py-2.5 px-3.5">Gaji & Pendapatan</td>
@@ -2791,7 +2824,7 @@ export default function ImportPage() {
                       <td className="py-2.5 px-3.5 text-muted-foreground">Gaji Bulanan</td>
                     </tr>
                     <tr className="hover:bg-muted/30">
-                      <td className="py-2.5 px-3.5 font-mono text-[11px]">2026-10-14</td>
+                      <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold">14/OKT/2026</td>
                       <td className="py-2.5 px-3.5 text-rose-600 font-bold">expense</td>
                       <td className="py-2.5 px-3.5 font-bold">25.000</td>
                       <td className="py-2.5 px-3.5">Transportasi</td>
@@ -2799,7 +2832,7 @@ export default function ImportPage() {
                       <td className="py-2.5 px-3.5 text-muted-foreground">Ongkos Ojek Online</td>
                     </tr>
                     <tr className="hover:bg-muted/30">
-                      <td className="py-2.5 px-3.5 font-mono text-[11px]">2026-10-13</td>
+                      <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold">13/OKT/2026</td>
                       <td className="py-2.5 px-3.5 text-rose-600 font-bold">expense</td>
                       <td className="py-2.5 px-3.5 font-bold">150.000</td>
                       <td className="py-2.5 px-3.5">Belanja</td>

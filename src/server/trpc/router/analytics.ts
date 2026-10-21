@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { transactions, accounts, categories } from "../../db/schema";
 import { eq, and, desc, asc, gte, lte } from "drizzle-orm";
+import { formatDate } from "@/lib/utils";
 
 export const analyticsRouter = router({
   /**
@@ -128,7 +129,7 @@ export const analyticsRouter = router({
         if (tx.txType === "expense") running -= tx.amount;
         return {
           idx: idx + 1,
-          date: new Date(tx.happenedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" }),
+          date: formatDate(tx.happenedAt),
           running,
         };
       });

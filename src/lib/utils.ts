@@ -44,22 +44,53 @@ export function formatCurrency(
   }).format(amount);
 }
 
+export const MONTHS_SHORT_ID = [
+  "JAN",
+  "FEB",
+  "MAR",
+  "APR",
+  "MEI",
+  "JUN",
+  "JUL",
+  "AGU",
+  "SEP",
+  "OKT",
+  "NOV",
+  "DES",
+] as const;
+
 /**
- * Format tanggal standar Indonesia
+ * Format tanggal standar Fin.IQ: DD/MMM/YYYY
+ * Contoh: 15/OKT/2026, 01/JAN/2026
  */
-export function formatDate(date: string | Date): string {
+export function formatDate(date: string | Date | null | undefined): string {
+  if (!date) return "-";
   const d = typeof date === "string" ? new Date(date) : date;
-  return new Intl.DateTimeFormat("id-ID", {
-    dateStyle: "medium",
-  }).format(d);
+  if (isNaN(d.getTime())) return "-";
+
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = MONTHS_SHORT_ID[d.getMonth()] || "JAN";
+  const year = d.getFullYear();
+
+  return `${day}/${month}/${year}`;
 }
 
-export function formatDateTime(date: string | Date): string {
+/**
+ * Format tanggal dan waktu standar Fin.IQ: DD/MMM/YYYY HH:mm
+ * Contoh: 15/OKT/2026 14:30
+ */
+export function formatDateTime(date: string | Date | null | undefined): string {
+  if (!date) return "-";
   const d = typeof date === "string" ? new Date(date) : date;
-  return new Intl.DateTimeFormat("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(d);
+  if (isNaN(d.getTime())) return "-";
+
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = MONTHS_SHORT_ID[d.getMonth()] || "JAN";
+  const year = d.getFullYear();
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
 /**

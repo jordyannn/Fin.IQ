@@ -23,11 +23,18 @@ import {
   EyeOff,
   AlertTriangle,
   FileSpreadsheet,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatInputIDR, parseInputIDR } from "@/lib/utils";
+import {
+  formatCurrency,
+  formatDate,
+  formatDateTime,
+  formatInputIDR,
+  parseInputIDR,
+} from "@/lib/utils";
 
 export type PreviewColumnId =
   | "happenedAt"
@@ -1182,22 +1189,29 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                         {idx + 1}
                       </td>
 
-                      {/* Cell: Happened At */}
+                      {/* Cell: Happened At (Formatted as DD/MMM/YYYY) */}
                       {visibleColumns.includes("happenedAt") && (
                         <td className="px-2 py-1.5">
-                          <Input
-                            type="date"
-                            value={tx.happenedAt ? tx.happenedAt.split("T")[0] : ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val) {
-                                handleCellUpdate(tx.id, {
-                                  happenedAt: new Date(val).toISOString(),
-                                });
-                              }
-                            }}
-                            className="h-7.5 text-[11px] font-mono w-full px-1.5 bg-background shadow-2xs"
-                          />
+                          <div className="relative flex items-center w-full min-w-[105px]">
+                            <div className="h-7.5 px-2 font-mono text-[11px] font-bold text-foreground bg-background rounded-md border border-input shadow-2xs w-full flex items-center justify-between pointer-events-none select-none">
+                              <span className="tracking-tight">{formatDate(tx.happenedAt)}</span>
+                              <Calendar className="h-3 w-3 text-muted-foreground opacity-60 ml-1 shrink-0" />
+                            </div>
+                            <input
+                              type="date"
+                              value={tx.happenedAt ? tx.happenedAt.split("T")[0] : ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val) {
+                                  handleCellUpdate(tx.id, {
+                                    happenedAt: new Date(val).toISOString(),
+                                  });
+                                }
+                              }}
+                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                              title="Klik untuk memilih tanggal transaksi"
+                            />
+                          </div>
                         </td>
                       )}
 
@@ -1558,9 +1572,16 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   </div>
                 </div>
                 <div>
-                  <label className="font-semibold text-foreground mb-1 block">
-                    Waktu / Tanggal <span className="text-rose-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-semibold text-foreground">
+                      Waktu / Tanggal <span className="text-rose-500">*</span>
+                    </label>
+                    {newHappenedAt && (
+                      <span className="font-mono text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                        {formatDateTime(newHappenedAt)}
+                      </span>
+                    )}
+                  </div>
                   <Input
                     type="datetime-local"
                     required
@@ -1785,9 +1806,16 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   </div>
                 </div>
                 <div>
-                  <label className="font-semibold text-foreground mb-1 block">
-                    Waktu / Tanggal
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-semibold text-foreground">
+                      Waktu / Tanggal
+                    </label>
+                    {editHappenedAt && (
+                      <span className="font-mono text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                        {formatDateTime(editHappenedAt)}
+                      </span>
+                    )}
+                  </div>
                   <Input
                     type="datetime-local"
                     required

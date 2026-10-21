@@ -253,7 +253,7 @@ export default function OverviewPage() {
       if (tx.txType === "expense") running -= tx.amount;
       points.push({
         idx: idx + 1,
-        date: new Date(tx.happenedAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" }),
+        date: formatDate(tx.happenedAt),
         running,
       });
     });

@@ -27,10 +27,10 @@ export function CsvImportTutorialModal({ isOpen, onClose }: CsvImportTutorialMod
   if (!isOpen) return null;
 
   const sampleCsvContent = `Tanggal,Tipe,Kategori,Jumlah,Akun,Keterangan
-2026-10-15,Pengeluaran,Makanan & Minuman,45000,Cash,Kopi & Makan Siang
-2026-10-15,Pemasukan,Gaji,10000000,BCA,Gaji Bulanan
-2026-10-14,Pengeluaran,Transportasi,25000,GoPay,Ongkos Ojek Online
-2026-10-13,Pengeluaran,Belanja,150000,Bank Jago,Kebutuhan Rumah Tangga`;
+15/OKT/2026,Pengeluaran,Makanan & Minuman,45000,Cash,Kopi & Makan Siang
+15/OKT/2026,Pemasukan,Gaji,10000000,BCA,Gaji Bulanan
+14/OKT/2026,Pengeluaran,Transportasi,25000,GoPay,Ongkos Ojek Online
+13/OKT/2026,Pengeluaran,Belanja,150000,Bank Jago,Kebutuhan Rumah Tangga`;
 
   const handleDownloadTemplate = () => {
     const blob = new Blob([sampleCsvContent], { type: "text/csv;charset=utf-8;" });
@@ -98,7 +98,7 @@ export function CsvImportTutorialModal({ isOpen, onClose }: CsvImportTutorialMod
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Kolom Wajib
                 </div>
                 <ul className="text-[11px] text-muted-foreground space-y-1 list-disc list-inside">
-                  <li><strong>Tanggal</strong> (YYYY-MM-DD atau DD/MM/YYYY)</li>
+                  <li><strong>Tanggal</strong> (contoh: 15/OKT/2026, 15/10/2026, atau 2026-10-15)</li>
                   <li><strong>Jumlah / Nominal</strong> (contoh: 50000 atau 50.000)</li>
                   <li><strong>Tipe</strong> (Pemasukan / Pengeluaran)</li>
                 </ul>
@@ -164,7 +164,7 @@ export function CsvImportTutorialModal({ isOpen, onClose }: CsvImportTutorialMod
                   </thead>
                   <tbody className="divide-y divide-border/40">
                     <tr className="hover:bg-muted/30">
-                      <td className="py-2 px-3 font-mono">2026-10-15</td>
+                      <td className="py-2 px-3 font-mono">15/OKT/2026</td>
                       <td className="py-2 px-3 text-rose-600 font-semibold">Pengeluaran</td>
                       <td className="py-2 px-3">Makanan & Minuman</td>
                       <td className="py-2 px-3 font-bold">45.000</td>
@@ -172,7 +172,7 @@ export function CsvImportTutorialModal({ isOpen, onClose }: CsvImportTutorialMod
                       <td className="py-2 px-3 text-muted-foreground">Kopi & Makan Siang</td>
                     </tr>
                     <tr className="hover:bg-muted/30">
-                      <td className="py-2 px-3 font-mono">2026-10-15</td>
+                      <td className="py-2 px-3 font-mono">15/OKT/2026</td>
                       <td className="py-2 px-3 text-emerald-600 font-semibold">Pemasukan</td>
                       <td className="py-2 px-3">Gaji</td>
                       <td className="py-2 px-3 font-bold">10.000.000</td>
@@ -180,7 +180,7 @@ export function CsvImportTutorialModal({ isOpen, onClose }: CsvImportTutorialMod
                       <td className="py-2 px-3 text-muted-foreground">Gaji Bulanan</td>
                     </tr>
                     <tr className="hover:bg-muted/30">
-                      <td className="py-2 px-3 font-mono">2026-10-14</td>
+                      <td className="py-2 px-3 font-mono">14/OKT/2026</td>
                       <td className="py-2 px-3 text-rose-600 font-semibold">Pengeluaran</td>
                       <td className="py-2 px-3">Transportasi</td>
                       <td className="py-2 px-3 font-bold">25.000</td>

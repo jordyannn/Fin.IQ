@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   Wallet,
   Plus,
@@ -147,7 +147,7 @@ export default function AccountsPage() {
     adjustBalanceMutation.mutate({
       accountId: adjustingAccount.id,
       newBalance: Number(adjustingAccount.newBalance),
-      note: `Penyesuaian saldo manual (${new Date().toLocaleDateString("id-ID")})`,
+      note: `Penyesuaian saldo manual (${formatDate(new Date())})`,
     });
   };
 
