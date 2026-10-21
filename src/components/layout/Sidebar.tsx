@@ -42,6 +42,93 @@ const secondaryItems: NavItem[] = [
   { label: "Integritas Data", href: "/integrity", iconName: "integrity" },
 ];
 
+interface Ripple {
+  x: number;
+  y: number;
+  size: number;
+  id: number;
+}
+
+function NavItemLink({
+  item,
+  isActive,
+  onItemClick,
+  className,
+}: {
+  item: NavItem;
+  isActive: boolean;
+  onItemClick?: () => void;
+  className?: string;
+}) {
+  const [ripples, setRipples] = useState<Ripple[]>([]);
+
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const size = Math.max(rect.width, rect.height) * 2.2;
+    const id = Date.now() + Math.random();
+    setRipples((prev) => [...prev.slice(-2), { x, y, size, id }]);
+    setTimeout(() => {
+      setRipples((prev) => prev.filter((r) => r.id !== id));
+    }, 600);
+    onItemClick?.();
+  };
+
+  const isSmallIcon = item.iconName === "settings" || item.iconName === "integrity";
+
+  return (
+    <Link
+      href={item.href}
+      onClick={handleClick}
+      {...(item.isAI ? { "data-tour": "ai-studio" } : {})}
+      aria-current={isActive ? "page" : undefined}
+      className={cn(
+        "relative overflow-hidden flex items-center gap-2.5 rounded-md px-2.5 py-2 text-xs transition-all group select-none",
+        isActive
+          ? "border-l-[3px] border-primary bg-emerald-500/12 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-bold shadow-2xs pl-2"
+          : "text-muted-foreground hover:bg-muted/70 hover:text-foreground active:scale-[0.98]",
+        className
+      )}
+    >
+      <GeometricIcon
+        name={item.iconName}
+        size={isSmallIcon ? "xs" : "sm"}
+        active={isActive}
+        className={cn(
+          "transition-transform shrink-0",
+          isActive ? "scale-105" : "opacity-70 group-hover:opacity-100"
+        )}
+      />
+      <span className="truncate flex-1 font-medium">{item.label}</span>
+      {item.isAI && (
+        <span
+          className={cn(
+            "text-[9px] font-black px-1.5 py-0.5 rounded-sm uppercase tracking-wider shrink-0",
+            isActive
+              ? "bg-primary text-primary-foreground shadow-2xs"
+              : "bg-secondary text-secondary-foreground"
+          )}
+        >
+          AI
+        </span>
+      )}
+      {ripples.map((r) => (
+        <span
+          key={r.id}
+          className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/25 animate-button-click-ripple select-none"
+          style={{
+            left: r.x,
+            top: r.y,
+            width: r.size,
+            height: r.size,
+          }}
+        />
+      ))}
+    </Link>
+  );
+}
+
 export function Sidebar({
   isMobile = false,
   onItemClick,
@@ -194,7 +281,7 @@ export function Sidebar({
       </div>
 
       {/* =====================================================================
-          4. NAVIGATION SECTION (Pure Geometric Duotone Iconography)
+          2. NAVIGATION SECTION (Pure Geometric Duotone Iconography)
       ===================================================================== */}
       <div className="flex-1 overflow-y-auto pr-1 -mr-1 space-y-3 scrollbar-none">
         {/* Menu Utama */}
@@ -206,44 +293,14 @@ export function Sidebar({
             const isActive =
               pathname === item.href ||
               (item.href !== "/overview" && pathname?.startsWith(item.href));
-            const isAI = item.isAI;
 
             return (
-              <Link
+              <NavItemLink
                 key={item.href}
-                href={item.href}
-                onClick={onItemClick}
-                {...(isAI ? { "data-tour": "ai-studio" } : {})}
-                className={cn(
-                  "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-xs transition-all group",
-                  isActive
-                    ? "border-l-[3px] border-primary bg-emerald-500/10 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-bold shadow-2xs"
-                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground active:scale-[0.98]"
-                )}
-              >
-                <GeometricIcon
-                  name={item.iconName}
-                  size="sm"
-                  active={isActive}
-                  className={cn(
-                    "transition-transform",
-                    isActive ? "scale-105" : "opacity-70 group-hover:opacity-100"
-                  )}
-                />
-                <span className="truncate flex-1">{item.label}</span>
-                {isAI && (
-                  <span
-                    className={cn(
-                      "text-[9px] font-black px-1.5 py-0.5 rounded-sm uppercase tracking-wider",
-                      isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-secondary text-secondary-foreground"
-                    )}
-                  >
-                    AI
-                  </span>
-                )}
-              </Link>
+                item={item}
+                isActive={isActive}
+                onItemClick={onItemClick}
+              />
             );
           })}
         </nav>
@@ -258,25 +315,13 @@ export function Sidebar({
               const isActive = pathname === item.href;
 
               return (
-                <Link
+                <NavItemLink
                   key={item.href}
-                  href={item.href}
-                  onClick={onItemClick}
-                  className={cn(
-                    "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-xs transition-colors",
-                    isActive
-                      ? "border-l-[3px] border-primary bg-emerald-500/10 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-bold"
-                      : "text-muted-foreground hover:bg-muted/70 hover:text-foreground active:scale-[0.98]"
-                  )}
-                >
-                  <GeometricIcon
-                    name={item.iconName}
-                    size="xs"
-                    active={isActive}
-                    className={isActive ? "" : "opacity-70"}
-                  />
-                  <span className="truncate">{item.label}</span>
-                </Link>
+                  item={item}
+                  isActive={isActive}
+                  onItemClick={onItemClick}
+                  className="py-1.5"
+                />
               );
             })}
           </div>

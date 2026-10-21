@@ -10,6 +10,7 @@ import {
   TECHNICAL_TOUR_STEPS,
   TourStep,
 } from "@/store/mascot.store";
+import { useUIStore } from "@/store/ui.store";
 import { mascotSound } from "@/lib/mascot-sound";
 import {
   Sparkles,
@@ -62,10 +63,20 @@ export function MascotNavigator() {
     toggleOutfit,
   } = useMascotStore();
 
+  const { isQuickAddOpen, openQuickAdd } = useUIStore();
+  const [openedFromTour, setOpenedFromTour] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [tipIndex, setTipIndex] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [showTooltipHint, setShowTooltipHint] = useState(false);
+
+  // If QuickAdd was opened from the tour and then closed, resume tour by advancing to next step
+  useEffect(() => {
+    if (openedFromTour && !isQuickAddOpen) {
+      setOpenedFromTour(false);
+      nextStep();
+    }
+  }, [openedFromTour, isQuickAddOpen, nextStep]);
 
   // Check first-time visit on mount
   useEffect(() => {
@@ -105,7 +116,7 @@ export function MascotNavigator() {
   const activeSteps = activeTourType === "technical" ? TECHNICAL_TOUR_STEPS : BASIC_TOUR_STEPS;
   const currentStep: TourStep = activeSteps[currentStepIndex] || activeSteps[0];
 
-  // Track target element during tour
+  // Track target element during tour with smart scrolling so card never covers content
   useEffect(() => {
     if (!isTourActive) {
       setTargetRect(null);
@@ -118,9 +129,27 @@ export function MascotNavigator() {
       if (el) {
         const rect = el.getBoundingClientRect();
         setTargetRect(rect);
-        // Scroll into view gently if outside visible viewport
-        if (rect.top < 60 || rect.bottom > window.innerHeight) {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
+
+        // Smart scrolling: ensure sufficient space for guidance card without obscuring the target
+        if (currentStep.position === "right") {
+          // Sidebar elements don't need vertical page scrolling
+        } else if (currentStep.position === "top") {
+          if (rect.top < 220 || rect.bottom > window.innerHeight - 30) {
+            const elTop = el.getBoundingClientRect().top + window.scrollY;
+            window.scrollTo({
+              top: Math.max(0, elTop - (window.innerHeight - rect.height - 40)),
+              behavior: "smooth",
+            });
+          }
+        } else {
+          // default position: bottom
+          if (rect.top < 80 || rect.bottom > window.innerHeight - 220) {
+            const elTop = el.getBoundingClientRect().top + window.scrollY;
+            window.scrollTo({
+              top: Math.max(0, elTop - 90),
+              behavior: "smooth",
+            });
+          }
         }
       } else {
         // If element is an overview element but user is on another page, navigate to overview
@@ -148,6 +177,72 @@ export function MascotNavigator() {
       clearTimeout(timer);
     };
   }, [isTourActive, currentStepIndex, currentStep, pathname, router]);
+
+  // Helper to calculate card position so it NEVER covers the target element
+  const getCardPositionStyle = (): React.CSSProperties => {
+    if (!targetRect) {
+      return {
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%)",
+        width: "min(370px, calc(100vw - 32px))",
+      };
+    }
+
+    const winW = typeof window !== "undefined" ? window.innerWidth : 1200;
+    const winH = typeof window !== "undefined" ? window.innerHeight : 800;
+    const cardW = Math.min(360, winW - 32);
+    const cardH = currentStep.targetAttr.includes("quick-add") ? 250 : 180;
+    const positionPref = currentStep.position || "bottom";
+
+    // If step is on sidebar (right positioning), place card completely to the right of the sidebar
+    if (positionPref === "right") {
+      const left = Math.min(winW - cardW - 16, targetRect.right + 16);
+      const top = Math.max(
+        16,
+        Math.min(winH - cardH - 16, targetRect.top + targetRect.height / 2 - cardH / 2)
+      );
+      return {
+        top: `${top}px`,
+        left: `${left}px`,
+        width: `${cardW}px`,
+      };
+    }
+
+    // Horizontal centering relative to target
+    const idealLeft = targetRect.left + targetRect.width / 2 - cardW / 2;
+    const clampedLeft = Math.max(16, Math.min(idealLeft, winW - cardW - 16));
+
+    const spaceBelow = winH - targetRect.bottom;
+    const spaceAbove = targetRect.top;
+
+    let top: number;
+    if (positionPref === "top") {
+      if (spaceAbove >= cardH + 16) {
+        top = targetRect.top - cardH - 14;
+      } else if (spaceBelow >= cardH + 16) {
+        top = targetRect.bottom + 14;
+      } else {
+        top = Math.max(14, targetRect.top - cardH - 14);
+      }
+    } else {
+      // Default: bottom
+      if (spaceBelow >= cardH + 16) {
+        top = targetRect.bottom + 14;
+      } else if (spaceAbove >= cardH + 16) {
+        top = targetRect.top - cardH - 14;
+      } else {
+        top = Math.min(winH - cardH - 14, targetRect.bottom + 14);
+      }
+    }
+
+    const maxTop = Math.max(14, winH - cardH - 16);
+    return {
+      top: `${Math.max(14, Math.min(top, maxTop))}px`,
+      left: `${clampedLeft}px`,
+      width: `${cardW}px`,
+    };
+  };
 
   if (!mounted) return null;
 
@@ -301,7 +396,7 @@ export function MascotNavigator() {
       {/* =========================================================================
           2. SPOTLIGHT TOUR WALKTHROUGH OVERLAY (Tur 1 & Tur 2)
       ========================================================================= */}
-      {isTourActive && (
+      {isTourActive && !isQuickAddOpen && (
         <div className="fixed inset-0 z-[150] pointer-events-none">
           {/* Dark Overlay with Target Element Cutout */}
           {targetRect ? (
@@ -374,53 +469,27 @@ export function MascotNavigator() {
             <div className="fixed inset-0 bg-black/75 backdrop-blur-sm pointer-events-auto" />
           )}
 
-          {/* Floating Guidance Card - Clamped to never overflow off-screen */}
+          {/* Floating Guidance Card - Positioned smartly to never cover target content */}
           <div
             className="fixed z-[160] transition-all duration-300 pointer-events-auto"
-            style={
-              targetRect
-                ? (() => {
-                    const winW = typeof window !== "undefined" ? window.innerWidth : 1200;
-                    const winH = typeof window !== "undefined" ? window.innerHeight : 800;
-                    const cardW = Math.min(410, winW - 32);
-                    const idealLeft = targetRect.left + targetRect.width / 2 - cardW / 2;
-                    const clampedLeft = Math.max(16, Math.min(idealLeft, winW - cardW - 16));
-                    const spaceBelow = winH - targetRect.bottom;
-                    const top =
-                      spaceBelow > 310
-                        ? `${targetRect.bottom + 14}px`
-                        : `${Math.max(14, targetRect.top - 290)}px`;
-
-                    return {
-                      top,
-                      left: `${clampedLeft}px`,
-                      width: `${cardW}px`,
-                    };
-                  })()
-                : {
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    width: "min(410px, calc(100vw - 32px))",
-                  }
-            }
+            style={getCardPositionStyle()}
           >
-            <div className="relative overflow-hidden rounded-md border border-primary/30 bg-card p-5 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-200">
+            <div className="relative overflow-hidden rounded-md border border-primary/30 bg-card p-4 sm:p-5 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-200">
               {/* Header: Bang Peci expression & Step Badge */}
-              <div className="flex items-center justify-between gap-3 pb-3 border-b border-border/70">
+              <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-border/70">
                 <div className="flex items-center gap-2.5">
-                  <div className={`relative w-12 h-12 shrink-0 flex items-center justify-center ${isTransforming ? 'animate-mascot-spin-flip' : 'animate-mascot-bounce-playful'}`}>
+                  <div className={`relative w-11 h-11 shrink-0 flex items-center justify-center ${isTransforming ? 'animate-mascot-spin-flip' : 'animate-mascot-bounce-playful'}`}>
                     <Image
                       src={`/mascot/mascot-${currentStep.mascotExpression}.png`}
                       alt="Bang Peci"
                       fill
-                      sizes="48px"
+                      sizes="44px"
                       className="object-contain drop-shadow-sm"
                       unoptimized
                     />
                   </div>
                   <div>
-                    <span className="text-[11px] font-bold text-primary flex items-center gap-1 uppercase tracking-wider">
+                    <span className="text-[10px] font-bold text-primary flex items-center gap-1 uppercase tracking-wider">
                       {activeTourType === "technical" ? "Modul Teknis" : "Panduan Dasar"} • Langkah {currentStepIndex + 1} dari {activeSteps.length}
                     </span>
                     <h4 className="font-extrabold text-sm sm:text-base text-foreground leading-tight">
@@ -439,17 +508,50 @@ export function MascotNavigator() {
               </div>
 
               {/* Body: Explanation & Mascot Speech Bubble */}
-              <div className="mt-3.5 space-y-2.5">
-                <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed">
+              <div className="mt-3 space-y-2">
+                <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed font-normal">
                   {currentStep.description}
                 </p>
 
-                <div className="rounded-sm bg-primary/10 border border-primary/20 px-3 py-2 text-xs font-medium text-foreground flex items-center gap-2">
-                  <span className="text-sm">💬</span>
+                <div className="rounded-sm bg-primary/10 border border-primary/20 px-2.5 py-1.5 text-xs font-medium text-foreground flex items-center gap-2">
+                  <span className="text-xs">💬</span>
                   <span className="italic font-semibold text-primary">
                     "{currentStep.speechQuote}"
                   </span>
                 </div>
+
+                {/* Interactive prompt on quick-add step */}
+                {currentStep.targetAttr.includes("quick-add") && (
+                  <div className="mt-2.5 p-2.5 rounded-md bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/25 space-y-1.5 animate-in fade-in duration-200">
+                    <p className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+                      Mau coba tambah transaksi sekarang?
+                    </p>
+                    <p className="text-[11px] text-muted-foreground leading-tight">
+                      Buka form pencatatan langsung, atau lanjut ke langkah tur berikutnya.
+                    </p>
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpenedFromTour(true);
+                          openQuickAdd();
+                        }}
+                        className="h-7 px-3 rounded-md text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs transition-transform active:scale-95 flex items-center gap-1"
+                      >
+                        <CheckCircle2 className="h-3 w-3" />
+                        Ya, Buka Menu
+                      </button>
+                      <button
+                        type="button"
+                        onClick={nextStep}
+                        className="h-7 px-2.5 rounded-md text-xs font-semibold border border-input bg-background hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Belum, Lanjut Tur
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Footer: Progress Dots & Buttons */}

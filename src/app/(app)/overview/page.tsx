@@ -428,7 +428,7 @@ export default function OverviewPage() {
       {/* =========================================================================
           1. HERO PORTOFOLIO FINTECH: SALDO USER, CASHFLOW TERPADU & KURVA
       ========================================================================= */}
-      <div data-tour="overview-hero" className="relative overflow-hidden rounded-md border border-border/70 bg-card p-4 sm:p-5 shadow-2xs transition-all flex flex-col gap-4">
+      <div className="relative overflow-hidden rounded-md border border-border/70 bg-card p-4 sm:p-5 shadow-2xs transition-all flex flex-col gap-4">
         {/* Latar Aksen Mint Halus di Pojok Kanan Atas */}
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-md bg-primary/5 blur-3xl pointer-events-none" />
 
@@ -570,7 +570,7 @@ export default function OverviewPage() {
         </div>
 
         {/* Baris 3: LAYER TERPADU (CASH MASUK, CASH KELUAR, DAN SELISIH DIGABUNG) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-md bg-muted/30 border border-border">
+        <div data-tour="overview-hero" className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-md bg-muted/30 border border-border">
           {/* 1. Cash Masuk */}
           <div className="flex flex-col justify-between p-3.5 rounded-sm bg-card border border-border/80 shadow-2xs">
             <div className="flex items-center justify-between gap-2 mb-1.5">

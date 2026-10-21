@@ -266,6 +266,21 @@
   animation: tour-button-glow-ripple 3.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
 }
 
+@keyframes button-click-ripple {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.35;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.2);
+    opacity: 0;
+  }
+}
+
+.animate-button-click-ripple {
+  animation: button-click-ripple 600ms cubic-bezier(0.1, 0.8, 0.25, 1) forwards;
+}
+
 
 
 
