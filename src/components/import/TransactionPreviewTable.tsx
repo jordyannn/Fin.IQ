@@ -50,58 +50,58 @@ export interface ColumnDefinition {
 export const ALL_COLUMNS: ColumnDefinition[] = [
   {
     id: "happenedAt",
-    label: "Waktu / Tanggal",
+    label: "Tanggal",
     description: "Tanggal & waktu transaksi",
-    minWidth: "w-36",
+    minWidth: "w-28",
     defaultVisible: true,
   },
   {
     id: "txType",
-    label: "Jenis Transaksi",
+    label: "Jenis",
     description: "Pengeluaran, Pemasukan, atau Transfer",
-    minWidth: "w-32",
+    minWidth: "w-24",
     defaultVisible: true,
   },
   {
     id: "amount",
     label: "Nominal (Rp)",
     description: "Jumlah uang transaksi",
-    minWidth: "w-36",
+    minWidth: "w-32",
     defaultVisible: true,
   },
   {
     id: "categoryName",
     label: "Kategori",
-    description: "Pos anggaran / klasifikasi pengeluaran",
-    minWidth: "w-44",
+    description: "Pos anggaran / klasifikasi",
+    minWidth: "w-36",
     defaultVisible: true,
   },
   {
     id: "accountName",
-    label: "Akun Asal",
+    label: "Akun",
     description: "Bank atau dompet digital sumber dana",
-    minWidth: "w-40",
+    minWidth: "w-32",
     defaultVisible: true,
   },
   {
     id: "toAccountName",
     label: "Akun Tujuan",
     description: "Rekening penerima (khusus transfer)",
-    minWidth: "w-40",
-    defaultVisible: true,
+    minWidth: "w-32",
+    defaultVisible: false,
   },
   {
     id: "note",
     label: "Deskripsi Transaksi",
     description: "Keterangan, rincian, atau nama merchant",
-    minWidth: "min-w-[200px]",
+    minWidth: "min-w-[160px]",
     defaultVisible: true,
   },
   {
     id: "tags",
     label: "Tag / Label",
     description: "Label pelengkap transaksi",
-    minWidth: "w-32",
+    minWidth: "w-28",
     defaultVisible: false,
   },
 ];
@@ -181,16 +181,24 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
   variant = "file",
   onVisibleColumnsChange,
 }: TransactionPreviewTableProps<T>) {
+  // Check if items contain any transfer transactions
+  const hasTransfers = useMemo(() => items.some((it) => it.txType === "transfer"), [items]);
+
   // 1. Column Visibility State (Supports Deleting / Restoring any column)
-  const [visibleColumns, setVisibleColumns] = useState<PreviewColumnId[]>([
-    "happenedAt",
-    "txType",
-    "amount",
-    "categoryName",
-    "accountName",
-    "toAccountName",
-    "note", // Deskripsi Transaksi
-  ]);
+  const [visibleColumns, setVisibleColumns] = useState<PreviewColumnId[]>(() => {
+    const cols: PreviewColumnId[] = [
+      "happenedAt",
+      "txType",
+      "amount",
+      "categoryName",
+      "accountName",
+    ];
+    if (items.some((it) => it.txType === "transfer")) {
+      cols.push("toAccountName");
+    }
+    cols.push("note"); // Deskripsi Transaksi
+    return cols;
+  });
 
   const [isColumnManagerOpen, setIsColumnManagerOpen] = useState(false);
   const columnManagerRef = useRef<HTMLDivElement>(null);
@@ -240,15 +248,18 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
   };
 
   const handleResetDefaultColumns = () => {
-    setVisibleColumns([
+    const cols: PreviewColumnId[] = [
       "happenedAt",
       "txType",
       "amount",
       "categoryName",
       "accountName",
-      "toAccountName",
-      "note",
-    ]);
+    ];
+    if (hasTransfers) {
+      cols.push("toAccountName");
+    }
+    cols.push("note");
+    setVisibleColumns(cols);
   };
 
   // Deleted columns list for quick restore pills
@@ -935,13 +946,13 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
           </div>
         )}
 
-        {/* Interactive Responsive Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
+        {/* Interactive Responsive Table (Visible in one screen on desktop) */}
+        <div className="w-full overflow-x-auto">
+          <table className="w-full text-xs text-left border-collapse table-auto">
             <thead className="bg-muted/40 text-[10px] uppercase text-muted-foreground font-semibold border-b border-border select-none">
               <tr>
                 {/* Select All Checkbox */}
-                <th className="px-3 py-2.5 w-10 text-center">
+                <th className="px-2 py-2 w-9 text-center">
                   <button
                     type="button"
                     onClick={handleSelectAll}
@@ -963,18 +974,18 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 </th>
 
                 {/* Row Number */}
-                <th className="px-3 py-2.5 w-10 text-center">#</th>
+                <th className="px-1.5 py-2 w-8 text-center font-mono">#</th>
 
-                {/* Column: Waktu / Tanggal */}
+                {/* Column: Tanggal */}
                 {visibleColumns.includes("happenedAt") && (
-                  <th className="px-3 py-2.5 w-36">
+                  <th className="px-2 py-2 w-28 whitespace-nowrap">
                     <div className="flex items-center justify-between gap-1 group">
-                      <span>Waktu / Tanggal</span>
+                      <span>Tanggal</span>
                       <button
                         type="button"
                         onClick={() => handleDeleteColumn("happenedAt")}
                         className="opacity-0 group-hover:opacity-100 hover:text-rose-500 p-0.5 rounded transition-opacity"
-                        title="Hapus kolom Waktu dari pratinjau"
+                        title="Hapus kolom Tanggal dari pratinjau"
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -984,7 +995,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
 
                 {/* Column: Jenis Transaksi */}
                 {visibleColumns.includes("txType") && (
-                  <th className="px-3 py-2.5 w-32">
+                  <th className="px-2 py-2 w-24 whitespace-nowrap">
                     <div className="flex items-center justify-between gap-1 group">
                       <span>Jenis</span>
                       <button
@@ -1001,7 +1012,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
 
                 {/* Column: Nominal */}
                 {visibleColumns.includes("amount") && (
-                  <th className="px-3 py-2.5 w-36 text-right">
+                  <th className="px-2 py-2 w-32 text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-1 group">
                       <span>Nominal (Rp)</span>
                       <button
@@ -1018,7 +1029,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
 
                 {/* Column: Kategori */}
                 {visibleColumns.includes("categoryName") && (
-                  <th className="px-3 py-2.5 w-44">
+                  <th className="px-2 py-2 w-36 whitespace-nowrap">
                     <div className="flex items-center justify-between gap-1 group">
                       <span>Kategori</span>
                       <button
@@ -1035,9 +1046,9 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
 
                 {/* Column: Akun Asal */}
                 {visibleColumns.includes("accountName") && (
-                  <th className="px-3 py-2.5 w-40">
+                  <th className="px-2 py-2 w-32 whitespace-nowrap">
                     <div className="flex items-center justify-between gap-1 group">
-                      <span>Akun / Rekening</span>
+                      <span>Akun</span>
                       <button
                         type="button"
                         onClick={() => handleDeleteColumn("accountName")}
@@ -1052,9 +1063,9 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
 
                 {/* Column: Akun Tujuan (Transfer) */}
                 {visibleColumns.includes("toAccountName") && (
-                  <th className="px-3 py-2.5 w-40">
+                  <th className="px-2 py-2 w-32 whitespace-nowrap">
                     <div className="flex items-center justify-between gap-1 group">
-                      <span>Akun Tujuan</span>
+                      <span>Tujuan</span>
                       <button
                         type="button"
                         onClick={() => handleDeleteColumn("toAccountName")}
@@ -1067,9 +1078,9 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   </th>
                 )}
 
-                {/* Column: Deskripsi Transaksi (MANDATORY REQUEST) */}
+                {/* Column: Deskripsi Transaksi (MANDATORY REQUEST - Flexibly fills remaining space) */}
                 {visibleColumns.includes("note") && (
-                  <th className="px-3 py-2.5 min-w-[220px]">
+                  <th className="px-2 py-2 w-auto min-w-[160px]">
                     <div className="flex items-center justify-between gap-1 group">
                       <span className="font-bold text-foreground">
                         Deskripsi Transaksi
@@ -1088,9 +1099,9 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
 
                 {/* Column: Tags */}
                 {visibleColumns.includes("tags") && (
-                  <th className="px-3 py-2.5 w-32">
+                  <th className="px-2 py-2 w-28 whitespace-nowrap">
                     <div className="flex items-center justify-between gap-1 group">
-                      <span>Tag / Label</span>
+                      <span>Tag</span>
                       <button
                         type="button"
                         onClick={() => handleDeleteColumn("tags")}
@@ -1104,7 +1115,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 )}
 
                 {/* Actions Column */}
-                <th className="px-3 py-2.5 w-20 text-center">Aksi</th>
+                <th className="px-2 py-2 w-16 text-center whitespace-nowrap">Aksi</th>
               </tr>
             </thead>
 
@@ -1152,7 +1163,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                       }`}
                     >
                       {/* Checkbox Select */}
-                      <td className="px-3 py-2 text-center">
+                      <td className="px-2 py-1.5 text-center">
                         <button
                           type="button"
                           onClick={() => handleToggleSelectRow(tx.id)}
@@ -1167,13 +1178,13 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                       </td>
 
                       {/* Row Index */}
-                      <td className="px-3 py-2 text-center text-muted-foreground font-mono text-[11px]">
+                      <td className="px-1.5 py-1.5 text-center text-muted-foreground font-mono text-[11px]">
                         {idx + 1}
                       </td>
 
                       {/* Cell: Happened At */}
                       {visibleColumns.includes("happenedAt") && (
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <Input
                             type="date"
                             value={tx.happenedAt ? tx.happenedAt.split("T")[0] : ""}
@@ -1185,14 +1196,14 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                 });
                               }
                             }}
-                            className="h-8 text-xs font-mono w-32 bg-background shadow-2xs"
+                            className="h-7.5 text-[11px] font-mono w-full px-1.5 bg-background shadow-2xs"
                           />
                         </td>
                       )}
 
                       {/* Cell: Tx Type */}
                       {visibleColumns.includes("txType") && (
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <select
                             value={tx.txType}
                             onChange={(e) =>
@@ -1200,7 +1211,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                 txType: e.target.value as any,
                               })
                             }
-                            className={`h-8 rounded-md border border-input px-2 text-xs font-bold focus:outline-none w-32 ${
+                            className={`h-7.5 rounded-md border border-input px-1.5 text-[11px] font-bold focus:outline-none w-full ${
                               tx.txType === "expense"
                                 ? "bg-rose-500/10 text-rose-600 border-rose-200 dark:border-rose-900"
                                 : tx.txType === "income"
@@ -1217,22 +1228,22 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
 
                       {/* Cell: Amount (Formatted with dots for readability) */}
                       {visibleColumns.includes("amount") && (
-                        <td className="px-3 py-2 text-right">
-                          <div className="relative flex items-center justify-end w-36 ml-auto">
-                            <span className="absolute left-2.5 text-[10px] font-bold text-muted-foreground pointer-events-none select-none">
+                        <td className="px-2 py-1.5 text-right">
+                          <div className="relative flex items-center justify-end w-full">
+                            <span className="absolute left-2 text-[10px] font-bold text-muted-foreground pointer-events-none select-none">
                               Rp
                             </span>
                             <Input
                               type="text"
                               inputMode="numeric"
-                              value={tx.amount ? formatInputIDR(String(tx.amount)) : ""}
+                              value={tx.amount !== undefined && tx.amount !== null ? formatInputIDR(String(tx.amount)) : ""}
                               onChange={(e) => {
                                 const parsed = parseInputIDR(e.target.value);
                                 handleCellUpdate(tx.id, {
                                   amount: parsed,
                                 });
                               }}
-                              className={`h-8 text-xs font-bold w-36 pl-8 text-right bg-background shadow-2xs font-mono tracking-tight ${
+                              className={`h-7.5 text-xs font-bold w-full pl-6 pr-2 text-right bg-background shadow-2xs font-mono tracking-tight ${
                                 tx.txType === "expense"
                                   ? "text-rose-600 dark:text-rose-400"
                                   : tx.txType === "income"
@@ -1247,8 +1258,8 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
 
                       {/* Cell: Category */}
                       {visibleColumns.includes("categoryName") && (
-                        <td className="px-3 py-2">
-                          <div className="flex flex-col gap-1 min-w-[160px]">
+                        <td className="px-2 py-1.5">
+                          <div className="flex flex-col gap-0.5 w-full">
                             <select
                               value={tx.categoryName}
                               onChange={(e) =>
@@ -1257,7 +1268,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                   isNlpDetected: false,
                                 })
                               }
-                              className="h-8 rounded-md border border-input bg-background px-2 text-xs font-semibold focus:outline-none w-full shadow-2xs cursor-pointer hover:border-primary/60 transition-colors"
+                              className="h-7.5 rounded-md border border-input bg-background px-1.5 text-xs font-medium focus:outline-none w-full shadow-2xs cursor-pointer hover:border-primary/60 transition-colors truncate"
                             >
                               <option value="">-- Pilih Kategori --</option>
                               {tx.categoryName &&
@@ -1297,9 +1308,9 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                             </select>
 
                             {tx.isNlpDetected && (
-                              <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded w-fit">
-                                <Sparkles className="h-2.5 w-2.5" />
-                                NLP AI
+                              <span className="inline-flex items-center gap-1 text-[8.5px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1 py-0.2 rounded w-fit">
+                                <Sparkles className="h-2 w-2" />
+                                NLP
                               </span>
                             )}
                           </div>
@@ -1308,7 +1319,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
 
                       {/* Cell: Account Name */}
                       {visibleColumns.includes("accountName") && (
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <select
                             value={tx.accountName}
                             onChange={(e) =>
@@ -1316,7 +1327,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                 accountName: e.target.value,
                               })
                             }
-                            className="h-8 rounded-md border border-input bg-background px-2 text-xs w-36 focus:outline-none font-medium shadow-2xs"
+                            className="h-7.5 rounded-md border border-input bg-background px-1.5 text-xs w-full focus:outline-none font-medium shadow-2xs truncate"
                           >
                             {accounts.map((acc) => (
                               <option key={acc.id} value={acc.name}>
@@ -1339,7 +1350,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
 
                       {/* Cell: To Account Name (Transfer) */}
                       {visibleColumns.includes("toAccountName") && (
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           {tx.txType === "transfer" ? (
                             <select
                               value={tx.toAccountName || ""}
@@ -1348,7 +1359,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                   toAccountName: e.target.value || null,
                                 })
                               }
-                              className="h-8 rounded-md border border-input bg-background px-2 text-xs w-36 focus:outline-none font-medium shadow-2xs"
+                              className="h-7.5 rounded-md border border-input bg-background px-1.5 text-xs w-full focus:outline-none font-medium shadow-2xs truncate"
                             >
                               <option value="">-- Akun Tujuan --</option>
                               {accounts.map((acc) => (
@@ -1365,9 +1376,9 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                         </td>
                       )}
 
-                      {/* Cell: Deskripsi Transaksi (MANDATORY REQUEST) */}
+                      {/* Cell: Deskripsi Transaksi (MANDATORY REQUEST - Flexibly takes remaining space) */}
                       {visibleColumns.includes("note") && (
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <Input
                             type="text"
                             value={tx.note || ""}
@@ -1376,7 +1387,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                 note: e.target.value,
                               })
                             }
-                            className="h-8 text-xs bg-background min-w-[200px] font-medium placeholder:text-muted-foreground/60 shadow-2xs"
+                            className="h-7.5 text-xs bg-background w-full min-w-[150px] font-medium placeholder:text-muted-foreground/60 shadow-2xs px-2"
                             placeholder="Tulis deskripsi / keterangan transaksi..."
                           />
                         </td>
@@ -1384,7 +1395,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
 
                       {/* Cell: Tags */}
                       {visibleColumns.includes("tags") && (
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <Input
                             type="text"
                             value={(tx.tags || []).join(", ")}
@@ -1395,25 +1406,25 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                 .filter(Boolean);
                               handleCellUpdate(tx.id, { tags: tagList });
                             }}
-                            className="h-8 text-xs bg-background w-32"
+                            className="h-7.5 text-xs bg-background w-full min-w-[90px] px-2"
                             placeholder="tag1, tag2..."
                           />
                         </td>
                       )}
 
                       {/* Row Actions: Edit Modal & Delete */}
-                      <td className="px-3 py-2 text-center">
-                        <div className="flex items-center justify-center gap-1">
+                      <td className="px-1.5 py-1.5 text-center">
+                        <div className="flex items-center justify-center gap-0.5">
                           {/* Edit Row in Full Modal */}
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
                             onClick={() => handleOpenEditModal(tx)}
-                            className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg"
+                            className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md p-0"
                             title="Edit rincian baris transaksi ini"
                           >
-                            <Pencil className="h-3.5 w-3.5" />
+                            <Pencil className="h-3 w-3" />
                           </Button>
 
                           {/* Delete Single Row */}
@@ -1422,10 +1433,10 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                             variant="ghost"
                             size="icon"
                             onClick={() => handleSingleDelete(tx.id)}
-                            className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg"
+                            className="h-7 w-7 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-md p-0"
                             title="Hapus baris transaksi ini"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
                       </td>
