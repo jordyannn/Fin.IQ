@@ -256,3 +256,66 @@ export const syncChanges = mysqlTable("sync_changes", {
   payload: json("payload").$type<Record<string, unknown>>().notNull(),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
+
+// ============================================================================
+// 8. AI Prompt & Conversation History
+// ============================================================================
+
+export const aiPromptHistory = mysqlTable(
+  "ai_prompt_history",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().$defaultFn(generateId),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    question: text("question").notNull(),
+    answer: text("answer").notNull(),
+    modelUsed: varchar("model_used", { length: 150 }).notNull(),
+    guardrailBlocked: boolean("guardrail_blocked").default(false).notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdx: index("idx_ai_history_user_time").on(table.userId, table.createdAt),
+  })
+);
+
+export const aiChatSessions = mysqlTable(
+  "ai_chat_sessions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().$defaultFn(generateId),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 255 }).notNull(),
+    modelUsed: varchar("model_used", { length: 150 }).notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdx: index("idx_ai_sessions_user").on(table.userId, table.updatedAt),
+  })
+);
+
+export const aiChatMessages = mysqlTable(
+  "ai_chat_messages",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().$defaultFn(generateId),
+    sessionId: varchar("session_id", { length: 36 })
+      .notNull()
+      .references(() => aiChatSessions.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: varchar("role", { length: 20 }).notNull(), // 'user' | 'assistant'
+    content: text("content").notNull(),
+    modelUsed: varchar("model_used", { length: 150 }),
+    guardrailBlocked: boolean("guardrail_blocked").default(false).notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    sessionIdx: index("idx_ai_messages_session").on(table.sessionId, table.createdAt),
+    userIdx: index("idx_ai_messages_user").on(table.userId),
+  })
+);
+
+

@@ -8,8 +8,11 @@ import {
   categories,
   userProfiles,
   transactions,
+  aiPromptHistory,
+  aiChatSessions,
+  aiChatMessages,
 } from "../../db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { smartParseIndonesianTransaction } from "@/lib/nlp-parser";
 import { GoogleGenAI } from "@google/genai";
 import { fuzzyMatchAccount, fuzzyMatchCategory } from "./import";
@@ -655,22 +658,207 @@ ATURAN EKSTRAKSI PENTING:
     return getAiQuota(ctx.userId);
   }),
 
+  listChatSessions: protectedProcedure.query(async ({ ctx }) => {
+    return ctx.db
+      .select({
+        id: aiChatSessions.id,
+        title: aiChatSessions.title,
+        modelUsed: aiChatSessions.modelUsed,
+        createdAt: aiChatSessions.createdAt,
+        updatedAt: aiChatSessions.updatedAt,
+      })
+      .from(aiChatSessions)
+      .where(eq(aiChatSessions.userId, ctx.userId))
+      .orderBy(desc(aiChatSessions.updatedAt));
+  }),
+
+  getChatSession: protectedProcedure
+    .input(z.object({ sessionId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const sessionRecords = await ctx.db
+        .select()
+        .from(aiChatSessions)
+        .where(
+          and(
+            eq(aiChatSessions.id, input.sessionId),
+            eq(aiChatSessions.userId, ctx.userId)
+          )
+        )
+        .limit(1);
+
+      if (sessionRecords.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Sesi percakapan tidak ditemukan.",
+        });
+      }
+
+      const messages = await ctx.db
+        .select({
+          id: aiChatMessages.id,
+          role: aiChatMessages.role,
+          content: aiChatMessages.content,
+          modelUsed: aiChatMessages.modelUsed,
+          guardrailBlocked: aiChatMessages.guardrailBlocked,
+          createdAt: aiChatMessages.createdAt,
+        })
+        .from(aiChatMessages)
+        .where(eq(aiChatMessages.sessionId, input.sessionId))
+        .orderBy(aiChatMessages.createdAt);
+
+      return {
+        session: sessionRecords[0],
+        messages,
+      };
+    }),
+
+  createChatSession: protectedProcedure
+    .input(
+      z.object({
+        title: z.string().optional(),
+        model: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const sessionId = crypto.randomUUID();
+      const title = input.title?.trim() || "Percakapan Baru";
+      const modelUsed = input.model || DEFAULT_MODEL_ID;
+
+      await ctx.db.insert(aiChatSessions).values({
+        id: sessionId,
+        userId: ctx.userId,
+        title,
+        modelUsed,
+      });
+
+      return {
+        id: sessionId,
+        title,
+        modelUsed,
+      };
+    }),
+
+  deleteChatSession: protectedProcedure
+    .input(z.object({ sessionId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .delete(aiChatSessions)
+        .where(
+          and(
+            eq(aiChatSessions.id, input.sessionId),
+            eq(aiChatSessions.userId, ctx.userId)
+          )
+        );
+      return { success: true };
+    }),
+
+  getChatHistory: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(30) }).optional())
+    .query(async ({ ctx, input }) => {
+      const limit = input?.limit ?? 30;
+      const history = await ctx.db
+        .select({
+          id: aiPromptHistory.id,
+          question: aiPromptHistory.question,
+          answer: aiPromptHistory.answer,
+          modelUsed: aiPromptHistory.modelUsed,
+          guardrailBlocked: aiPromptHistory.guardrailBlocked,
+          createdAt: aiPromptHistory.createdAt,
+        })
+        .from(aiPromptHistory)
+        .where(eq(aiPromptHistory.userId, ctx.userId))
+        .orderBy(desc(aiPromptHistory.createdAt))
+        .limit(limit);
+
+      return history.reverse();
+    }),
+
+  clearChatHistory: protectedProcedure.mutation(async ({ ctx }) => {
+    await ctx.db
+      .delete(aiPromptHistory)
+      .where(eq(aiPromptHistory.userId, ctx.userId));
+    return { success: true };
+  }),
+
   askFinancialAssistant: protectedProcedure
     .input(
       z.object({
         question: z.string().min(2, "Pertanyaan terlalu pendek"),
         model: z.string().optional(),
+        sessionId: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Kelola Session ID
+      let activeSessionId = input.sessionId;
+      const modelId = input.model || DEFAULT_MODEL_ID;
+
+      if (!activeSessionId) {
+        activeSessionId = crypto.randomUUID();
+        const autoTitle =
+          input.question.length > 40
+            ? `${input.question.substring(0, 37)}...`
+            : input.question;
+        try {
+          await ctx.db.insert(aiChatSessions).values({
+            id: activeSessionId,
+            userId: ctx.userId,
+            title: autoTitle,
+            modelUsed: modelId,
+          });
+        } catch (sErr) {
+          console.error("[Session Create Error]", sErr);
+        }
+      }
+
+      // Simpan prompt pengguna ke session
+      try {
+        await ctx.db.insert(aiChatMessages).values({
+          sessionId: activeSessionId,
+          userId: ctx.userId,
+          role: "user",
+          content: input.question,
+        });
+      } catch (mErr) {
+        console.error("[User Message Save Error]", mErr);
+      }
+
       // 1. GUARDRAIL PRE-FILTER: Cek apakah pertanyaan keluar dari konteks keuangan
       const guardrail = checkFinancialGuardrail(input.question);
       if (guardrail.isOffTopic) {
+        const refusalText = guardrail.refusal || GUARDRAIL_REFUSAL_MESSAGE;
+
+        // Simpan respon penolakan guardrail ke session & audit history
+        try {
+          await ctx.db.insert(aiChatMessages).values({
+            sessionId: activeSessionId,
+            userId: ctx.userId,
+            role: "assistant",
+            content: refusalText,
+            modelUsed: modelId,
+            guardrailBlocked: true,
+          });
+          await ctx.db
+            .update(aiChatSessions)
+            .set({ updatedAt: new Date() })
+            .where(eq(aiChatSessions.id, activeSessionId));
+          await ctx.db.insert(aiPromptHistory).values({
+            userId: ctx.userId,
+            question: input.question,
+            answer: refusalText,
+            modelUsed: modelId,
+            guardrailBlocked: true,
+          });
+        } catch (dbErr) {
+          console.error("[AI History Save Error]", dbErr);
+        }
+
         return {
-          answer: guardrail.refusal || GUARDRAIL_REFUSAL_MESSAGE,
-          modelUsed: input.model || DEFAULT_MODEL_ID,
+          answer: refusalText,
+          modelUsed: modelId,
           quota: getAiQuota(ctx.userId),
           guardrailBlocked: true,
+          sessionId: activeSessionId,
         };
       }
 
@@ -783,11 +971,37 @@ Pertanyaan Pengguna: "${input.question}"`;
           temperature: 0.2,
         });
 
+        // Simpan jawaban assistant ke session & audit history
+        try {
+          await ctx.db.insert(aiChatMessages).values({
+            sessionId: activeSessionId,
+            userId: ctx.userId,
+            role: "assistant",
+            content: result.text,
+            modelUsed: result.modelUsed,
+            guardrailBlocked: false,
+          });
+          await ctx.db
+            .update(aiChatSessions)
+            .set({ updatedAt: new Date() })
+            .where(eq(aiChatSessions.id, activeSessionId));
+          await ctx.db.insert(aiPromptHistory).values({
+            userId: ctx.userId,
+            question: input.question,
+            answer: result.text,
+            modelUsed: result.modelUsed,
+            guardrailBlocked: false,
+          });
+        } catch (dbErr) {
+          console.error("[AI History Save Error]", dbErr);
+        }
+
         return {
           answer: result.text,
           modelUsed: result.modelUsed,
           quota: getAiQuota(ctx.userId),
           guardrailBlocked: false,
+          sessionId: activeSessionId,
         };
       } catch (err: any) {
         // Fallback ke Gemini jika user menyetel API key personal
@@ -798,11 +1012,40 @@ Pertanyaan Pengguna: "${input.question}"`;
             preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
             contents: `${systemPrompt}\n\n${userPrompt}`,
           });
+
+          const answerText = response.text || "Tidak ada respon dari AI.";
+          const modelUsedName = "gemini-3-flash-preview (Personal Fallback)";
+
+          try {
+            await ctx.db.insert(aiChatMessages).values({
+              sessionId: activeSessionId,
+              userId: ctx.userId,
+              role: "assistant",
+              content: answerText,
+              modelUsed: modelUsedName,
+              guardrailBlocked: false,
+            });
+            await ctx.db
+              .update(aiChatSessions)
+              .set({ updatedAt: new Date() })
+              .where(eq(aiChatSessions.id, activeSessionId));
+            await ctx.db.insert(aiPromptHistory).values({
+              userId: ctx.userId,
+              question: input.question,
+              answer: answerText,
+              modelUsed: modelUsedName,
+              guardrailBlocked: false,
+            });
+          } catch (dbErr) {
+            console.error("[AI History Save Error]", dbErr);
+          }
+
           return {
-            answer: response.text || "Tidak ada respon dari AI.",
-            modelUsed: "gemini-3-flash-preview (Personal Fallback)",
+            answer: answerText,
+            modelUsed: modelUsedName,
             quota: getAiQuota(ctx.userId),
             guardrailBlocked: false,
+            sessionId: activeSessionId,
           };
         } catch {
           throw new TRPCError({
