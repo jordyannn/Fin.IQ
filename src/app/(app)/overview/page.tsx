@@ -441,7 +441,7 @@ export default function OverviewPage() {
               <select
                 value={datePreset}
                 onChange={(e) => setDatePreset(e.target.value as DateFilterPreset)}
-                className="h-8 rounded-md border border-input bg-background/80 px-3 text-xs font-bold shadow-2xs focus:outline-none"
+                className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground"
               >
                 <option value="this_month">Bulan Ini</option>
                 <option value="today">Hari Ini</option>
@@ -752,7 +752,10 @@ export default function OverviewPage() {
       {/* =========================================================================
           1.5. CONTAINER PROMOSI & AKSES CEPAT IMPOR TRANSAKSI / E-STATEMENT
       ========================================================================= */}
-      <div className="relative overflow-hidden rounded-md border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-card to-card dark:from-emerald-950/20 dark:via-card dark:to-card p-4 sm:p-5 shadow-2xs">
+      <div
+        data-tour="overview-import-hub"
+        className="relative overflow-hidden rounded-md border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-card to-card dark:from-emerald-950/20 dark:via-card dark:to-card p-4 sm:p-5 shadow-2xs"
+      >
         <div className="absolute top-0 right-0 -mr-12 -mt-12 w-48 h-48 rounded-md bg-emerald-500/10 blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
@@ -760,26 +763,22 @@ export default function OverviewPage() {
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[11px] font-bold bg-secondary text-secondary-foreground border border-emerald-300 dark:border-emerald-800">
                 <GeometricIcon name="sparkles" size="xs" active />
-                Impor Data Cepat
-              </span>
-              <span className="text-[11px] font-semibold text-muted-foreground hidden sm:inline">
-                Didukung AI Fin.IQ
+                Impor Data
               </span>
             </div>
 
             <h2 className="text-lg sm:text-xl font-black text-foreground tracking-tight leading-snug">
-              Impor Mutasi &amp; Rekening Koran Otomatis
+              Impor Rekening &amp; File Transaksi
             </h2>
 
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Punya riwayat transaksi dari BCA, Mandiri, BRI, BNI, e-wallet (GoPay, OVO, DANA), atau berkas Excel?
-              Konversi ratusan catatan keuangan dalam hitungan detik tanpa perlu repot mengetik satu per satu.
+              Tarik mutasi dari berkas bank (BCA, Mandiri, BRI, BNI), e-wallet, atau spreadsheet langsung ke pembukuan.
             </p>
 
             <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
               <span className="px-2 py-0.5 rounded-sm bg-background/80 border border-border text-foreground font-medium flex items-center gap-1.5 shadow-2xs">
                 <GeometricIcon name="transactions" size="xs" active />
-                E-Statement &amp; Mutasi Bank
+                Mutasi Rekening
               </span>
               <span className="px-2 py-0.5 rounded-sm bg-background/80 border border-border text-foreground font-medium flex items-center gap-1.5 shadow-2xs">
                 <GeometricIcon name="ledgers" size="xs" active />
@@ -787,7 +786,7 @@ export default function OverviewPage() {
               </span>
               <span className="px-2 py-0.5 rounded-sm bg-background/80 border border-border text-foreground font-medium flex items-center gap-1.5 shadow-2xs">
                 <GeometricIcon name="ai" size="xs" active />
-                Screenshot Struk &amp; OCR
+                Foto Struk Kasir
               </span>
             </div>
           </div>
@@ -796,7 +795,7 @@ export default function OverviewPage() {
             <Link href="/import">
               <Button className="rounded-md bg-primary hover:bg-[#047857] text-white font-bold text-xs sm:text-sm px-4 py-2 shadow-xs gap-2 active:scale-95 transition-all">
                 <GeometricIcon name="import" size="xs" active />
-                <span>Impor Berkas Sekarang</span>
+                <span>Impor Berkas</span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
@@ -806,7 +805,7 @@ export default function OverviewPage() {
               className="text-xs font-semibold text-primary hover:underline flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-background/60 border border-border"
             >
               <HelpCircle className="h-3.5 w-3.5" />
-              <span>Panduan format mutasi bank</span>
+              <span>Format file yang didukung</span>
               <ChevronRightIcon className="h-3 w-3" />
             </Link>
           </div>
@@ -816,7 +815,10 @@ export default function OverviewPage() {
       {/* =========================================================================
           2. STATISTIK RINGKAS KONSISTENSI (3 Kartu Metrik)
       ========================================================================= */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div
+        data-tour="overview-habit-stats"
+        className="grid grid-cols-1 sm:grid-cols-3 gap-3"
+      >
         <Card className="p-3.5 rounded-md border-border/80 flex items-center gap-3 shadow-2xs">
           <div className="h-9 w-9 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
             <GeometricIcon name="trend-down" size="xs" active />

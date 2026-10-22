@@ -13,7 +13,19 @@ export async function compressImageToBase64(
     reader.onload = (readerEvent) => {
       const rawDataUrl = (readerEvent.target?.result as string) || "";
       const img = new Image();
-      img.onerror = () => reject(new Error("Format gambar tidak valid atau korup."));
+      img.onerror = () => {
+        // Fallback: jika canvas browser gagal me-render format gambar, kirim base64 asli
+        const clean = rawDataUrl.replace(/^data:[a-zA-Z0-9.+-]+\/[a-zA-Z0-9.+-]+;base64,/, "");
+        if (clean) {
+          resolve({
+            base64: clean,
+            mimeType: file.type || "image/jpeg",
+            previewUrl: rawDataUrl,
+          });
+        } else {
+          reject(new Error("Format gambar tidak valid atau korup."));
+        }
+      };
       img.onload = () => {
         let width = img.width;
         let height = img.height;

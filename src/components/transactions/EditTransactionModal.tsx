@@ -305,12 +305,12 @@ export function EditTransactionModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
       <form
         onSubmit={handleSubmit}
-        className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-md bg-card border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in zoom-in-95 duration-150"
+        className="relative w-full max-w-lg max-h-[92vh] flex flex-col rounded-2xl bg-card border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in zoom-in-95 duration-150"
       >
         {/* Header - Fixed & Pinned at Top */}
-        <div className="flex items-center justify-between border-b px-5 sm:px-6 py-3.5 shrink-0 bg-card z-10">
+        <div className="flex items-center justify-between border-b border-border/70 px-5 sm:px-6 py-3.5 shrink-0 bg-card z-10">
           <div>
-            <h2 className="text-base font-bold text-foreground">Edit Transaksi</h2>
+            <h2 className="text-base font-bold text-foreground tracking-tight">Edit Transaksi</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
               Perbarui rincian, akun, atau nominal transaksi ini
             </p>
@@ -318,7 +318,7 @@ export function EditTransactionModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-sm p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer active:scale-95"
           >
             <X className="h-4 w-4" />
           </button>
@@ -327,24 +327,26 @@ export function EditTransactionModal({
         {/* Scrollable Modal Content Body */}
         <div
           className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4 overscroll-contain
-            [&::-webkit-scrollbar]:w-1.5
+            [&::-webkit-scrollbar]:w-2
             [&::-webkit-scrollbar-track]:bg-muted/20
             [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30
-            [&::-webkit-scrollbar-thumb]:rounded-sm
+            [&::-webkit-scrollbar-thumb]:rounded-full
             hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50
             transition-colors"
         >
 
         {errorMessage && (
-          <div className="mt-4 p-3 rounded-sm bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium">
+          <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium">
             {errorMessage}
           </div>
         )}
 
         {/* AI Voice Assistant Bar */}
-        <div className="mt-2.5 flex items-center justify-between rounded-md border border-primary/20 bg-primary/5 p-2.5 sm:p-3">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary shrink-0" />
+        <div className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-3">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shrink-0">
+              <Sparkles className="h-4 w-4" />
+            </div>
             <div>
               <p className="text-xs font-semibold text-foreground">Dikte Suara Cerdas</p>
               <p className="text-[10px] text-muted-foreground">
@@ -353,7 +355,7 @@ export function EditTransactionModal({
             </div>
           </div>
           <VoiceMicButton
-            size="md"
+            size="sm"
             title="Dikte transaksi cerdas"
             onResult={(text) => applySmartSpeechParse(text)}
           />
@@ -361,56 +363,56 @@ export function EditTransactionModal({
 
         <div className="flex flex-col gap-4">
           {/* Tipe Transaksi (Tabs) */}
-          <div className="grid grid-cols-3 gap-1.5 rounded-md bg-muted p-1 text-xs">
+          <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-muted/60 p-1 border border-border/50 text-xs">
             <button
               type="button"
               onClick={() => handleTxTypeChange("expense")}
               className={cn(
-                "flex items-center justify-center gap-1.5 rounded-sm py-1.5 font-semibold transition-all",
+                "flex h-9 items-center justify-center gap-1.5 rounded-lg font-semibold transition-all duration-140 ease-out active:scale-[0.98] cursor-pointer",
                 txType === "expense"
-                  ? "bg-rose-600 text-white shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-rose-600 text-white shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/60 font-medium"
               )}
             >
               <ArrowDownLeft className="h-3.5 w-3.5" />
-              Pengeluaran
+              <span>Pengeluaran</span>
             </button>
             <button
               type="button"
               onClick={() => handleTxTypeChange("income")}
               className={cn(
-                "flex items-center justify-center gap-1.5 rounded-sm py-1.5 font-semibold transition-all",
+                "flex h-9 items-center justify-center gap-1.5 rounded-lg font-semibold transition-all duration-140 ease-out active:scale-[0.98] cursor-pointer",
                 txType === "income"
-                  ? "bg-emerald-600 text-white shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-emerald-600 text-white shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/60 font-medium"
               )}
             >
               <ArrowUpRight className="h-3.5 w-3.5" />
-              Pemasukan
+              <span>Pemasukan</span>
             </button>
             <button
               type="button"
               onClick={() => handleTxTypeChange("transfer")}
               className={cn(
-                "flex items-center justify-center gap-1.5 rounded-sm py-1.5 font-semibold transition-all",
+                "flex h-9 items-center justify-center gap-1.5 rounded-lg font-semibold transition-all duration-140 ease-out active:scale-[0.98] cursor-pointer",
                 txType === "transfer"
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-blue-600 text-white shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/60 font-medium"
               )}
             >
               <ArrowRightLeft className="h-3.5 w-3.5" />
-              Transfer
+              <span>Transfer</span>
             </button>
           </div>
 
           {/* Nominal Input */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-semibold text-foreground">
+            <div className="flex items-center justify-between h-6 mb-1.5">
+              <label className="text-xs font-medium text-foreground/80">
                 Nominal ({transaction.currency || "IDR"})
               </label>
               <VoiceMicButton
-                size="sm"
+                size="xs"
                 title="Dikte nominal (misal: lima puluh ribu)"
                 onResult={(text) => {
                   const num = parseSpokenNumber(text);
@@ -421,7 +423,7 @@ export function EditTransactionModal({
               />
             </div>
             <div className="relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground select-none">
                 Rp
               </span>
               <Input
@@ -431,7 +433,7 @@ export function EditTransactionModal({
                 value={amount}
                 onChange={(e) => setAmount(formatInputIDR(e.target.value))}
                 placeholder="0"
-                className="pl-11 text-base font-bold h-11"
+                className="h-11 rounded-lg border-input/80 pl-11 text-lg font-bold font-mono tabular-nums tracking-tight bg-background/80 shadow-2xs focus-visible:border-primary"
                 required
               />
             </div>
@@ -439,13 +441,13 @@ export function EditTransactionModal({
 
           {/* Waktu Transaksi */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+            <div className="flex items-center justify-between h-6 mb-1.5">
+              <label className="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                 Waktu Transaksi
               </label>
               <VoiceMicButton
-                size="sm"
+                size="xs"
                 title="Dikte waktu (misal: saat ini, kemarin sore, 25 agustus)"
                 onResult={(text) => {
                   const { happenedAtFormatted } = extractDateTimeFromText(text);
@@ -459,23 +461,23 @@ export function EditTransactionModal({
               type="datetime-local"
               value={happenedAt}
               onChange={(e) => setHappenedAt(e.target.value)}
-              className="text-xs h-9"
+              className="h-10 rounded-lg text-xs font-mono tabular-nums border-input/80 px-3 bg-background/80 shadow-2xs focus-visible:border-primary"
               required
             />
           </div>
 
           {/* Rekomendasi Kategori NLP (Jika Ditemukan Belum Ada di Daftar) */}
           {txType !== "transfer" && nlpRecommendedCategory && (
-            <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-primary/10 border border-emerald-500/30 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-transparent border border-emerald-500/25 animate-in fade-in slide-in-from-top-2 duration-200">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 shrink-0">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 shrink-0">
                   <Sparkles className="h-4 w-4" />
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="text-[11px] font-medium text-muted-foreground">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                     Rekomendasi Kategori NLP
                   </span>
-                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 truncate">
+                  <span className="text-xs font-bold text-foreground truncate">
                     &ldquo;{nlpRecommendedCategory.name}&rdquo; (Belum Ada)
                   </span>
                 </div>
@@ -489,7 +491,7 @@ export function EditTransactionModal({
                     nlpRecommendedCategory.kind
                   )
                 }
-                className="h-8 px-3 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 gap-1.5 shadow-sm cursor-pointer transition-all"
+                className="h-8 px-3 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 gap-1.5 shadow-xs cursor-pointer transition-all active:scale-[0.98]"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Buat Kategori
@@ -501,13 +503,13 @@ export function EditTransactionModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Akun Sumber */}
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <div className="flex items-center justify-between h-6 mb-1.5">
+                <label className="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
                   <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
                   {txType === "transfer" ? "Dari Akun" : "Akun Keuangan"}
                 </label>
                 <VoiceMicButton
-                  size="sm"
+                  size="xs"
                   title="Sebut akun (misal: Blu, Cash, BCA)"
                   onResult={(text) => {
                     if (accountsData?.accounts) {
@@ -524,19 +526,20 @@ export function EditTransactionModal({
                 value={accountId}
                 onChange={setAccountId}
                 placeholder="Pilih Akun..."
+                align="left"
               />
             </div>
 
             {/* Akun Tujuan (Transfer) ATAU Kategori (Expense/Income) */}
             {txType === "transfer" ? (
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <div className="flex items-center justify-between h-6 mb-1.5">
+                  <label className="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
                     <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
                     Ke Akun Tujuan
                   </label>
                   <VoiceMicButton
-                    size="sm"
+                    size="xs"
                     title="Sebut akun tujuan"
                     onResult={(text) => {
                       if (accountsData?.accounts) {
@@ -554,17 +557,18 @@ export function EditTransactionModal({
                   value={toAccountId}
                   onChange={setToAccountId}
                   placeholder="Pilih Akun Tujuan..."
+                  align="right"
                 />
               </div>
             ) : (
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <div className="flex items-center justify-between h-6 mb-1.5">
+                  <label className="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
                     <Tag className="h-3.5 w-3.5 text-muted-foreground" />
                     Kategori
                   </label>
                   <VoiceMicButton
-                    size="sm"
+                    size="xs"
                     title="Sebut kategori (misal: Kopi, Bensin, Gaji, Belanja)"
                     onResult={(text) => {
                       if (categoriesList) {
@@ -593,6 +597,7 @@ export function EditTransactionModal({
                   placeholder="Pilih Kategori..."
                   recommendedCategory={nlpRecommendedCategory}
                   onCreateRecommended={(name, kind) => handleCreateRecommendedCategory(name, kind)}
+                  align="right"
                 />
               </div>
             )}
@@ -600,13 +605,13 @@ export function EditTransactionModal({
 
           {/* Catatan / Keterangan */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+            <div className="flex items-center justify-between h-6 mb-1.5">
+              <label className="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
                 <FileText className="h-3.5 w-3.5 text-muted-foreground" />
                 Catatan / Keterangan
               </label>
               <VoiceMicButton
-                size="sm"
+                size="xs"
                 title="Dikte transaksi cerdas (otomatis isi seluruh form)"
                 onResult={(text, audioBase64, mimeType) => {
                   applySmartSpeechParse(text, audioBase64, mimeType);
@@ -627,7 +632,7 @@ export function EditTransactionModal({
                   setTxType("expense");
                 }
               }}
-              className="text-xs h-9"
+              className="h-10 rounded-lg text-xs border border-input/80 bg-background/80 px-3 shadow-2xs focus-visible:border-primary"
             />
           </div>
 
@@ -642,7 +647,7 @@ export function EditTransactionModal({
           size="sm"
           onClick={onClose}
           disabled={updateMutation.isPending}
-          className="text-xs h-8 sm:h-9 px-3.5 rounded-md cursor-pointer"
+          className="text-xs h-9 px-3.5 rounded-lg cursor-pointer transition-all active:scale-[0.98]"
         >
           Batal
         </Button>
@@ -650,7 +655,7 @@ export function EditTransactionModal({
           type="submit"
           size="sm"
           disabled={updateMutation.isPending}
-          className="bg-[#059669] hover:bg-[#047857] text-white text-xs h-8 sm:h-9 px-4 rounded-md font-semibold gap-1.5 shadow-level-1 cursor-pointer transition-all"
+          className="bg-primary hover:bg-primary/90 text-white text-xs h-9 px-4 rounded-lg font-bold gap-1.5 shadow-xs cursor-pointer transition-all active:scale-[0.98]"
         >
           <Save className="h-3.5 w-3.5" />
           {updateMutation.isPending ? "Menyimpan..." : "Simpan Perubahan"}

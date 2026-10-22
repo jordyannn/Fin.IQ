@@ -14,7 +14,7 @@ export function MobileBottomNav() {
   const { openQuickAdd, toggleSidebar } = useUIStore();
 
   const leftItems = [
-    { label: "Home", href: "/overview", iconName: "overview" as const },
+    { label: "Ringkasan", href: "/overview", iconName: "overview" as const },
     { label: "Transaksi", href: "/transactions", iconName: "transactions" as const },
   ];
 

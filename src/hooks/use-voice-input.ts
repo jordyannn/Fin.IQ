@@ -3,14 +3,37 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 /**
- * Parse angka dari teks bahasa Indonesia.
- * Contoh: "lima puluh ribu" → 50000, "seratus dua puluh" → 120, "2,5 juta" → 2500000
+ * Parse angka dari teks bahasa Indonesia, termasuk angka lisan formal dan slang sehari-hari.
+ * Contoh:
+ * - "lima puluh ribu" → 50000
+ * - "seratus dua puluh ribu" → 120000
+ * - "2,5 juta" → 2500000
+ * - "50rb" / "50k" → 50000
+ * - "goceng" → 5000, "ceban" → 10000, "goban" → 50000, "cepek" → 100000
  */
 export function parseSpokenNumber(text: string): number | null {
   if (!text) return null;
   const lower = text.toLowerCase().trim();
 
-  // 1. Explicit regex shortcuts: "2.5jt", "2,5 juta", "50rb", "50 ribu", "50k"
+  // 1. Indonesian slang currency terms
+  const slangMap: Record<string, number> = {
+    goceng: 5_000,
+    seceng: 1_000,
+    noceng: 2_000,
+    ceban: 10_000,
+    goban: 50_000,
+    cepek: 100_000,
+    gocap: 50_000,
+    pekgo: 150_000,
+  };
+
+  for (const [slang, val] of Object.entries(slangMap)) {
+    if (new RegExp(`\\b${slang}\\b`, "i").test(lower)) {
+      return val;
+    }
+  }
+
+  // 2. Explicit regex shortcuts: "2.5jt", "2,5 juta", "50rb", "50 ribu", "50k"
   const jtMatch = lower.match(/(\d+(?:[\.,]\d+)?)\s*(?:jt|juta|m|million)\b/i);
   if (jtMatch) {
     return Math.round(parseFloat(jtMatch[1].replace(",", ".")) * 1_000_000);
@@ -21,8 +44,7 @@ export function parseSpokenNumber(text: string): number | null {
     return Math.round(parseFloat(rbMatch[1].replace(",", ".")) * 1_000);
   }
 
-  // 2. Pure digits or formatted digits e.g. "Rp 50.000", "50000"
-  // If string contains digits without word multipliers
+  // 3. Pure digits or formatted digits e.g. "Rp 50.000", "50000", "25,000"
   const hasDigits = /\d/.test(lower);
   const hasMultipliers = /(?:ribu|rb|k|juta|jt|ratus|puluh)/.test(lower);
   if (hasDigits && !hasMultipliers) {
@@ -33,7 +55,7 @@ export function parseSpokenNumber(text: string): number | null {
     }
   }
 
-  // 3. Word-based parsing: e.g. "seratus lima puluh ribu", "dua puluh lima ribu"
+  // 4. Word-based parsing: e.g. "seratus lima puluh ribu", "dua puluh lima ribu"
   const unitMap: Record<string, number> = {
     nol: 0, kosong: 0,
     satu: 1, se: 1, dua: 2, tiga: 3, empat: 4, lima: 5,
@@ -95,14 +117,14 @@ export function parseSpokenNumber(text: string): number | null {
 
 export interface UseVoiceInputOptions {
   silenceDelayMs?: number; // Waktu jeda hening sebelum otomatis selesai bicara (default: 2000ms)
-  processDelayMs?: number; // Waktu pemrosesan halus sebelum mengeksekusi hasil (default: 500ms)
+  processDelayMs?: number; // Waktu pemrosesan halus sebelum mengeksekusi hasil (default: 400ms)
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
-      const result = reader.result as string;
+      const result = (reader.result as string) || "";
       const base64 = result.includes(",") ? result.split(",")[1] : result;
       resolve(base64);
     };
@@ -116,7 +138,7 @@ export function useVoiceInput(
   options?: UseVoiceInputOptions
 ) {
   const silenceDelayMs = options?.silenceDelayMs ?? 2000;
-  const processDelayMs = options?.processDelayMs ?? 500;
+  const processDelayMs = options?.processDelayMs ?? 400;
 
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -129,7 +151,7 @@ export function useVoiceInput(
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
 
-  // MediaRecorder audio capture refs
+  // MediaRecorder audio capture refs (fallback untuk browser tanpa Web Speech API)
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -199,12 +221,13 @@ export function useVoiceInput(
       try {
         recognitionRef.current.stop();
       } catch {}
+      recognitionRef.current = null;
     }
 
     setIsListening(false);
     isListeningRef.current = false;
 
-    // Ambil rekaman audio Base64 untuk keperluan Gemini Native Audio fallback
+    // Hentikan rekaman audio jika fallback MediaRecorder aktif
     const { audioBase64, mimeType } = await stopMediaStreamAndRecorder();
 
     if (textToProcess || audioBase64) {
@@ -226,64 +249,67 @@ export function useVoiceInput(
   const handleFinishSpeechRef = useRef(handleFinishSpeech);
   handleFinishSpeechRef.current = handleFinishSpeech;
 
+  // Cleanup saat unmount
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const SpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = "id-ID";
-
-        recognition.onresult = (event: any) => {
-          let fullText = "";
-          for (let i = 0; i < event.results.length; i++) {
-            fullText += event.results[i][0].transcript + " ";
-          }
-          const cleanText = fullText.trim();
-          finalTranscriptRef.current = cleanText;
-          setTranscript(cleanText);
-
-          // Reset silence timer setiap kata baru terdeteksi
-          clearSilenceTimer();
-          silenceTimerRef.current = setTimeout(() => {
-            handleFinishSpeechRef.current();
-          }, silenceDelayRef.current);
-        };
-
-        recognition.onerror = (event: any) => {
-          if (event.error !== "no-speech") {
-            clearSilenceTimer();
-            setError(event.error);
-            setIsListening(false);
-            isListeningRef.current = false;
-            setIsProcessing(false);
-            isProcessingRef.current = false;
-          }
-        };
-
-        recognition.onend = () => {
-          clearSilenceTimer();
-          if (isListeningRef.current && finalTranscriptRef.current.trim() && !isProcessingRef.current) {
-            handleFinishSpeechRef.current();
-          } else {
-            setIsListening(false);
-            isListeningRef.current = false;
-          }
-        };
-
-        recognitionRef.current = recognition;
-      }
-    }
-
     return () => {
       clearSilenceTimer();
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+        recognitionRef.current = null;
+      }
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
+  }, []);
+
+  // Memulai perekaman audio fallback via MediaRecorder (misal: Firefox atau tanpa Web Speech API)
+  const startMediaRecorderFallback = useCallback(async () => {
+    try {
+      if (typeof window === "undefined" || !navigator?.mediaDevices?.getUserMedia) {
+        setError("Browser tidak mendukung perekaman mikrofon.");
+        setIsListening(false);
+        isListeningRef.current = false;
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+
+      let mimeType = "audio/webm";
+      if (typeof MediaRecorder !== "undefined") {
+        if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+          mimeType = "audio/webm;codecs=opus";
+        } else if (MediaRecorder.isTypeSupported("audio/webm")) {
+          mimeType = "audio/webm";
+        } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          mimeType = "audio/mp4";
+        }
+      }
+      recordedMimeTypeRef.current = mimeType;
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start(250);
+
+      setIsListening(true);
+      isListeningRef.current = true;
+      setError(null);
+    } catch (micErr: any) {
+      console.warn("getUserMedia error:", micErr);
+      setIsListening(false);
+      isListeningRef.current = false;
+      setError("Izin mikrofon ditolak atau tidak tersedia. Silakan izinkan akses mikrofon di browser Anda.");
+    }
   }, []);
 
   const startListening = useCallback(async () => {
@@ -295,65 +321,112 @@ export function useVoiceInput(
     isProcessingRef.current = false;
     audioChunksRef.current = [];
 
-    const hasSpeech = Boolean(recognitionRef.current);
-    const hasMedia = typeof window !== "undefined" && Boolean(navigator?.mediaDevices?.getUserMedia);
-
-    if (!hasSpeech && !hasMedia) {
-      setError("Browser tidak mendukung input suara.");
-      return;
-    }
-
-    setIsListening(true);
-    isListeningRef.current = true;
-
-    // 1. Rekam audio via MediaRecorder secara paralel untuk input native Gemini
-    if (hasMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaStreamRef.current = stream;
-
-        let mimeType = "audio/webm";
-        if (typeof MediaRecorder !== "undefined") {
-          if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
-            mimeType = "audio/webm;codecs=opus";
-          } else if (MediaRecorder.isTypeSupported("audio/webm")) {
-            mimeType = "audio/webm";
-          } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
-            mimeType = "audio/mp4";
-          } else if (MediaRecorder.isTypeSupported("audio/ogg")) {
-            mimeType = "audio/ogg";
-          }
-        }
-        recordedMimeTypeRef.current = mimeType;
-
-        const recorder = new MediaRecorder(stream, { mimeType });
-        recorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) {
-            audioChunksRef.current.push(e.data);
-          }
-        };
-        mediaRecorderRef.current = recorder;
-        recorder.start(200);
-      } catch (micErr: any) {
-        console.warn("getUserMedia error:", micErr);
-        if (!hasSpeech) {
-          setIsListening(false);
-          isListeningRef.current = false;
-          setError("Izin mikrofon ditolak atau tidak tersedia.");
-          return;
-        }
-      }
-    }
-
-    // 2. Start SpeechRecognition lokal untuk kecepatan respons 0 ms
+    // Hentikan sesi lama jika masih menggantung
     if (recognitionRef.current) {
       try {
-        recognitionRef.current.start();
-      } catch (e) {
-        // Abaikan jika sudah berjalan
+        recognitionRef.current.stop();
+      } catch {}
+      recognitionRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+
+    const SpeechRecognition =
+      typeof window !== "undefined"
+        ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        : null;
+
+    // 1. Jika browser mendukung Web Speech API (Google Chrome, Edge, Chromium)
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "id-ID";
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+          setIsListening(true);
+          isListeningRef.current = true;
+          setError(null);
+        };
+
+        recognition.onresult = (event: any) => {
+          let fullText = "";
+          for (let i = 0; i < event.results.length; i++) {
+            fullText += event.results[i][0].transcript + " ";
+          }
+          const cleanText = fullText.trim();
+          finalTranscriptRef.current = cleanText;
+          setTranscript(cleanText);
+
+          // Reset jeda timer hening setiap ada kata baru
+          clearSilenceTimer();
+          silenceTimerRef.current = setTimeout(() => {
+            handleFinishSpeechRef.current();
+          }, silenceDelayRef.current);
+        };
+
+        recognition.onerror = (event: any) => {
+          console.warn("SpeechRecognition event:", event.error);
+          if (event.error === "no-speech") {
+            // Jangan matikan instan jika user hanya jeda sejenak
+            return;
+          }
+
+          if (event.error === "not-allowed") {
+            setError("Izin mikrofon ditolak oleh browser. Silakan aktifkan izin mikrofon.");
+            clearSilenceTimer();
+            setIsListening(false);
+            isListeningRef.current = false;
+            return;
+          }
+
+          if (event.error === "network") {
+            setError("Layanan suara Google tidak dapat terhubung.");
+          } else if (event.error !== "aborted") {
+            setError(`Pengenalan suara: ${event.error}`);
+          }
+
+          // Jika ada hasil parsial yang sudah tertangkap, proses hasilnya
+          if (finalTranscriptRef.current.trim()) {
+            handleFinishSpeechRef.current();
+          } else {
+            setIsListening(false);
+            isListeningRef.current = false;
+          }
+        };
+
+        recognition.onend = () => {
+          clearSilenceTimer();
+          if (isListeningRef.current) {
+            if (finalTranscriptRef.current.trim()) {
+              handleFinishSpeechRef.current();
+            } else {
+              setIsListening(false);
+              isListeningRef.current = false;
+            }
+          }
+        };
+
+        recognitionRef.current = recognition;
+        recognition.start();
+        setIsListening(true);
+        isListeningRef.current = true;
+        return;
+      } catch (recErr: any) {
+        console.warn("SpeechRecognition start gagal, mencoba fallback MediaRecorder:", recErr);
+        // Fallback ke MediaRecorder jika Web Speech API gagal start
+        await startMediaRecorderFallback();
+        return;
       }
     }
-  }, []);
+
+    // 2. Jika Web Speech API tidak didukung, gunakan perekam audio MediaRecorder
+    await startMediaRecorderFallback();
+  }, [startMediaRecorderFallback]);
 
   const stopListening = useCallback(() => {
     handleFinishSpeech();
@@ -368,4 +441,3 @@ export function useVoiceInput(
     stopListening,
   };
 }
-

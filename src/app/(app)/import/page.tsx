@@ -472,9 +472,16 @@ async function compressImageToBase64(
         ctx.drawImage(img, 0, 0, width, height);
         const dataUrl = canvas.toDataURL("image/jpeg", quality);
         const base64 = dataUrl.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
-        resolve({ base64, mimeType: "image/jpeg" });
       };
-      img.onerror = () => reject(new Error("Gagal memuat file gambar untuk optimasi."));
+      img.onerror = () => {
+        const rawBase64 = (readerEvent.target?.result as string) || "";
+        const clean = rawBase64.replace(/^data:[a-zA-Z0-9.+-]+\/[a-zA-Z0-9.+-]+;base64,/, "");
+        if (clean) {
+          resolve({ base64: clean, mimeType: file.type || "image/jpeg" });
+        } else {
+          reject(new Error("Gagal memuat file gambar untuk optimasi."));
+        }
+      };
       img.src = readerEvent.target?.result as string;
     };
     reader.onerror = () => reject(new Error("Gagal membaca file gambar."));
@@ -1420,174 +1427,171 @@ export default function ImportPage() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-lg bg-[#A7F3D0]/40 flex items-center justify-center text-[#064E3B] shrink-0">
-                <GeometricIcon name="import" className="h-4 w-4" />
-              </div>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">Impor Transaksi</h1>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {activeTab === "file"
-                ? "Impor mutasi riwayat keuangan langsung dari file CSV atau Excel dengan pemetaan pintar."
-                : "Ekstrak transaksi dari screenshot mutasi rekening, e-wallet, atau struk belanja fisik dengan AI Vision."}
-            </p>
-          </div>
-        </div>
-
-        {activeTab === "file" && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownloadTemplate}
-            className="text-xs gap-1.5 self-start sm:self-auto rounded-[10px] font-semibold border-border/80 hover:bg-slate-50 dark:hover:bg-slate-800"
-          >
-            <Download className="h-3.5 w-3.5 text-[#059669]" />
-            Unduh Format CSV Fin.IQ
-          </Button>
-        )}
-      </div>
-
-      {/* Mode Selector Tabs */}
-      <div className="flex flex-wrap gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/60 rounded-xl w-fit border border-border/60">
-        <button
-          type="button"
-          onClick={() => setActiveTab("file")}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-[9px] text-xs font-semibold transition-all ${
-            activeTab === "file"
-              ? "bg-white dark:bg-slate-900 shadow-level-1 text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <GeometricIcon name="import" className="h-3.5 w-3.5" />
-          File CSV / Excel
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("screenshot")}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-[9px] text-xs font-semibold transition-all ${
-            activeTab === "screenshot"
-              ? "bg-white dark:bg-slate-900 shadow-level-1 text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Camera className="h-3.5 w-3.5 text-[#059669]" />
-          Screenshot / Struk
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#A7F3D0]/40 text-[#064E3B]">
-            AI Vision
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("tutorial")}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-[9px] text-xs font-semibold transition-all ${
-            activeTab === "tutorial"
-              ? "bg-white dark:bg-slate-900 shadow-level-1 text-[#059669] font-bold"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <BookOpen className="h-3.5 w-3.5 text-[#059669]" />
-          Panduan Format Bank
-        </button>
-      </div>
-
-      {/* Quick Tutorial Callout Banner saat berada di tab File & belum ada file */}
-      {activeTab === "file" && !fileName && (
-        <div className="p-4 rounded-md bg-emerald-500/10 border border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-md bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-              <BookOpen className="h-4 w-4" />
-            </div>
             <div>
-              <span className="font-bold text-foreground">
-                Butuh panduan ekspor mutasi bank (BCA, Mandiri, BRI, BNI) & format CSV?
-              </span>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                Buka tutorial langkah demi langkah atau unduh template resmi Fin.IQ.
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-lg bg-[#A7F3D0]/40 flex items-center justify-center text-[#064E3B] shrink-0">
+                  <GeometricIcon name="import" className="h-4 w-4" />
+                </div>
+                <h1 className="text-2xl font-bold tracking-tight text-foreground">Impor Transaksi</h1>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {activeTab === "file"
+                  ? "Impor mutasi dari file CSV, Excel, atau e-statement PDF."
+                  : "Pindai transaksi dari tangkapan layar mutasi atau foto struk."}
               </p>
             </div>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setActiveTab("tutorial")}
-            className="text-xs font-bold text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/15 self-start sm:self-auto rounded-md gap-1.5"
-          >
-            <HelpCircle className="h-3.5 w-3.5" />
-            Buka Tutorial E-Statement
-          </Button>
+
+          {activeTab === "file" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadTemplate}
+              className="text-xs gap-1.5 self-start sm:self-auto rounded-[10px] font-semibold border-border/80 hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              <Download className="h-3.5 w-3.5 text-[#059669]" />
+              Unduh Template CSV
+            </Button>
+          )}
         </div>
-      )}
 
-      {/* ========================================================================= */}
-      {/* TAB 1: CSV / Excel Import Flow */}
-      {/* ========================================================================= */}
-      {activeTab === "file" && (
-        <>
-          {/* Step 1: Upload / Drop Zone (jika belum ada file) */}
-      {!fileName && !isConvertingWithAi && (
-        <Card className="border-dashed border-2 bg-card/60 transition-all hover:bg-card">
-          <CardContent
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={handleDrop}
-            className="flex flex-col items-center justify-center p-12 text-center cursor-pointer"
-            onClick={() => fileInputRef.current?.click()}
+        {/* Mode Selector Tabs */}
+        <div className="flex flex-wrap gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/60 rounded-xl w-fit border border-border/60">
+          <button
+            type="button"
+            onClick={() => setActiveTab("file")}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-[9px] text-xs font-semibold transition-all ${
+              activeTab === "file"
+                ? "bg-white dark:bg-slate-900 shadow-level-1 text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
           >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.tsv,.xlsx,.xls,.txt,.pdf"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            <div className="flex h-16 w-16 items-center justify-center rounded-md bg-primary/10 text-primary mb-4 shadow-sm">
-              <UploadCloud className="h-8 w-8" />
-            </div>
-            <h3 className="text-base font-bold text-foreground">
-              Pilih atau seret dokumen transaksi / e-statement ke sini
-            </h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-lg">
-              Mendukung file <span className="font-semibold text-foreground">.CSV</span>,{" "}
-              <span className="font-semibold text-foreground">.XLSX / .XLS</span>,{" "}
-              <span className="font-semibold text-foreground">.TXT</span>, atau{" "}
-              <span className="font-semibold text-foreground">.PDF (E-Statement Bank)</span> dengan template apa saja. AI & Heuristic Parser akan otomatis mengonversi ke template standar Fin.IQ!
-            </p>
+            <GeometricIcon name="import" className="h-3.5 w-3.5" />
+            File (CSV / Excel / PDF)
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("screenshot")}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-[9px] text-xs font-semibold transition-all ${
+              activeTab === "screenshot"
+                ? "bg-white dark:bg-slate-900 shadow-level-1 text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Camera className="h-3.5 w-3.5 text-[#059669]" />
+            Foto / Tangkapan Layar
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("tutorial")}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-[9px] text-xs font-semibold transition-all ${
+              activeTab === "tutorial"
+                ? "bg-white dark:bg-slate-900 shadow-level-1 text-[#059669] font-bold"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <BookOpen className="h-3.5 w-3.5 text-[#059669]" />
+            Panduan Format
+          </button>
+        </div>
 
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-              <span className="px-2.5 py-1 rounded-sm text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
-                <FileCheck className="h-3 w-3 text-emerald-500" /> E-Statement PDF Bank (BCA, Mandiri, BRI, BNI)
-              </span>
-              <span className="px-2.5 py-1 rounded-sm text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
-                <FileSpreadsheet className="h-3 w-3 text-emerald-500" /> Mutasi Excel / CSV (KlikBCA, Livin, BRImo)
-              </span>
-              <span className="px-2.5 py-1 rounded-sm text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
-                <Smartphone className="h-3 w-3 text-emerald-500" /> E-Wallet (GoPay, OVO, DANA, ShopeePay)
-              </span>
-              <span className="px-2.5 py-1 rounded-sm text-[11px] font-medium bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 font-semibold">
-                <Sparkles className="h-3 w-3" /> Auto-Convert Universal AI
-              </span>
+        {/* Quick Tutorial Callout Banner saat berada di tab File & belum ada file */}
+        {activeTab === "file" && !fileName && (
+          <div className="p-4 rounded-md bg-emerald-500/10 border border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-md bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <BookOpen className="h-4 w-4" />
+              </div>
+              <div>
+                <span className="font-bold text-foreground">
+                  Panduan unduh mutasi bank (BCA, Mandiri, BRI, BNI)
+                </span>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Lihat cara unduh mutasi dari m-banking atau internet banking.
+                </p>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setActiveTab("tutorial")}
+              className="text-xs font-bold text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/15 self-start sm:self-auto rounded-md gap-1.5"
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+              Lihat Panduan
+            </Button>
+          </div>
+        )}
 
-      {/* AI Processing Overlay saat mengekstrak dokumen */}
-      {isConvertingWithAi && (
-        <Card className="p-8 text-center bg-card/90 border-dashed border-2 border-primary/40 space-y-4 animate-in fade-in">
-          <div className="flex h-14 w-14 items-center justify-center rounded-md bg-primary/10 text-primary mx-auto animate-pulse">
-            <Loader2 className="h-7 w-7 animate-spin" />
-          </div>
-          <div>
-            <h4 className="text-base font-bold text-foreground">
-              {aiConversionMessage || "Gemini AI sedang membaca dan mengonversi dokumen Anda..."}
-            </h4>
-            <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1">
-              Mendeteksi struktur mutasi debit/kredit, nominal, tanggal, nama bank, dan mencocokkan rekening tujuan secara otomatis.
-            </p>
-          </div>
-        </Card>
-      )}
+        {/* ========================================================================= */}
+        {/* TAB 1: CSV / Excel Import Flow */}
+        {/* ========================================================================= */}
+        {activeTab === "file" && (
+          <>
+            {/* Step 1: Upload / Drop Zone (jika belum ada file) */}
+        {!fileName && !isConvertingWithAi && (
+          <Card className="border-dashed border-2 bg-card/60 transition-all hover:bg-card">
+            <CardContent
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleDrop}
+              className="flex flex-col items-center justify-center p-12 text-center cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.tsv,.xlsx,.xls,.txt,.pdf"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <div className="flex h-16 w-16 items-center justify-center rounded-md bg-primary/10 text-primary mb-4 shadow-sm">
+                <UploadCloud className="h-8 w-8" />
+              </div>
+              <h3 className="text-base font-bold text-foreground">
+                Pilih atau tarik dokumen ke sini
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1 max-w-lg">
+                Mendukung file <span className="font-semibold text-foreground">.CSV</span>,{" "}
+                <span className="font-semibold text-foreground">.XLSX / .XLS</span>,{" "}
+                <span className="font-semibold text-foreground">.TXT</span>, atau{" "}
+                <span className="font-semibold text-foreground">.PDF</span> e-statement. Kolom mutasi akan disesuaikan secara otomatis.
+              </p>
+
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+                <span className="px-2.5 py-1 rounded-sm text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
+                  <FileCheck className="h-3 w-3 text-emerald-500" /> PDF Bank (BCA, Mandiri, BRI, BNI)
+                </span>
+                <span className="px-2.5 py-1 rounded-sm text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
+                  <FileSpreadsheet className="h-3 w-3 text-emerald-500" /> Excel & CSV (KlikBCA, Livin, BRImo)
+                </span>
+                <span className="px-2.5 py-1 rounded-sm text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
+                  <Smartphone className="h-3 w-3 text-emerald-500" /> E-Wallet (GoPay, OVO, DANA)
+                </span>
+                <span className="px-2.5 py-1 rounded-sm text-[11px] font-medium bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 font-semibold">
+                  <Sparkles className="h-3 w-3" /> Deteksi Kolom Otomatis
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* AI Processing Overlay saat mengekstrak dokumen */}
+        {isConvertingWithAi && (
+          <Card className="p-8 text-center bg-card/90 border-dashed border-2 border-primary/40 space-y-4 animate-in fade-in">
+            <div className="flex h-14 w-14 items-center justify-center rounded-md bg-primary/10 text-primary mx-auto animate-pulse">
+              <Loader2 className="h-7 w-7 animate-spin" />
+            </div>
+            <div>
+              <h4 className="text-base font-bold text-foreground">
+                {aiConversionMessage || "Membaca dan menyesuaikan format dokumen..."}
+              </h4>
+              <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1">
+                Mendeteksi tanggal, nominal debit/kredit, dan keterangan mutasi.
+              </p>
+            </div>
+          </Card>
+        )}
 
       {/* Step 2: Preview & Configuration (saat file sudah diparse) */}
       {fileName && stats && (
@@ -1862,7 +1866,7 @@ export default function ImportPage() {
                 <select
                   value={targetLedgerId}
                   onChange={(e) => setTargetLedgerId(e.target.value)}
-                  className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                  className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
                   <option value="">Buku Kas Utama (Default)</option>
                   {(Array.isArray(ledgersData) ? ledgersData : (ledgersData as any)?.ledgers)?.map(
@@ -1882,7 +1886,7 @@ export default function ImportPage() {
                 <select
                   value={defaultAccountId}
                   onChange={(e) => setDefaultAccountId(e.target.value)}
-                  className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                  className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
                   <option value="">Otomatis dari data file</option>
                   {accountsData?.accounts?.map((a) => (
@@ -1903,7 +1907,7 @@ export default function ImportPage() {
                 <select
                   value={fallbackCategoryId}
                   onChange={(e) => setFallbackCategoryId(e.target.value)}
-                  className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                  className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
                   <option value="">Otomatis (Umum / Deteksi NLP)</option>
                   {categoriesData?.map((c) => (
@@ -1922,7 +1926,7 @@ export default function ImportPage() {
                 <select
                   value={dedupStrategy}
                   onChange={(e) => setDedupStrategy(e.target.value as any)}
-                  className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                  className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
                   <option value="skip_duplicates">Lewati Transaksi Duplikat (Dianjurkan)</option>
                   <option value="insert_all">Impor Semua (Tanpa Cek Duplikat)</option>
@@ -2271,7 +2275,7 @@ export default function ImportPage() {
                     <select
                       value={targetLedgerId}
                       onChange={(e) => setTargetLedgerId(e.target.value)}
-                      className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                      className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     >
                       <option value="">Buku Kas Utama (Default)</option>
                       {(Array.isArray(ledgersData) ? ledgersData : (ledgersData as any)?.ledgers)?.map(
@@ -2291,7 +2295,7 @@ export default function ImportPage() {
                     <select
                       value={defaultAccountId}
                       onChange={(e) => setDefaultAccountId(e.target.value)}
-                      className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                      className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     >
                       <option value="">Otomatis dari data transaksi</option>
                       {accountsData?.accounts?.map((a) => (
@@ -2310,7 +2314,7 @@ export default function ImportPage() {
                     <select
                       value={dedupStrategy}
                       onChange={(e) => setDedupStrategy(e.target.value as any)}
-                      className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                      className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     >
                       <option value="skip_duplicates">Lewati Transaksi Duplikat (Dianjurkan)</option>
                       <option value="insert_all">Impor Semua (Tanpa Cek Duplikat)</option>
@@ -2397,7 +2401,7 @@ export default function ImportPage() {
                     onChange={(e) =>
                       setMappingDraft({ ...mappingDraft, tx_type: e.target.value || null })
                     }
-                    className="h-8 rounded-md border border-input bg-background px-3 text-xs"
+                    className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
                     <option value="">-- Tidak Dipetakan --</option>
                     {headers.map((h) => (
@@ -2417,7 +2421,7 @@ export default function ImportPage() {
                     onChange={(e) =>
                       setMappingDraft({ ...mappingDraft, amount: e.target.value || null })
                     }
-                    className="h-8 rounded-md border border-input bg-background px-3 text-xs"
+                    className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
                     <option value="">-- Tidak Dipetakan --</option>
                     {headers.map((h) => (
@@ -2437,7 +2441,7 @@ export default function ImportPage() {
                     onChange={(e) =>
                       setMappingDraft({ ...mappingDraft, happened_at: e.target.value || null })
                     }
-                    className="h-8 rounded-md border border-input bg-background px-3 text-xs"
+                    className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
                     <option value="">-- Tidak Dipetakan --</option>
                     {headers.map((h) => (
@@ -2455,7 +2459,7 @@ export default function ImportPage() {
                     onChange={(e) =>
                       setMappingDraft({ ...mappingDraft, category_name: e.target.value || null })
                     }
-                    className="h-8 rounded-md border border-input bg-background px-3 text-xs"
+                    className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
                     <option value="">-- Tidak Dipetakan (Pakai Umum) --</option>
                     {headers.map((h) => (
@@ -2473,7 +2477,7 @@ export default function ImportPage() {
                     onChange={(e) =>
                       setMappingDraft({ ...mappingDraft, subcategory_name: e.target.value || null })
                     }
-                    className="h-8 rounded-md border border-input bg-background px-3 text-xs"
+                    className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
                     <option value="">-- Tidak Dipetakan --</option>
                     {headers.map((h) => (
@@ -2491,7 +2495,7 @@ export default function ImportPage() {
                     onChange={(e) =>
                       setMappingDraft({ ...mappingDraft, account_name: e.target.value || null })
                     }
-                    className="h-8 rounded-md border border-input bg-background px-3 text-xs"
+                    className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
                     <option value="">-- Tidak Dipetakan (Pakai Akun Default) --</option>
                     {headers.map((h) => (
@@ -2509,7 +2513,7 @@ export default function ImportPage() {
                     onChange={(e) =>
                       setMappingDraft({ ...mappingDraft, to_account_name: e.target.value || null })
                     }
-                    className="h-8 rounded-md border border-input bg-background px-3 text-xs"
+                    className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
                     <option value="">-- Tidak Dipetakan --</option>
                     {headers.map((h) => (
@@ -2527,7 +2531,7 @@ export default function ImportPage() {
                     onChange={(e) =>
                       setMappingDraft({ ...mappingDraft, note: e.target.value || null })
                     }
-                    className="h-8 rounded-md border border-input bg-background px-3 text-xs"
+                    className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
                     <option value="">-- Tidak Dipetakan --</option>
                     {headers.map((h) => (
@@ -2545,7 +2549,7 @@ export default function ImportPage() {
                     onChange={(e) =>
                       setMappingDraft({ ...mappingDraft, tags: e.target.value || null })
                     }
-                    className="h-8 rounded-md border border-input bg-background px-3 text-xs"
+                    className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
                     <option value="">-- Tidak Dipetakan --</option>
                     {headers.map((h) => (

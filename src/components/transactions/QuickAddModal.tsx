@@ -24,7 +24,9 @@ import {
   Eye,
   Plus,
   RotateCcw,
+  Compass,
 } from "lucide-react";
+import { useMascotStore } from "@/store/mascot.store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, formatInputIDR, parseInputIDR } from "@/lib/utils";
@@ -43,6 +45,7 @@ import { AccountSelect } from "./AccountSelect";
 
 export function QuickAddModal() {
   const { isQuickAddOpen, closeQuickAdd, quickAddAutoScan, setQuickAddAutoScan } = useUIStore();
+  const { startTransactionTour } = useMascotStore();
   const utils = trpc.useUtils();
   const alert = useAlert();
   const confirm = useConfirm();
@@ -80,8 +83,8 @@ export function QuickAddModal() {
   const handleCreateRecommendedCategory = async (catName: string, kind?: "expense" | "income") => {
     const targetKind = kind || (txType === "income" ? "income" : "expense");
     const ok = await confirm({
-      title: "Buat Kategori Rekomendasi?",
-      description: `Analisis NLP merekomendasikan kategori "${catName}" untuk transaksi ini, tetapi kategori ini belum ada di daftar kategori Anda. Apakah Anda setuju untuk membuat kategori baru "${catName}" dan langsung menggunakannya pada transaksi ini?`,
+      title: `Buat Kategori "${catName}"?`,
+      description: `Kategori "${catName}" belum terdaftar di pembukuan Anda. Buat kategori baru ini untuk jenis ${targetKind === "income" ? "Pemasukan" : "Pengeluaran"} dan gunakan pada transaksi ini?`,
       confirmText: "Ya, Buat Kategori",
       cancelText: "Batal",
       variant: "default",
@@ -215,34 +218,44 @@ export function QuickAddModal() {
     }
   };
 
-  // Smart Voice & NLP parsing dengan Automatic Gemini 2.5 Flash Native Audio Fallback
+  // Smart Voice & NLP parsing dengan Automatic Gemini Flash Native Audio Fallback
   const applySmartSpeechParse = (
     transcript: string,
     audioBase64?: string,
     mimeType?: string
   ) => {
-    // 1. Eksekusi lokal instan (0 ms latency)
-    const result = smartParseIndonesianTransaction(transcript, {
-      accounts: accountsData?.accounts,
-      categories: categoriesList,
-    });
+    const cleanText = (transcript || "").trim();
+    if (!cleanText && !audioBase64) return;
 
-    // Isi langsung form dengan hasil parsing lokal terbaik
-    applyParsedDataToForm(result);
+    if (cleanText) {
+      // 1. Eksekusi lokal instan (0 ms latency)
+      const result = smartParseIndonesianTransaction(cleanText, {
+        accounts: accountsData?.accounts,
+        categories: categoriesList,
+      });
 
-    // 2. Evaluasi apakah kata kunci transaksi cocok dengan dataset fin_iq
-    const isConfident = isConfidentDatasetMatch(result);
+      // Isi langsung form dengan hasil parsing lokal terbaik
+      applyParsedDataToForm(result);
 
-    if (isConfident || !audioBase64) {
-      // Kata kunci ditemukan di dataset fin_iq atau input berupa teks! Kirim ke backend mutation untuk sinkronisasi lokal
-      parseMutation.mutate({ text: transcript, clientTime: new Date().toISOString() });
-    } else {
-      // Hanya fallback ke Gemini jika ada data rekaman audio nyata
+      // 2. Evaluasi apakah kata kunci transaksi cocok dengan dataset fin_iq
+      const isConfident = isConfidentDatasetMatch(result);
+
+      if (isConfident || !audioBase64) {
+        // Kata kunci ditemukan di dataset fin_iq atau input berupa teks! Kirim ke backend mutation untuk sinkronisasi lokal
+        if (cleanText.length >= 2) {
+          parseMutation.mutate({ text: cleanText, clientTime: new Date().toISOString() });
+        }
+        return;
+      }
+    }
+
+    // Hanya fallback ke Gemini jika ada data rekaman audio nyata
+    if (audioBase64) {
       setIsAiParsingVoice(true);
       parseAudioMutation.mutate({
         audioBase64,
         mimeType: mimeType || "audio/webm",
-        transcript: transcript || undefined,
+        transcript: cleanText || undefined,
         clientTime: new Date().toISOString(),
       });
     }
@@ -251,6 +264,9 @@ export function QuickAddModal() {
   const parseMutation = trpc.ai.parseTextToTransaction.useMutation({
     onSuccess: (data) => {
       applyParsedDataToForm(data);
+    },
+    onError: (err) => {
+      console.warn("Sinkronisasi AI text parse:", err.message);
     },
   });
 
@@ -378,11 +394,15 @@ export function QuickAddModal() {
     setBillScanError(null);
   };
 
-  const { isListening, isProcessing, startListening, stopListening } = useVoiceInput(
-    (transcript, audioBase64, mimeType) => {
-      applySmartSpeechParse(transcript, audioBase64, mimeType);
-    }
-  );
+  const {
+    isListening,
+    isProcessing,
+    error: voiceError,
+    startListening,
+    stopListening,
+  } = useVoiceInput((transcript, audioBase64, mimeType) => {
+    applySmartSpeechParse(transcript, audioBase64, mimeType);
+  });
 
   const isVoiceBusy = isProcessing || isAiParsingVoice;
 
@@ -558,45 +578,46 @@ export function QuickAddModal() {
       onClick={closeQuickAdd}
     >
       <form
+        data-tour-modal="quick-add"
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
-        className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-md bg-card border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in zoom-in-95 duration-150"
+        className="relative w-full max-w-lg max-h-[92vh] flex flex-col rounded-2xl bg-card border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in zoom-in-95 duration-150"
       >
         {/* Header - Fixed & Pinned at Top */}
-        <div className="flex items-center justify-between border-b px-6 py-4 shrink-0 bg-card z-10">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <Sparkles className="h-4 w-4" />
+        <div className="flex items-center justify-between border-b border-border/70 px-5 sm:px-6 py-3.5 shrink-0 bg-card z-10">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-primary shrink-0">
+              <Sparkles className="h-4.5 w-4.5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-foreground">Catat Transaksi</h2>
+                <h2 className="text-base font-bold text-foreground tracking-tight whitespace-nowrap">
+                  Catat Transaksi
+                </h2>
                 {hasDraftData && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25 shrink-0">
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                    Draf Tersimpan
+                    Draf
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">Manual, dikte suara AI, atau scan struk</p>
+              <p className="text-xs text-muted-foreground">Manual, suara, atau foto struk</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            {hasDraftData && (
-              <button
-                type="button"
-                onClick={handleClearForm}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all border border-border/60 hover:border-destructive/30 cursor-pointer shadow-2xs"
-                title="Bersihkan seluruh input form"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Bersihkan</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => startTransactionTour(false)}
+              className="h-8 px-2.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border/70 hover:border-primary/30 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+              title="Buka panduan interaktif form transaksi"
+            >
+              <Compass className="h-3.5 w-3.5 text-primary" />
+              <span className="hidden sm:inline">Panduan</span>
+            </button>
             <button
               type="button"
               onClick={closeQuickAdd}
-              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+              className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer active:scale-95"
               title="Tutup (Draf input tetap tersimpan)"
             >
               <X className="h-4 w-4" />
@@ -606,7 +627,7 @@ export function QuickAddModal() {
 
         {/* Scrollable Modal Content Body */}
         <div
-          className="flex-1 overflow-y-auto px-6 py-4 space-y-4 overscroll-contain
+          className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4 overscroll-contain
             [&::-webkit-scrollbar]:w-2
             [&::-webkit-scrollbar-track]:bg-muted/20
             [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30
@@ -615,141 +636,148 @@ export function QuickAddModal() {
             transition-colors"
         >
           {/* Hidden input for Camera capture (direct camera trigger on mobile) */}
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={handleBillFileChange}
-        />
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleBillFileChange}
+          />
 
-        {/* Hidden input for Gallery / Files */}
-        <input
-          ref={galleryInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleBillFileChange}
-        />
+          {/* Hidden input for Gallery / Files */}
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleBillFileChange}
+          />
 
-        {/* AI Assistant Quick Input Toolbar */}
-        <div className="mt-4 rounded-xl border border-border/70 bg-muted/30 p-2.5">
-          <div className="flex items-center justify-between mb-2 px-1">
-            <div className="flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              <span className="text-xs font-bold text-foreground">Asisten Input AI</span>
+          {/* AI Assistant Quick Input Toolbar */}
+          <div data-tour="modal-ai-tools" className="rounded-xl border border-border/70 bg-muted/20 p-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <span className="text-xs font-bold text-foreground">Bantuan AI & Cepat</span>
+              </div>
+              <span className="text-[10px] text-muted-foreground">Dikte suara, scan struk, atau ketik teks</span>
             </div>
-            <span className="text-[10px] text-muted-foreground">Otomatis isi nominal & detail</span>
-          </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            {/* Dikte Suara */}
-            <Button
-              type="button"
-              variant={isListening ? "destructive" : "outline"}
-              size="sm"
-              disabled={isVoiceBusy || isScanningBill}
-              onClick={isListening ? stopListening : startListening}
-              className={cn(
-                "h-9 rounded-xl text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 transition-all shadow-2xs",
-                isListening && "animate-pulse bg-rose-500 text-white border-rose-500 hover:bg-rose-600",
-                isVoiceBusy && "border-primary/40 text-primary animate-pulse"
-              )}
-              title="Dikte transaksi lewat suara"
-            >
-              {isListening ? (
-                <MicOff className="h-3.5 w-3.5 shrink-0" />
-              ) : isVoiceBusy ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
-              ) : (
-                <Mic className="h-3.5 w-3.5 text-primary shrink-0" />
-              )}
-              <span className="truncate">{isListening ? "Berhenti" : isVoiceBusy ? "AI Memproses..." : "Dikte"}</span>
-            </Button>
+            <div className="grid grid-cols-3 gap-2">
+              {/* Dikte Suara */}
+              <Button
+                type="button"
+                variant={isListening ? "destructive" : "outline"}
+                size="sm"
+                disabled={isVoiceBusy || isScanningBill}
+                onClick={isListening ? stopListening : startListening}
+                className={cn(
+                  "h-8.5 rounded-lg text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 transition-all shadow-2xs active:scale-[0.98] cursor-pointer",
+                  isListening && "animate-pulse bg-rose-500 text-white border-rose-500 hover:bg-rose-600",
+                  isVoiceBusy && "border-primary/40 text-primary animate-pulse"
+                )}
+                title="Dikte transaksi lewat suara"
+              >
+                {isListening ? (
+                  <MicOff className="h-3.5 w-3.5 shrink-0" />
+                ) : isVoiceBusy ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+                ) : (
+                  <Mic className="h-3.5 w-3.5 text-primary shrink-0" />
+                )}
+                <span className="truncate">{isListening ? "Berhenti" : isVoiceBusy ? "Memproses..." : "Dikte"}</span>
+              </Button>
 
-            {/* Buka Kamera */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isScanningBill || isVoiceBusy}
-              onClick={() => cameraInputRef.current?.click()}
-              className="h-9 rounded-xl text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 hover:text-primary transition-all shadow-2xs cursor-pointer"
-              title="Buka Kamera untuk foto struk atau mutasi"
-            >
-              {isScanningBill ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
-              ) : (
-                <Camera className="h-3.5 w-3.5 text-primary shrink-0" />
-              )}
-              <span className="truncate">Kamera</span>
-            </Button>
+              {/* Buka Kamera */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isScanningBill || isVoiceBusy}
+                onClick={() => cameraInputRef.current?.click()}
+                className="h-8.5 rounded-lg text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 hover:text-primary transition-all shadow-2xs cursor-pointer active:scale-[0.98]"
+                title="Buka Kamera untuk foto struk atau mutasi"
+              >
+                {isScanningBill ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+                ) : (
+                  <Camera className="h-3.5 w-3.5 text-primary shrink-0" />
+                )}
+                <span className="truncate">Kamera</span>
+              </Button>
 
-            {/* Buka Galeri */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isScanningBill || isVoiceBusy}
-              onClick={() => galleryInputRef.current?.click()}
-              className="h-9 rounded-xl text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 hover:text-primary transition-all shadow-2xs cursor-pointer"
-              title="Buka Galeri foto atau dokumen"
-            >
-              {isScanningBill ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
-              ) : (
-                <ImageIcon className="h-3.5 w-3.5 text-primary shrink-0" />
-              )}
-              <span className="truncate">Galeri</span>
-            </Button>
-          </div>
+              {/* Buka Galeri */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isScanningBill || isVoiceBusy}
+                onClick={() => galleryInputRef.current?.click()}
+                className="h-8.5 rounded-lg text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 hover:text-primary transition-all shadow-2xs cursor-pointer active:scale-[0.98]"
+                title="Buka Galeri foto atau dokumen"
+              >
+                {isScanningBill ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+                ) : (
+                  <ImageIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+                )}
+                <span className="truncate">Galeri</span>
+              </Button>
+            </div>
 
-          {/* Quick NLP Text Parser Input Bar */}
-          <div className="mt-2.5 flex items-center gap-1.5 pt-2 border-t border-border/50">
-            <Input
-              type="text"
-              placeholder="Ketik transaksi: misal 'Beli makan 35rb pake bca tadi siang'..."
-              value={nlpInputText}
-              onChange={(e) => setNlpInputText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
+            {voiceError && !isListening && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-[11px] text-rose-600 dark:text-rose-400">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{voiceError}</span>
+              </div>
+            )}
+
+            {/* Quick NLP Text Parser Input Bar */}
+            <div className="flex items-center gap-2 pt-2 border-t border-border/40">
+              <Input
+                type="text"
+                placeholder="Ketik santai: 'Kopi 25rb bayar bca tadi siang'..."
+                value={nlpInputText}
+                onChange={(e) => setNlpInputText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (nlpInputText.trim()) {
+                      applySmartSpeechParse(nlpInputText.trim());
+                      setNlpInputText("");
+                    }
+                  }
+                }}
+                className="h-8.5 rounded-lg text-xs bg-background/90 border border-input/80 px-3 placeholder:text-muted-foreground/60 focus-visible:border-primary"
+              />
+              <Button
+                type="button"
+                size="sm"
+                disabled={!nlpInputText.trim()}
+                onClick={() => {
                   if (nlpInputText.trim()) {
                     applySmartSpeechParse(nlpInputText.trim());
                     setNlpInputText("");
                   }
-                }
-              }}
-              className="h-8 text-xs bg-background/90 rounded-xl"
-            />
-            <Button
-              type="button"
-              size="sm"
-              disabled={!nlpInputText.trim()}
-              onClick={() => {
-                if (nlpInputText.trim()) {
-                  applySmartSpeechParse(nlpInputText.trim());
-                  setNlpInputText("");
-                }
-              }}
-              className="h-8 px-3 rounded-[10px] text-xs font-semibold bg-[#059669] hover:bg-[#047857] text-white shrink-0 gap-1 cursor-pointer shadow-level-1"
-              title="Parse transaksi otomatis dengan NLP lokal"
-            >
-              <Sparkles className="h-3 w-3" />
-              <span>Parse</span>
-            </Button>
+                }}
+                className="h-8.5 px-3.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary/90 text-white shrink-0 gap-1.5 cursor-pointer active:scale-[0.98] shadow-xs"
+                title="Parse transaksi otomatis dengan NLP lokal"
+              >
+                <Sparkles className="h-3 w-3" />
+                <span>Proses</span>
+              </Button>
+            </div>
           </div>
-        </div>
 
         {/* Bill Scanning Progress Indicator */}
         {isScanningBill && (
           <div className="mt-2.5 flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/10 text-xs animate-pulse">
             <Loader2 className="h-4 w-4 animate-spin shrink-0 text-primary" />
             <div className="flex flex-col">
-              <span className="font-semibold text-foreground">Gemini AI sedang membaca struk...</span>
+              <span className="font-semibold text-foreground">Membaca struk...</span>
               <span className="text-[11px] text-muted-foreground">
-                Mengekstrak total belanja, tanggal, nama toko & kategori otomatis.
+                Mendeteksi nominal, tanggal, dan nama toko.
               </span>
             </div>
           </div>
@@ -845,26 +873,26 @@ export function QuickAddModal() {
 
         {/* Modal Zoom Preview Struk */}
         {previewModalOpen && receiptPreviewUrl && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 animate-in fade-in">
-            <div className="relative max-w-md w-full max-h-[85vh] bg-card rounded-md overflow-hidden flex flex-col p-4 border shadow-2xl">
-              <div className="flex items-center justify-between pb-3 border-b">
-                <span className="text-sm font-bold flex items-center gap-1.5">
+          <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/80 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+            <div className="relative max-w-md w-full max-h-[85vh] bg-card rounded-2xl overflow-hidden flex flex-col p-4 border border-border shadow-2xl">
+              <div className="flex items-center justify-between pb-3 border-b border-border/70">
+                <span className="text-sm font-bold flex items-center gap-1.5 text-foreground">
                   <Receipt className="h-4 w-4 text-primary" />
-                  Pratinjau Struk / Bill
+                  Pratinjau Struk / Bukti
                 </span>
                 <button
                   type="button"
                   onClick={() => setPreviewModalOpen(false)}
-                  className="p-1 rounded-sm text-muted-foreground hover:bg-muted"
+                  className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <div className="flex-1 overflow-auto py-3 flex items-center justify-center bg-black/5 rounded-md mt-2">
+              <div className="flex-1 overflow-auto py-3 flex items-center justify-center bg-muted/20 rounded-xl mt-2 border border-border/50">
                 <img
                   src={receiptPreviewUrl}
                   alt="Struk Belanja Penuh"
-                  className="max-h-[60vh] object-contain rounded-sm"
+                  className="max-h-[60vh] object-contain rounded-lg"
                 />
               </div>
               <div className="mt-3 flex justify-end">
@@ -872,7 +900,7 @@ export function QuickAddModal() {
                   type="button"
                   size="sm"
                   onClick={() => setPreviewModalOpen(false)}
-                  className="text-xs rounded-md"
+                  className="text-xs rounded-lg h-8 px-4"
                 >
                   Tutup
                 </Button>
@@ -884,16 +912,16 @@ export function QuickAddModal() {
         {/* Modal Pilihan Sumber Foto Struk (Kamera vs Galeri) */}
         {showSourceChoiceModal && (
           <div
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+            className="fixed inset-0 z-[220] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
             onClick={() => setShowSourceChoiceModal(false)}
           >
             <div
-              className="w-full max-w-sm rounded-md bg-card border border-border p-5 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150"
+              className="w-full max-w-sm rounded-2xl bg-card border border-border p-5 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="h-8 w-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <div className="h-8 w-8 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shrink-0">
                     <Receipt className="h-4 w-4" />
                   </div>
                   <div>
@@ -904,7 +932,7 @@ export function QuickAddModal() {
                 <button
                   type="button"
                   onClick={() => setShowSourceChoiceModal(false)}
-                  className="rounded-full p-1 text-muted-foreground hover:bg-muted"
+                  className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -917,10 +945,10 @@ export function QuickAddModal() {
                     setShowSourceChoiceModal(false);
                     cameraInputRef.current?.click();
                   }}
-                  className="flex flex-col items-center justify-center gap-2.5 p-4 rounded-md border-2 border-border/70 hover:border-primary hover:bg-primary/5 transition-all text-center group cursor-pointer"
+                  className="flex flex-col items-center justify-center gap-2.5 p-4 rounded-xl border border-border/80 hover:border-primary hover:bg-primary/5 transition-all text-center group cursor-pointer active:scale-[0.98]"
                 >
-                  <div className="h-12 w-12 rounded-md bg-primary/10 text-primary flex items-center justify-center group-hover:scale-105 transition-transform">
-                    <Camera className="h-6 w-6" />
+                  <div className="h-11 w-11 rounded-lg bg-primary/10 text-primary flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <Camera className="h-5.5 w-5.5" />
                   </div>
                   <div className="flex flex-col">
                     <span className="text-xs font-bold text-foreground">Buka Kamera</span>
@@ -934,14 +962,14 @@ export function QuickAddModal() {
                     setShowSourceChoiceModal(false);
                     galleryInputRef.current?.click();
                   }}
-                  className="flex flex-col items-center justify-center gap-2.5 p-4 rounded-md border-2 border-border/70 hover:border-primary hover:bg-primary/5 transition-all text-center group cursor-pointer"
+                  className="flex flex-col items-center justify-center gap-2.5 p-4 rounded-xl border border-border/80 hover:border-primary hover:bg-primary/5 transition-all text-center group cursor-pointer active:scale-[0.98]"
                 >
-                  <div className="h-12 w-12 rounded-md bg-primary/10 text-primary flex items-center justify-center group-hover:scale-105 transition-transform">
-                    <ImageIcon className="h-6 w-6" />
+                  <div className="h-11 w-11 rounded-lg bg-primary/10 text-primary flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <ImageIcon className="h-5.5 w-5.5" />
                   </div>
                   <div className="flex flex-col">
                     <span className="text-xs font-bold text-foreground">Buka Galeri</span>
-                    <span className="text-[10px] text-muted-foreground">Pilih dari album foto</span>
+                    <span className="text-[10px] text-muted-foreground">Pilih dari album</span>
                   </div>
                 </button>
               </div>
@@ -952,54 +980,54 @@ export function QuickAddModal() {
         {/* Form Body Fields */}
         <div className="space-y-4 pt-1">
           {/* Tipe Transaksi */}
-          <div className="grid grid-cols-3 gap-2 rounded-md bg-muted/60 p-1">
+          <div data-tour="modal-tx-type" className="grid grid-cols-3 gap-1.5 rounded-xl bg-muted/60 p-1 border border-border/50">
             <button
               type="button"
               onClick={() => handleTxTypeChange("expense")}
               className={cn(
-                "flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all",
+                "flex h-9 items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition-all duration-140 ease-out active:scale-[0.98] cursor-pointer",
                 txType === "expense"
-                  ? "bg-rose-600 text-white shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-rose-600 text-white shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/60 font-medium"
               )}
             >
               <ArrowDownLeft className="h-3.5 w-3.5" />
-              Pengeluaran
+              <span>Pengeluaran</span>
             </button>
             <button
               type="button"
               onClick={() => handleTxTypeChange("income")}
               className={cn(
-                "flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all",
+                "flex h-9 items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition-all duration-140 ease-out active:scale-[0.98] cursor-pointer",
                 txType === "income"
-                  ? "bg-emerald-600 text-white shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-emerald-600 text-white shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/60 font-medium"
               )}
             >
               <ArrowUpRight className="h-3.5 w-3.5" />
-              Pemasukan
+              <span>Pemasukan</span>
             </button>
             <button
               type="button"
               onClick={() => handleTxTypeChange("transfer")}
               className={cn(
-                "flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-all",
+                "flex h-9 items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition-all duration-140 ease-out active:scale-[0.98] cursor-pointer",
                 txType === "transfer"
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-blue-600 text-white shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/60 font-medium"
               )}
             >
               <ArrowRightLeft className="h-3.5 w-3.5" />
-              Transfer
+              <span>Transfer</span>
             </button>
           </div>
 
           {/* Nominal Input */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-muted-foreground">Nominal (IDR)</label>
+          <div data-tour="modal-amount">
+            <div className="flex items-center justify-between h-6 mb-1.5">
+              <label className="text-xs font-medium text-foreground/80">Nominal Transaksi</label>
               <VoiceMicButton
-                size="sm"
+                size="xs"
                 title="Dikte nominal (misal: lima puluh ribu)"
                 onResult={(text) => {
                   const num = parseSpokenNumber(text);
@@ -1010,7 +1038,7 @@ export function QuickAddModal() {
               />
             </div>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-sm">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-sm select-none">
                 Rp
               </span>
               <Input
@@ -1019,7 +1047,10 @@ export function QuickAddModal() {
                 placeholder="0"
                 value={amount}
                 onChange={(e) => setAmount(formatInputIDR(e.target.value))}
-                className={cn("pl-10 text-lg font-bold tracking-tight h-12", amount && "pr-9")}
+                className={cn(
+                  "h-11 rounded-lg border-input/80 pl-11 text-lg font-bold font-mono tabular-nums tracking-tight bg-background/80 shadow-2xs focus-visible:border-primary",
+                  amount && "pr-9"
+                )}
                 required
                 autoFocus
               />
@@ -1027,28 +1058,34 @@ export function QuickAddModal() {
                 <button
                   type="button"
                   onClick={() => setAmount("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer active:scale-95"
                   title="Hapus nominal"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
           </div>
 
           {/* Tanggal & Waktu Transaksi (Opsional - Default NOW) */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+          <div data-tour="modal-date">
+            <div className="flex items-center justify-between h-6 mb-1.5">
+              <div className="flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                Tanggal & Waktu
-              </label>
+                <label className="text-xs font-medium text-foreground/80">Tanggal & Waktu</label>
+              </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground/80">
-                  {happenedAt ? "Waktu Kustom" : "Otomatis Saat Ini (NOW)"}
-                </span>
+                {happenedAt ? (
+                  <span className="text-[10px] font-semibold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
+                    Kustom
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">
+                    Otomatis (Saat Ini)
+                  </span>
+                )}
                 <VoiceMicButton
-                  size="sm"
+                  size="xs"
                   title="Dikte waktu (misal: saat ini, kemarin sore, tanggal 15)"
                   onResult={(text) => {
                     const { happenedAtFormatted } = extractDateTimeFromText(text);
@@ -1059,12 +1096,12 @@ export function QuickAddModal() {
                 />
               </div>
             </div>
-            <div className="relative mt-1 flex gap-2">
+            <div className="relative flex gap-2">
               <Input
                 type="datetime-local"
                 value={happenedAt}
                 onChange={(e) => setHappenedAt(e.target.value)}
-                className="h-10 text-xs flex-1"
+                className="h-10 rounded-lg text-xs font-mono tabular-nums border-input/80 flex-1 px-3 bg-background/80 shadow-2xs focus-visible:border-primary"
               />
               {happenedAt ? (
                 <Button
@@ -1072,10 +1109,11 @@ export function QuickAddModal() {
                   variant="outline"
                   size="sm"
                   onClick={() => setHappenedAt("")}
-                  className="h-10 px-2.5 text-xs text-muted-foreground hover:text-foreground shrink-0"
+                  className="h-10 px-3 rounded-lg text-xs font-medium border-border/80 bg-background hover:bg-muted text-muted-foreground hover:text-foreground shrink-0 flex items-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer shadow-2xs"
                   title="Kembalikan ke waktu sekarang (NOW)"
                 >
-                  Reset ke NOW
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Reset NOW</span>
                 </Button>
               ) : (
                 <Button
@@ -1088,23 +1126,24 @@ export function QuickAddModal() {
                     const localISOTime = new Date(now.getTime() - offset).toISOString().slice(0, 16);
                     setHappenedAt(localISOTime);
                   }}
-                  className="h-10 px-2.5 text-xs text-primary font-medium shrink-0 bg-primary/5 border-primary/20 hover:bg-primary/10"
+                  className="h-10 px-3 rounded-lg text-xs font-medium border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary shrink-0 flex items-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer shadow-2xs"
                   title="Pilih tanggal & jam spesifik"
                 >
-                  Atur Waktu
+                  <Calendar className="h-3.5 w-3.5" />
+                  <span>Atur Waktu</span>
                 </Button>
               )}
             </div>
             <p className="text-[10px] text-muted-foreground/70 mt-1">
-              *Jika dikosongkan, transaksi otomatis menggunakan tanggal dan jam saat ini (NOW).
+              *Transaksi otomatis dicatat pada waktu saat ini jika tidak diatur.
             </p>
           </div>
 
           {/* Rekomendasi Kategori NLP Banner */}
           {nlpRecommendedCategory && !categoriesList?.some((c) => c.name.toLowerCase().trim() === nlpRecommendedCategory.name.toLowerCase().trim()) && (
-            <div className="p-3 rounded-md bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-transparent border border-emerald-500/30 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-transparent border border-emerald-500/25 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="h-8 w-8 rounded-md bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <div className="h-8 w-8 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
                   <Sparkles className="h-4 w-4" />
                 </div>
                 <div className="flex flex-col min-w-0">
@@ -1123,7 +1162,7 @@ export function QuickAddModal() {
                 type="button"
                 size="sm"
                 onClick={() => handleCreateRecommendedCategory(nlpRecommendedCategory.name, nlpRecommendedCategory.kind)}
-                className="h-8 px-3 text-xs font-bold rounded-md bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 gap-1.5 shadow-xs cursor-pointer transition-all"
+                className="h-8 px-3 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 gap-1.5 shadow-xs cursor-pointer transition-all active:scale-[0.98]"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Buat Kategori
@@ -1132,15 +1171,15 @@ export function QuickAddModal() {
           )}
 
           {/* Akun & Kategori */}
-          <div className="grid grid-cols-2 gap-3">
+          <div data-tour="modal-account-category" className="grid grid-cols-2 gap-3">
             {/* Akun Sumber */}
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-muted-foreground">
+              <div className="flex items-center justify-between h-6 mb-1.5">
+                <label className="text-xs font-medium text-foreground/80">
                   {txType === "transfer" ? "Dari Akun" : "Akun"}
                 </label>
                 <VoiceMicButton
-                  size="sm"
+                  size="xs"
                   title="Sebut akun (misal: Blu, Cash, BCA)"
                   onResult={(text) => {
                     if (accountsData?.accounts) {
@@ -1157,16 +1196,17 @@ export function QuickAddModal() {
                 value={accountId}
                 onChange={setAccountId}
                 placeholder="Pilih Akun..."
+                align="left"
               />
             </div>
 
             {/* Target Akun atau Kategori */}
             {txType === "transfer" ? (
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-muted-foreground">Ke Akun</label>
+                <div className="flex items-center justify-between h-6 mb-1.5">
+                  <label className="text-xs font-medium text-foreground/80">Ke Akun</label>
                   <VoiceMicButton
-                    size="sm"
+                    size="xs"
                     title="Sebut akun tujuan"
                     onResult={(text) => {
                       if (accountsData?.accounts) {
@@ -1184,14 +1224,15 @@ export function QuickAddModal() {
                   value={toAccountId}
                   onChange={setToAccountId}
                   placeholder="Pilih Akun Tujuan..."
+                  align="right"
                 />
               </div>
             ) : (
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-muted-foreground">Kategori</label>
+                <div className="flex items-center justify-between h-6 mb-1.5">
+                  <label className="text-xs font-medium text-foreground/80">Kategori</label>
                   <VoiceMicButton
-                    size="sm"
+                    size="xs"
                     title="Sebut kategori (misal: Kopi, Bensin, Gaji, Belanja)"
                     onResult={(text) => {
                       if (categoriesList) {
@@ -1220,6 +1261,7 @@ export function QuickAddModal() {
                   placeholder="Pilih Kategori..."
                   recommendedCategory={nlpRecommendedCategory}
                   onCreateRecommended={handleCreateRecommendedCategory}
+                  align="right"
                 />
               </div>
             )}
@@ -1227,10 +1269,10 @@ export function QuickAddModal() {
 
           {/* Catatan */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-muted-foreground">Catatan / Deskripsi</label>
+            <div className="flex items-center justify-between h-6 mb-1.5">
+              <label className="text-xs font-medium text-foreground/80">Catatan / Deskripsi</label>
               <VoiceMicButton
-                size="sm"
+                size="xs"
                 title="Dikte transaksi cerdas (otomatis isi seluruh form)"
                 onResult={(text, audioBase64, mimeType) => {
                   applySmartSpeechParse(text, audioBase64, mimeType);
@@ -1252,13 +1294,16 @@ export function QuickAddModal() {
                     setTxType("expense");
                   }
                 }}
-                className={cn("h-10 text-xs", note && "pr-8")}
+                className={cn(
+                  "h-10 rounded-lg text-xs border border-input/80 bg-background/80 px-3 shadow-2xs focus-visible:border-primary",
+                  note && "pr-9"
+                )}
               />
               {note && (
                 <button
                   type="button"
                   onClick={() => setNote("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer active:scale-95"
                   title="Hapus catatan"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -1266,12 +1311,11 @@ export function QuickAddModal() {
               )}
             </div>
           </div>
-
-          </div>
         </div>
+      </div>
 
         {/* Fixed Pinned Footer Actions */}
-        <div className="border-t border-border/70 px-6 py-3.5 shrink-0 bg-card/95 backdrop-blur-sm flex items-center justify-between gap-3 z-10">
+        <div data-tour="modal-submit-action" className="border-t border-border/70 px-5 sm:px-6 py-3.5 shrink-0 bg-card/95 backdrop-blur-sm flex items-center justify-between gap-3 z-10">
           <div className="flex items-center gap-2">
             <Button
               type="button"
@@ -1279,7 +1323,7 @@ export function QuickAddModal() {
               disabled={!hasDraftData || isSubmitting}
               onClick={handleClearForm}
               className={cn(
-                "rounded-md h-9 px-3 text-xs font-semibold transition-colors gap-1.5 cursor-pointer",
+                "rounded-lg h-9 px-3 text-xs font-semibold transition-all gap-1.5 cursor-pointer active:scale-[0.98]",
                 hasDraftData
                   ? "text-muted-foreground hover:text-destructive hover:border-destructive/40 hover:bg-destructive/10"
                   : "opacity-40 cursor-not-allowed text-muted-foreground"
@@ -1292,7 +1336,7 @@ export function QuickAddModal() {
             <Button
               type="button"
               variant="ghost"
-              className="rounded-md h-9 text-xs font-semibold cursor-pointer text-muted-foreground hover:text-foreground"
+              className="rounded-lg h-9 px-3 text-xs font-semibold cursor-pointer text-muted-foreground hover:text-foreground active:scale-[0.98]"
               onClick={closeQuickAdd}
               title="Tutup modal (Draf input tetap tersimpan)"
             >
@@ -1302,7 +1346,7 @@ export function QuickAddModal() {
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="flex-1 max-w-[240px] bg-primary hover:bg-primary/90 text-white font-bold rounded-md h-9 text-xs shadow-xs cursor-pointer transition-all"
+            className="flex-1 max-w-[240px] bg-primary hover:bg-primary/90 text-white font-bold rounded-lg h-9 text-xs shadow-xs cursor-pointer transition-all active:scale-[0.98]"
           >
             {isSubmitting ? "Menyimpan..." : "Simpan Transaksi"}
           </Button>

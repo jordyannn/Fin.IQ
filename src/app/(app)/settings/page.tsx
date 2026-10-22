@@ -278,7 +278,7 @@ export default function SettingsPage() {
                 <select
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
-                  className="w-full h-9 sm:h-10 text-xs rounded-md border border-input bg-background text-foreground px-3 font-medium outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669]"
+                  className="w-full h-9 sm:h-10 text-xs rounded-md border border-border bg-card text-foreground pl-3 pr-8 font-medium shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
                   <option value="IDR">IDR : Rupiah Indonesia (Rp)</option>
                   <option value="USD">USD : US Dollar ($)</option>
@@ -435,7 +435,7 @@ export default function SettingsPage() {
             </div>
 
             <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-              Sambungkan API Key Google Gemini Anda untuk mengaktifkan pemindaian struk kasir otomatis (OCR), dikte suara pintar, dan Fin.IQ AI Advisor.
+              Sambungkan API Key Google Gemini Anda untuk mengaktifkan Fin.IQ AI Financial Advisor dan rekomendasi keuangan cerdas berbasis Generative AI.
             </p>
 
             {/* Token status feedback */}

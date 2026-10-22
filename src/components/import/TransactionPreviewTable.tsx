@@ -849,7 +849,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
             <select
               value={previewLimit}
               onChange={(e) => setPreviewLimit(Number(e.target.value))}
-              className="h-8 rounded-md border border-input bg-background px-2 text-xs font-semibold focus:outline-none"
+              className="h-8 rounded-md border border-border bg-card pl-2.5 pr-7 text-xs font-semibold text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
             >
               <option value={10}>10 Baris</option>
               <option value={25}>25 Baris</option>
@@ -884,7 +884,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 <select
                   value={bulkCategory}
                   onChange={(e) => setBulkCategory(e.target.value)}
-                  className="h-7 rounded-md border border-input bg-background px-2 text-xs w-36 focus:outline-none"
+                  className="h-7.5 rounded-md border border-border bg-card pl-2 pr-7 text-xs w-36 text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
                   <option value="">-- Pilih Kategori --</option>
                   {categories.map((c) => (
@@ -917,7 +917,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 <select
                   value={bulkAccount}
                   onChange={(e) => setBulkAccount(e.target.value)}
-                  className="h-7 rounded-md border border-input bg-background px-2 text-xs w-36 focus:outline-none"
+                  className="h-7.5 rounded-md border border-border bg-card pl-2 pr-7 text-xs w-36 text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
                   <option value="">-- Pilih Akun --</option>
                   {accounts.map((a) => (

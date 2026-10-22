@@ -536,7 +536,7 @@ export default function AccountsPage() {
                   <select
                     value={newGroup}
                     onChange={(e) => setNewGroup(e.target.value)}
-                    className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                    className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
                     <option value="Cash">Cash (Uang Tunai)</option>
                     <option value="Bank card">Bank card (Rekening Bank)</option>
@@ -550,7 +550,7 @@ export default function AccountsPage() {
                   <select
                     value={newCurrency}
                     onChange={(e) => setNewCurrency(e.target.value)}
-                    className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                    className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
                     <option value="IDR">IDR (Rupiah)</option>
                     <option value="USD">USD (Dollar AS)</option>
@@ -652,7 +652,7 @@ export default function AccountsPage() {
                     onChange={(e) =>
                       setEditingAccount({ ...editingAccount, group: e.target.value })
                     }
-                    className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                    className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
                     <option value="Cash">Cash (Uang Tunai)</option>
                     <option value="Bank card">Bank card (Rekening Bank)</option>
@@ -668,7 +668,7 @@ export default function AccountsPage() {
                     onChange={(e) =>
                       setEditingAccount({ ...editingAccount, currency: e.target.value })
                     }
-                    className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-sm text-xs focus:outline-none"
+                    className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
                     <option value="IDR">IDR (Rupiah)</option>
                     <option value="USD">USD (Dollar AS)</option>

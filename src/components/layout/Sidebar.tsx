@@ -15,32 +15,14 @@ import { GeometricIcon, type GeometricIconName } from "@/components/ui/Geometric
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
+import {
+  MAIN_NAVIGATION_ITEMS,
+  SECONDARY_NAVIGATION_ITEMS,
+  NavItem,
+} from "@/config/navigation";
 
-interface NavItem {
-  label: string;
-  href: string;
-  iconName: GeometricIconName;
-  isAI?: boolean;
-}
-
-const navigationItems: NavItem[] = [
-  { label: "Overview", href: "/overview", iconName: "overview" },
-  { label: "Transaksi", href: "/transactions", iconName: "transactions" },
-  { label: "Fin.IQ AI", href: "/ai", iconName: "ai", isAI: true },
-  { label: "Impor Berkas", href: "/import", iconName: "import" },
-  { label: "Analisis", href: "/analytics", iconName: "analytics" },
-  { label: "Kalender", href: "/calendar", iconName: "calendar" },
-  { label: "Akun Keuangan", href: "/accounts", iconName: "accounts" },
-  { label: "Kategori", href: "/categories", iconName: "categories" },
-  { label: "Anggaran", href: "/budgets", iconName: "budgets" },
-  { label: "Buku Kas", href: "/ledgers", iconName: "ledgers" },
-  { label: "Laporan Tahunan", href: "/annual-report", iconName: "annual-report" },
-];
-
-const secondaryItems: NavItem[] = [
-  { label: "Pengaturan & Profil", href: "/settings", iconName: "settings" },
-  { label: "Integritas Data", href: "/integrity", iconName: "integrity" },
-];
+const navigationItems = MAIN_NAVIGATION_ITEMS;
+const secondaryItems = SECONDARY_NAVIGATION_ITEMS;
 
 interface Ripple {
   x: number;

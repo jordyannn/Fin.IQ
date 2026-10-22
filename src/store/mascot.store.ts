@@ -37,50 +37,45 @@ export const BASIC_TOUR_STEPS: TourStep[] = [
     id: "overview-hero",
     targetAttr: "data-tour='overview-hero'",
     title: "1. Arus Kas",
-    description:
-      "Lihat total pemasukan, pengeluaran, dan saldo bersihmu periode ini.",
+    description: "Ringkasan pemasukan, pengeluaran, dan sisa saldo periode ini.",
     mascotExpression: "bicara",
-    speechQuote: "Angka hijau artinya kasmu surplus.",
+    speechQuote: "Saldo hijau berarti kas surplus.",
     position: "bottom",
   },
   {
     id: "quick-add",
     targetAttr: "data-tour='quick-add'",
     title: "2. Catat Transaksi",
-    description:
-      "Tambah transaksi baru manual atau scan foto struk belanja.",
+    description: "Catat manual, lewat suara, atau foto struk belanja.",
     mascotExpression: "cuan",
-    speechQuote: "Bisa ketik nominal atau foto struk.",
+    speechQuote: "Bisa ketik atau foto struk.",
     position: "bottom",
   },
   {
     id: "date-filter",
     targetAttr: "data-tour='date-filter'",
-    title: "3. Rentang Waktu",
-    description:
-      "Pilih tampilan data bulan ini, tahun ini, atau tanggal tertentu.",
+    title: "3. Filter Periode",
+    description: "Filter data per bulan, tahun, atau rentang tanggal.",
     mascotExpression: "analisis",
-    speechQuote: "Bisa cek data bulan lalu juga.",
+    speechQuote: "Bisa cek data bulan lalu.",
     position: "bottom",
   },
   {
     id: "ai-studio",
     targetAttr: "data-tour='ai-studio'",
-    title: "4. Fin.IQ AI",
-    description:
-      "Tanya ringkasan keuangan, saran penghematan, atau cek pola belanja.",
+    title: "4. AI Advisor",
+    description: "Tanya analisis pengeluaran, pergerakan arus kas, atau konsultasi anggaran.",
     mascotExpression: "analisis",
-    speechQuote: "Ketik pertanyaanmu di sini.",
+    speechQuote: "Tanya apa saja soal keuanganmu.",
     position: "right",
   },
   {
     id: "sidebar-nav",
     targetAttr: "data-tour='sidebar-nav'",
-    title: "5. Menu Aplikasi",
-    description:
-      "Akses akun rekening, pos anggaran, dan laporan keuangan lengkap.",
+    title: "5. Menu Navigasi",
+    description: "Akses rekening, pos anggaran, dan laporan keuangan.",
     mascotExpression: "stabil",
-    speechQuote: "Semua menu ada di bilah kiri ini.",
+    speechQuote: "Semua halaman ada di bilah kiri.",
     position: "right",
   },
 ];
@@ -90,50 +85,45 @@ export const TECHNICAL_TOUR_STEPS: TourStep[] = [
     id: "tech-sparkline",
     targetAttr: "data-tour='overview-sparkline'",
     title: "1. Tren Saldo",
-    description:
-      "Grafik perubahan saldo harian: garis naik saat ada pemasukan, dan turun saat ada belanja.",
+    description: "Grafik saldo harian mengikuti uang masuk dan keluar.",
     mascotExpression: "tech-analisis",
-    speechQuote: "Melihat ritme keluar-masuk kas.",
+    speechQuote: "Pantau arah pergerakan saldo.",
     position: "bottom",
   },
   {
     id: "tech-habits",
     targetAttr: "data-tour='overview-habit-stats'",
-    title: "2. Rata-rata Harian",
-    description:
-      "Rata-rata belanja per hari, frekuensi transaksi, dan persentase uang yang tersisa.",
+    title: "2. Rata-Rata Harian",
+    description: "Rata-rata pengeluaran harian dan rasio tabungan yang tersisa.",
     mascotExpression: "tech-teori",
-    speechQuote: "Pantau rata-rata belanjamu tiap hari.",
+    speechQuote: "Bantu kontrol belanja harian.",
     position: "bottom",
   },
   {
     id: "tech-import",
     targetAttr: "data-tour='overview-import-hub'",
-    title: "3. Impor Berkas & CSV",
-    description:
-      "Unggah mutasi rekening bank atau file spreadsheet untuk mencatat banyak transaksi sekaligus.",
+    title: "3. Impor Rekening",
+    description: "Unggah file mutasi bank atau CSV untuk mencatat otomatis.",
     mascotExpression: "tech-penjelasan",
-    speechQuote: "Tinggal upload berkas rekening atau CSV.",
+    speechQuote: "Mendukung CSV dan PDF mutasi bank.",
     position: "bottom",
   },
   {
     id: "tech-ranks",
     targetAttr: "data-tour='overview-expense-ranks'",
-    title: "4. Kategori Terbesar",
-    description:
-      "Daftar pos belanja dengan total pengeluaran paling tinggi di periode ini.",
+    title: "4. Pos Terbesar",
+    description: "Kategori dengan pengeluaran paling tinggi pada periode ini.",
     mascotExpression: "tech-warning",
-    speechQuote: "Cek kategori yang paling banyak makan biaya.",
+    speechQuote: "Cek pos yang paling banyak makan dana.",
     position: "top",
   },
   {
     id: "tech-heatmap",
     targetAttr: "data-tour='overview-heatmap'",
     title: "5. Kalender Aktivitas",
-    description:
-      "Intensitas transaksi per tanggal sepanjang tahun. Warna lebih pekat menandakan transaksi lebih banyak.",
+    description: "Kalender frekuensi belanja. Warna makin pekat berarti transaksi makin sering.",
     mascotExpression: "tech-acc",
-    speechQuote: "Petakan tanggal belanja aktifmu.",
+    speechQuote: "Lihat hari-hari paling sering belanja.",
     position: "top",
   },
 ];
@@ -141,10 +131,76 @@ export const TECHNICAL_TOUR_STEPS: TourStep[] = [
 // Alias for backward compatibility
 export const TOUR_STEPS = BASIC_TOUR_STEPS;
 
+export const TRANSACTION_TOUR_STEPS: TourStep[] = [
+  {
+    id: "modal-ai-tools",
+    targetAttr: "data-tour='modal-ai-tools'",
+    title: "1. Asisten Input Cepat AI",
+    description:
+      "Catat instan tanpa repot: Dikte suara, foto/scan struk belanja dengan kamera atau galeri, atau ketik kalimat seperti 'Makan siang 35rb pake BCA'.",
+    mascotExpression: "tech-penjelasan",
+    speechQuote: "Bisa dikte suara atau foto struk belanja!",
+    position: "bottom",
+  },
+  {
+    id: "modal-tx-type",
+    targetAttr: "data-tour='modal-tx-type'",
+    title: "2. Jenis Transaksi",
+    description:
+      "Pilih Pengeluaran (uang keluar), Pemasukan (uang masuk), atau Transfer antar rekening kas/bank/e-wallet milikmu.",
+    mascotExpression: "cuan",
+    speechQuote: "Pilih uang keluar, masuk, atau transfer.",
+    position: "bottom",
+  },
+  {
+    id: "modal-amount",
+    targetAttr: "data-tour='modal-amount'",
+    title: "3. Nominal Transaksi",
+    description:
+      "Ketik nominal uang transaksi di sini. Format Rupiah otomatis dirapikan, atau klik ikon mic kecil untuk dikte angka.",
+    mascotExpression: "bicara",
+    speechQuote: "Ketik nominal atau sebutkan angkanya.",
+    position: "bottom",
+  },  {
+    id: "modal-date",
+    targetAttr: "data-tour='modal-date'",
+    title: "4. Tanggal & Waktu Transaksi",
+    description:
+      "Tentukan waktu transaksi jika mencatat pengeluaran lampau. Secara default otomatis terisi waktu saat ini (NOW), atau bisa dikte suara seperti 'kemarin sore'.",
+    mascotExpression: "analisis",
+    speechQuote: "Bisa atur tanggal lampau atau biarkan NOW.",
+    position: "bottom",
+  },
+
+  {
+    id: "modal-account-category",
+    targetAttr: "data-tour='modal-account-category'",
+    title: "5. Akun & Kategori",
+    description:
+      "Tentukan rekening/e-wallet sumber dana dan pos kategori belanja agar analisis keuanganmu akurat dan rapi.",
+    mascotExpression: "analisis",
+    speechQuote: "Pilih dompet dan kategorinya di sini.",
+    position: "top",
+  },
+  {
+    id: "modal-submit-action",
+    targetAttr: "data-tour='modal-submit-action'",
+    title: "6. Simpan Transaksi",
+    description:
+      "Beri catatan ringkas bila perlu, lalu klik 'Simpan Transaksi'. Draf juga tersimpan otomatis jika form ditutup sewaktu-waktu.",
+    mascotExpression: "tech-acc",
+    speechQuote: "Klik Simpan, transaksi langsung dibukukan!",
+    position: "top",
+  },
+];
+
+export type ActiveTourType = "basic" | "technical" | "transaction" | null;
+
 interface MascotState {
   isTourActive: boolean;
-  activeTourType: "basic" | "technical" | null;
+  activeTourType: ActiveTourType;
   currentStepIndex: number;
+  resumeBasicTourAfter: boolean;
   isBubbleOpen: boolean;
   isWelcomePromptOpen: boolean;
   isContinuationPromptOpen: boolean;
@@ -156,13 +212,15 @@ interface MascotState {
   isTransforming: boolean;
 
   // Actions
-  startTour: (type?: "basic" | "technical") => void;
+  startTour: (type?: "basic" | "technical" | "transaction") => void;
   startBasicTour: () => void;
   startTechnicalTour: () => void;
+  startTransactionTour: (fromBasicTour?: boolean) => void;
   nextStep: () => void;
   prevStep: () => void;
   endTour: () => void;
   setStepIndex: (index: number) => void;
+  resumeBasicTour: () => void;
 
   toggleBubble: () => void;
   setBubbleOpen: (open: boolean) => void;
@@ -181,6 +239,7 @@ export const useMascotStore = create<MascotState>((set, get) => ({
   isTourActive: false,
   activeTourType: null,
   currentStepIndex: 0,
+  resumeBasicTourAfter: false,
   isBubbleOpen: false,
   isWelcomePromptOpen: false,
   isContinuationPromptOpen: false,
@@ -193,6 +252,8 @@ export const useMascotStore = create<MascotState>((set, get) => ({
   startTour: (type = "basic") => {
     if (type === "technical") {
       get().startTechnicalTour();
+    } else if (type === "transaction") {
+      get().startTransactionTour(false);
     } else {
       get().startBasicTour();
     }
@@ -204,6 +265,7 @@ export const useMascotStore = create<MascotState>((set, get) => ({
       isTourActive: true,
       activeTourType: "basic",
       currentStepIndex: 0,
+      resumeBasicTourAfter: false,
       isBubbleOpen: false,
       isWelcomePromptOpen: false,
       isContinuationPromptOpen: false,
@@ -218,15 +280,46 @@ export const useMascotStore = create<MascotState>((set, get) => ({
       isTourActive: true,
       activeTourType: "technical",
       currentStepIndex: 0,
+      resumeBasicTourAfter: false,
       isBubbleOpen: false,
       isWelcomePromptOpen: false,
       isContinuationPromptOpen: false,
     });
   },
 
+  startTransactionTour: (fromBasicTour = false) => {
+    mascotSound.playChime();
+    set({
+      isTourActive: true,
+      activeTourType: "transaction",
+      currentStepIndex: 0,
+      resumeBasicTourAfter: fromBasicTour,
+      isBubbleOpen: false,
+      isWelcomePromptOpen: false,
+      isContinuationPromptOpen: false,
+    });
+  },
+
+  resumeBasicTour: () => {
+    mascotSound.playChime();
+    set({
+      isTourActive: true,
+      activeTourType: "basic",
+      currentStepIndex: 2, // Step 3: Rentang Waktu (date-filter)
+      resumeBasicTourAfter: false,
+      isBubbleOpen: false,
+      isContinuationPromptOpen: false,
+    });
+  },
+
   nextStep: () => {
-    const { currentStepIndex, activeTourType } = get();
-    const steps = activeTourType === "technical" ? TECHNICAL_TOUR_STEPS : BASIC_TOUR_STEPS;
+    const { currentStepIndex, activeTourType, resumeBasicTourAfter } = get();
+    const steps =
+      activeTourType === "technical"
+        ? TECHNICAL_TOUR_STEPS
+        : activeTourType === "transaction"
+        ? TRANSACTION_TOUR_STEPS
+        : BASIC_TOUR_STEPS;
 
     if (currentStepIndex < steps.length - 1) {
       mascotSound.playPop();
@@ -243,6 +336,17 @@ export const useMascotStore = create<MascotState>((set, get) => ({
           isContinuationPromptOpen: true,
           isBubbleOpen: false,
         });
+      } else if (activeTourType === "transaction") {
+        if (resumeBasicTourAfter) {
+          get().resumeBasicTour();
+        } else {
+          set({
+            isTourActive: false,
+            activeTourType: null,
+            currentStepIndex: 0,
+            isBubbleOpen: true,
+          });
+        }
       } else {
         // Technical tour completed!
         if (typeof window !== "undefined") {
@@ -270,7 +374,7 @@ export const useMascotStore = create<MascotState>((set, get) => ({
 
   endTour: () => {
     mascotSound.playPop();
-    const { activeTourType } = get();
+    const { activeTourType, resumeBasicTourAfter } = get();
     if (activeTourType === "basic") {
       if (typeof window !== "undefined") {
         try {
@@ -278,16 +382,26 @@ export const useMascotStore = create<MascotState>((set, get) => ({
         } catch {}
       }
     }
+    if (activeTourType === "transaction" && resumeBasicTourAfter) {
+      get().resumeBasicTour();
+      return;
+    }
     set({
       isTourActive: false,
       activeTourType: null,
       currentStepIndex: 0,
+      resumeBasicTourAfter: false,
     });
   },
 
   setStepIndex: (index: number) => {
     const { activeTourType } = get();
-    const steps = activeTourType === "technical" ? TECHNICAL_TOUR_STEPS : BASIC_TOUR_STEPS;
+    const steps =
+      activeTourType === "technical"
+        ? TECHNICAL_TOUR_STEPS
+        : activeTourType === "transaction"
+        ? TRANSACTION_TOUR_STEPS
+        : BASIC_TOUR_STEPS;
     mascotSound.playPop();
     set({ currentStepIndex: Math.max(0, Math.min(index, steps.length - 1)) });
   },

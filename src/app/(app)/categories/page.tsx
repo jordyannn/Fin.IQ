@@ -32,31 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useConfirm } from "@/store/confirm.store";
-
-function renderCategoryIcon(iconName?: string | null) {
-  const norm = iconName?.toLowerCase().trim();
-  switch (norm) {
-    case "utensils": return <Utensils className="h-4 w-4" />;
-    case "coffee": return <Coffee className="h-4 w-4" />;
-    case "cookie": return <Cookie className="h-4 w-4" />;
-    case "car": return <Car className="h-4 w-4" />;
-    case "shoppingbag": case "shopping-bag": return <ShoppingBag className="h-4 w-4" />;
-    case "shoppingcart": case "shopping-cart": return <ShoppingCart className="h-4 w-4" />;
-    case "zap": return <Zap className="h-4 w-4" />;
-    case "piggybank": case "piggy-bank": return <PiggyBank className="h-4 w-4" />;
-    case "heart": return <Heart className="h-4 w-4" />;
-    case "activity": return <Activity className="h-4 w-4" />;
-    case "graduationcap": case "graduation-cap": return <GraduationCap className="h-4 w-4" />;
-    case "gamepad2": case "gamepad": return <Gamepad2 className="h-4 w-4" />;
-    case "trendingup": case "trending-up": return <TrendingUp className="h-4 w-4" />;
-    case "creditcard": case "credit-card": return <CreditCard className="h-4 w-4" />;
-    case "banknote": return <Banknote className="h-4 w-4" />;
-    case "briefcase": return <Briefcase className="h-4 w-4" />;
-    case "wallet": return <Wallet className="h-4 w-4" />;
-    case "layers": return <Layers className="h-4 w-4" />;
-    default: return <Tag className="h-4 w-4" />;
-  }
-}
+import { CategoryIcon } from "@/components/categories/CategoryIcon";
 
 export default function CategoriesPage() {
   const utils = trpc.useUtils();
@@ -220,7 +196,7 @@ export default function CategoriesPage() {
               <select
                 value={selectedParentId}
                 onChange={(e) => setSelectedParentId(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669]"
+                className="flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
                 <option value="">Kategori Utama (Level 1)</option>
                 {parentGroups.map((g) => (
@@ -265,7 +241,7 @@ export default function CategoriesPage() {
                       : "bg-[#A7F3D0]/40 text-[#064E3B]"
                   }`}
                 >
-                  {renderCategoryIcon(parent.icon)}
+                  <CategoryIcon icon={parent.icon} name={parent.name} className="h-4 w-4" />
                 </div>
                 <div>
                   <CardTitle className="text-sm font-bold text-foreground">
@@ -319,6 +295,7 @@ export default function CategoriesPage() {
                       key={sub.id}
                       className="group flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-slate-100/70 dark:bg-slate-800/70 border border-border/50 text-xs text-foreground transition-all hover:bg-slate-200/60 dark:hover:bg-slate-800"
                     >
+                      <CategoryIcon icon={sub.icon} name={sub.name} className="h-3 w-3 text-muted-foreground" />
                       <span>{sub.name}</span>
                       <button
                         onClick={async () => {

@@ -27,6 +27,7 @@ export interface AccountSelectProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  align?: "left" | "right" | "auto";
 }
 
 export function AccountSelect({
@@ -36,12 +37,16 @@ export function AccountSelect({
   placeholder = "Pilih Akun...",
   className,
   disabled = false,
+  align = "auto",
 }: AccountSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [openUpward, setOpenUpward] = useState(false);
+  const [openRightAligned, setOpenRightAligned] = useState(false);
 
   // Close when clicking outside or pressing Escape
   useEffect(() => {
@@ -53,6 +58,8 @@ export function AccountSelect({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
+        e.stopPropagation();
+        e.preventDefault();
         setIsOpen(false);
       }
     };
@@ -66,6 +73,15 @@ export function AccountSelect({
         const spaceBelow = window.innerHeight - rect.bottom;
         const spaceAbove = rect.top;
         setOpenUpward(spaceBelow < 310 && spaceAbove > spaceBelow);
+
+        if (align === "right") {
+          setOpenRightAligned(true);
+        } else if (align === "left") {
+          setOpenRightAligned(false);
+        } else {
+          const spaceRight = window.innerWidth - rect.left;
+          setOpenRightAligned(spaceRight < 320 || rect.right > window.innerWidth - 80);
+        }
       }
     }
 
@@ -73,7 +89,18 @@ export function AccountSelect({
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, align]);
+
+  // Focus search input when popover opens
+  useEffect(() => {
+    if (isOpen && accounts.length > 4) {
+      setHighlightedIndex(0);
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, accounts.length]);
 
   const selectedAcc = useMemo(() => {
     return accounts.find((a) => a.id === value);
@@ -81,9 +108,60 @@ export function AccountSelect({
 
   const filteredAccounts = useMemo(() => {
     if (!search.trim()) return accounts;
-    const q = search.toLowerCase();
-    return accounts.filter((a) => a.name.toLowerCase().includes(q));
+    const q = search.trim().toLowerCase();
+    return accounts
+      .filter((a) => a.name.toLowerCase().includes(q))
+      .sort((a, b) => {
+        const aLower = a.name.toLowerCase();
+        const bLower = b.name.toLowerCase();
+        if (aLower === q && bLower !== q) return -1;
+        if (bLower === q && aLower !== q) return 1;
+        if (aLower.startsWith(q) && !bLower.startsWith(q)) return -1;
+        if (bLower.startsWith(q) && !aLower.startsWith(q)) return 1;
+        return 0;
+      });
   }, [accounts, search]);
+
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [search]);
+
+  const handleSelect = (id: string) => {
+    onChange(id);
+    setIsOpen(false);
+    setSearch("");
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      // Prevent parent form submission
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (filteredAccounts.length > 0) {
+        const target = filteredAccounts[highlightedIndex] || filteredAccounts[0];
+        if (target) {
+          handleSelect(target.id);
+        }
+      }
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (filteredAccounts.length > 0) {
+        setHighlightedIndex((prev) => (prev + 1) % filteredAccounts.length);
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (filteredAccounts.length > 0) {
+        setHighlightedIndex((prev) => (prev - 1 + filteredAccounts.length) % filteredAccounts.length);
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsOpen(false);
+    }
+  };
 
   const getAccountIcon = (accName: string) => {
     const lower = accName.toLowerCase();
@@ -104,32 +182,36 @@ export function AccountSelect({
         disabled={disabled}
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className={cn(
-          "flex h-10 w-full items-center justify-between rounded-xl border border-input bg-background/80 px-3 py-2 text-xs font-medium shadow-2xs transition-all",
-          "hover:border-primary/50 hover:bg-muted/40 focus:outline-none focus:ring-1 focus:ring-ring",
-          isOpen && "border-primary ring-1 ring-primary/30 bg-muted/30",
+          "flex h-11 w-full items-center justify-between rounded-lg border border-input/80 bg-background/80 px-3 py-1.5 text-xs font-medium shadow-2xs transition-all",
+          "hover:border-primary/50 hover:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary active:scale-[0.99]",
+          isOpen && "border-primary ring-2 ring-primary/20 bg-muted/30",
           disabled && "opacity-50 cursor-not-allowed",
           !selectedAcc && "text-muted-foreground"
         )}
       >
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0">
           <div
             className={cn(
-              "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border",
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors",
               selectedAcc
                 ? "bg-primary/10 border-primary/20 text-primary"
                 : "bg-muted border-border text-muted-foreground"
             )}
           >
-            {selectedAcc ? getAccountIcon(selectedAcc.name) : <CreditCard className="h-3 w-3" />}
+            {selectedAcc ? getAccountIcon(selectedAcc.name) : <CreditCard className="h-3.5 w-3.5" />}
           </div>
 
-          <div className="flex flex-col min-w-0 text-left">
-            <span className="truncate text-xs text-foreground font-semibold">
-              {selectedAcc ? selectedAcc.name.toUpperCase() : placeholder}
+          <div className="flex flex-col min-w-0 text-left justify-center">
+            <span className="truncate text-xs text-foreground font-semibold leading-tight">
+              {selectedAcc ? selectedAcc.name : placeholder}
             </span>
-            {selectedAcc && (
-              <span className="text-[10px] text-muted-foreground font-mono">
+            {selectedAcc ? (
+              <span className="text-[10px] text-muted-foreground font-mono leading-none mt-0.5 tabular-nums">
                 Rp {(selectedAcc.balance ?? 0).toLocaleString("id-ID")}
+              </span>
+            ) : (
+              <span className="text-[10px] text-muted-foreground/60 leading-none mt-0.5">
+                Pilih sumber dana
               </span>
             )}
           </div>
@@ -137,7 +219,7 @@ export function AccountSelect({
 
         <ChevronDown
           className={cn(
-            "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 shrink-0 ml-1",
+            "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 shrink-0 ml-1.5",
             isOpen && "rotate-180 text-primary"
           )}
         />
@@ -146,31 +228,38 @@ export function AccountSelect({
       {/* Dropdown Popover */}
       {isOpen && (
         <div
+          onClick={(e) => e.stopPropagation()}
           onWheel={(e) => e.stopPropagation()}
           className={cn(
-            "absolute left-0 z-50 w-full min-w-[280px] rounded-md border border-border/80 bg-card/98 backdrop-blur-md p-2.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-2 text-card-foreground",
+            "absolute z-50 rounded-md border border-border bg-card p-2.5 shadow-level-2 animate-in fade-in zoom-in-95 duration-140 flex flex-col gap-2 text-card-foreground font-sans",
+            "w-full min-w-[260px] sm:min-w-[300px] max-w-[calc(100vw-2rem)]",
+            openRightAligned
+              ? "right-0 left-auto origin-top-right"
+              : "left-0 right-auto origin-top-left",
             openUpward
-              ? "bottom-full mb-2 origin-bottom shadow-[-4px_-8px_24px_rgba(0,0,0,0.18)]"
-              : "top-full mt-2 origin-top shadow-[4px_12px_32px_rgba(0,0,0,0.2)]"
+              ? "bottom-full mb-2 origin-bottom"
+              : "top-full mt-2 origin-top"
           )}
         >
           {/* Search if more than 4 accounts */}
           {accounts.length > 4 && (
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <input
+                ref={searchInputRef}
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
                 placeholder="Cari nama akun..."
-                className="h-8.5 w-full rounded-xl bg-muted/60 pl-8.5 pr-8 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary border border-border/60"
-                autoFocus
+                className="h-8.5 w-full rounded-md bg-muted/40 pl-8.5 pr-8 text-xs font-sans text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary border border-border"
               />
               {search && (
                 <button
                   type="button"
                   onClick={() => setSearch("")}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-full"
+                  title="Hapus pencarian"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -190,21 +279,22 @@ export function AccountSelect({
               transition-colors"
           >
             {filteredAccounts.length > 0 ? (
-              filteredAccounts.map((acc) => {
+              filteredAccounts.map((acc, idx) => {
                 const isSelected = value === acc.id;
+                const isHighlighted = idx === highlightedIndex;
+
                 return (
                   <button
                     key={acc.id}
                     type="button"
-                    onClick={() => {
-                      onChange(acc.id);
-                      setIsOpen(false);
-                      setSearch("");
-                    }}
+                    onClick={() => handleSelect(acc.id)}
+                    onMouseEnter={() => setHighlightedIndex(idx)}
                     className={cn(
-                      "flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-xs transition-all group",
+                      "flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-xs transition-all group cursor-pointer",
                       isSelected
                         ? "bg-primary/15 text-primary font-bold border border-primary/25 shadow-xs"
+                        : isHighlighted
+                        ? "bg-muted text-foreground border border-border/60"
                         : "text-foreground font-medium hover:bg-muted/80 border border-transparent"
                     )}
                   >
@@ -240,7 +330,7 @@ export function AccountSelect({
           {/* Bottom helper */}
           <div className="pt-1.5 border-t border-border/50 px-1 flex items-center justify-between text-[10px] text-muted-foreground">
             <span>{accounts.length} akun terdaftar</span>
-            <span>Pilih akun transaksi</span>
+            <span>Tekan Esc untuk tutup</span>
           </div>
         </div>
       )}

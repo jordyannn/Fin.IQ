@@ -9,26 +9,26 @@ import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/store/ui.store";
 
 const ROUTE_LABELS: Record<string, string> = {
-  "/overview": "Ringkasan Finansial",
-  "/transactions": "Riwayat Transaksi",
-  "/ai": "Studio Fin.IQ AI",
-  "/import": "Impor Berkas & Mutasi",
-  "/analytics": "Analisis & Grafik",
-  "/calendar": "Kalender Transaksi",
-  "/accounts": "Akun & Portofolio",
-  "/categories": "Kelola Kategori",
-  "/budgets": "Batas Anggaran",
-  "/ledgers": "Buku Kas Bersama",
+  "/overview": "Ringkasan",
+  "/transactions": "Transaksi",
+  "/ai": "AI Advisor",
+  "/import": "Impor Data",
+  "/analytics": "Analisis",
+  "/calendar": "Kalender",
+  "/accounts": "Akun",
+  "/categories": "Kategori",
+  "/budgets": "Anggaran",
+  "/ledgers": "Buku Kas",
   "/annual-report": "Laporan Tahunan",
-  "/settings": "Pengaturan Akun",
-  "/integrity": "Integritas Database",
+  "/settings": "Pengaturan",
+  "/integrity": "Kesehatan Data",
 };
 
 export function TopBar() {
   const pathname = usePathname();
   const { toggleCommandPalette, openQuickAdd } = useUIStore();
 
-  const currentLabel = ROUTE_LABELS[pathname] || "Fin.IQ Workspace";
+  const currentLabel = ROUTE_LABELS[pathname] || "Fin.IQ";
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border/70 bg-card/90 px-4 sm:px-8 backdrop-blur-md shadow-level-1">
@@ -52,7 +52,7 @@ export function TopBar() {
           aria-label="Cari transaksi atau menu"
         >
           <GeometricIcon name="search" size="xs" active />
-          <span className="truncate">Cari transaksi, menu, AI...</span>
+          <span className="truncate">Cari transaksi atau menu...</span>
           <kbd className="ml-auto hidden rounded-sm border border-border/80 bg-muted/60 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground md:inline-block">
             ⌘K
           </kbd>

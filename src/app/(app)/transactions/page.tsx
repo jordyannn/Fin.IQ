@@ -254,9 +254,9 @@ export default function TransactionsPage() {
       {/* Page Title & Main Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Riwayat Transaksi</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Transaksi</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Daftar pencatatan mutasi kas, perbankan, dan e-wallet dengan filter multi-akun.
+            Daftar mutasi rekening, dompet digital, dan kas tunai.
           </p>
         </div>
 
@@ -264,7 +264,7 @@ export default function TransactionsPage() {
           <Link href="/import">
             <Button variant="outline" size="sm" className="gap-2 text-xs rounded-md">
               <GeometricIcon name="import" size="xs" active />
-              Impor CSV / Excel
+              Impor Data
             </Button>
           </Link>
           <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2 text-xs rounded-md">
@@ -278,7 +278,7 @@ export default function TransactionsPage() {
             className="gap-2 text-xs rounded-md"
           >
             <GeometricIcon name="ai" size="xs" active />
-            Scan Struk / Bill
+            Scan Struk
           </Button>
           <Button size="sm" onClick={openQuickAdd} className="bg-primary hover:bg-[#047857] text-white gap-2 text-xs shadow-xs rounded-md font-bold">
             <Plus className="h-4 w-4 stroke-[3px]" />
@@ -296,7 +296,7 @@ export default function TransactionsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Cari catatan, merchant, keterangan..."
+              placeholder="Cari transaksi..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 pr-8 text-xs h-9"
@@ -366,7 +366,7 @@ export default function TransactionsPage() {
             <select
               value={datePreset}
               onChange={(e) => setDatePreset(e.target.value as DateFilterPreset)}
-              className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium shadow-sm focus:outline-none"
+              className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground"
             >
               <option value="this_month">Bulan Ini</option>
               <option value="today">Hari Ini</option>
@@ -441,7 +441,7 @@ export default function TransactionsPage() {
             <select
               value={selectedLedgerId || ""}
               onChange={(e) => setSelectedLedgerId(e.target.value || undefined)}
-              className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium shadow-sm focus:outline-none"
+              className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground"
             >
               <option value="">Semua Buku Kas</option>
               {ledgersData.map((l) => (
@@ -456,7 +456,7 @@ export default function TransactionsPage() {
           <select
             value={selectedAccountId || ""}
             onChange={(e) => setSelectedAccountId(e.target.value || undefined)}
-            className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium shadow-sm focus:outline-none"
+            className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground"
           >
             <option value="">Semua Akun</option>
             {accountsData?.accounts?.map((acc) => (
@@ -470,7 +470,7 @@ export default function TransactionsPage() {
           <select
             value={selectedCategoryId || ""}
             onChange={(e) => setSelectedCategoryId(e.target.value || undefined)}
-            className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-medium shadow-sm focus:outline-none"
+            className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground"
           >
             <option value="">Semua Kategori</option>
             <option value="uncategorized">Belum Berkategori</option>
@@ -803,7 +803,7 @@ export default function TransactionsPage() {
                 <tr>
                   <td colSpan={7} className="p-12 text-center text-muted-foreground">
                     <div className="flex flex-col items-center justify-center gap-2.5">
-                      <span>{isLoading ? "Memuat transaksi..." : "Tidak ada transaksi yang cocok dengan filter."}</span>
+                      <span>{isLoading ? "Memuat transaksi..." : "Tidak ada transaksi yang cocok."}</span>
                       {!isLoading && isAnyFilterActive && (
                         <Button
                           variant="outline"
@@ -812,7 +812,7 @@ export default function TransactionsPage() {
                           className="h-7 text-xs gap-1.5 text-rose-500 hover:text-rose-600"
                         >
                           <RotateCcw className="h-3.5 w-3.5" />
-                          Reset Semua Filter
+                          Reset Filter
                         </Button>
                       )}
                     </div>

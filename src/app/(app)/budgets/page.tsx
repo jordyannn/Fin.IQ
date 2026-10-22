@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { CategorySelect } from "@/components/transactions/CategorySelect";
 
 export default function BudgetsPage() {
   const utils = trpc.useUtils();
@@ -202,19 +203,15 @@ export default function BudgetsPage() {
             <form onSubmit={handleSave} className="space-y-3.5 text-xs">
               <div>
                 <label className="font-semibold text-foreground">Kategori Pengeluaran</label>
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669]"
-                  required
-                >
-                  <option value="">Pilih Kategori...</option>
-                  {categoriesList?.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="mt-1">
+                  <CategorySelect
+                    categories={categoriesList || []}
+                    value={categoryId}
+                    onChange={(newId) => setCategoryId(newId)}
+                    txType="expense"
+                    placeholder="Pilih Kategori Pengeluaran..."
+                  />
+                </div>
               </div>
 
               <div>

@@ -13,7 +13,7 @@ import { eq, desc } from "drizzle-orm";
 import { smartParseIndonesianTransaction } from "@/lib/nlp-parser";
 import { GoogleGenAI } from "@google/genai";
 import { fuzzyMatchAccount, fuzzyMatchCategory } from "./import";
-import { formatInputIDR, formatDate } from "@/lib/utils";
+import { formatInputIDR, formatDate, cleanNumericAmount } from "@/lib/utils";
 import {
   GEMINI_AUDIO_MODEL,
   GEMINI_VISION_MODEL,
@@ -160,10 +160,7 @@ ATURAN DETAIL:
         const cleanJsonStr = rawText.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
         const parsed = JSON.parse(cleanJsonStr);
 
-        const amount =
-          typeof parsed.amount === "number" && !isNaN(parsed.amount)
-            ? Math.max(0, Math.round(parsed.amount))
-            : 0;
+        const amount = cleanNumericAmount(parsed.amount);
         const txType: "expense" | "income" | "transfer" =
           parsed.txType === "income" || parsed.txType === "transfer" ? parsed.txType : "expense";
 
@@ -456,12 +453,29 @@ ATURAN EKSTRAKSI PENTING:
         });
       }
 
-      const amount = Math.round(Number(parsed.amount) || 0);
+      let amount = cleanNumericAmount(parsed.amount);
+
+      // Coba hitung dari total belanja items jika amount root kosong/0
+      const items = Array.isArray(parsed.items) ? parsed.items : [];
+      if (amount <= 0 && items.length > 0) {
+        amount = items.reduce((sum: number, it: any) => {
+          const itemPrice = cleanNumericAmount(it.price);
+          const itemQty = Math.max(1, Math.round(Number(it.qty) || 1));
+          return sum + itemPrice * itemQty;
+        }, 0);
+      }
+
+      // Coba ambil dari transaksi mutasi pertama jika amount masih 0
+      const rawTxList = Array.isArray(parsed.transactions) ? parsed.transactions : [];
+      if (amount <= 0 && rawTxList.length > 0) {
+        amount = cleanNumericAmount(rawTxList[0].amount);
+      }
+
       if (amount <= 0) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message:
-            "Tidak dapat mendeteksi total transaksi dari gambar. Pastikan foto struk, bukti transfer, atau mutasi terlihat jelas dan terbaca.",
+            "Tidak dapat mendeteksi nominal transaksi dari gambar. Pastikan foto struk, bukti transfer, atau mutasi terlihat jelas dan terbaca.",
         });
       }
 
@@ -485,11 +499,10 @@ ATURAN EKSTRAKSI PENTING:
         happenedAt = input.clientTime || new Date().toISOString();
       }
 
-      const items = Array.isArray(parsed.items) ? parsed.items : [];
       let itemsSummary = "";
       if (items.length > 0) {
         itemsSummary = items
-          .map((item: any) => `${item.qty && item.qty > 1 ? item.qty + "x " : ""}${item.name || "Item"}${item.price ? ` (${formatInputIDR(String(Math.round(item.price)))})` : ""}`)
+          .map((item: any) => `${item.qty && item.qty > 1 ? item.qty + "x " : ""}${item.name || "Item"}${item.price ? ` (${formatInputIDR(String(cleanNumericAmount(item.price)))})` : ""}`)
           .join(", ");
       }
 
@@ -518,11 +531,10 @@ ATURAN EKSTRAKSI PENTING:
       }
 
       // Format baris mutasi multi-transaksi jika ada
-      const rawTxList = Array.isArray(parsed.transactions) ? parsed.transactions : [];
       const parsedTransactions = rawTxList
-        .filter((t: any) => Number(t.amount) > 0)
+        .filter((t: any) => cleanNumericAmount(t.amount) > 0)
         .map((t: any) => {
-          const tAmount = Math.round(Number(t.amount) || 0);
+          const tAmount = cleanNumericAmount(t.amount);
           const tMatchedAcc = fuzzyMatchAccount(t.accountHint || parsed.paymentMethod, userAccounts);
           const tFoundAcc = userAccounts.find(
             (a) => a.name.toLowerCase().trim() === tMatchedAcc.toLowerCase().trim()
@@ -653,6 +665,27 @@ ATURAN EKSTRAKSI PENTING:
       const accountsInfo = userAccounts
         .map((a) => `${a.name}: Rp ${a.balance.toLocaleString("id-ID")}`)
         .join(", ");
+
+      let totalExpenseRecent = 0;
+      let totalIncomeRecent = 0;
+      const categoryExpenseMap: Record<string, number> = {};
+
+      for (const t of recentTx) {
+        if (t.txType === "expense") {
+          totalExpenseRecent += t.amount || 0;
+          const cat = t.categoryName || "Umum";
+          categoryExpenseMap[cat] = (categoryExpenseMap[cat] || 0) + (t.amount || 0);
+        } else if (t.txType === "income") {
+          totalIncomeRecent += t.amount || 0;
+        }
+      }
+
+      const topCategories = Object.entries(categoryExpenseMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([cat, amt]) => `${cat} (Rp ${amt.toLocaleString("id-ID")})`)
+        .join(", ");
+
       const txInfo = recentTx
         .map(
           (t) =>
@@ -660,20 +693,36 @@ ATURAN EKSTRAKSI PENTING:
         )
         .join("\n");
 
-      const prompt = `Kamu adalah Fin.IQ AI, asisten keuangan pribadi cerdas dan bersahabat di Indonesia.
-Berikut data ringkasan keuangan riil pengguna:
-- Total Saldo: Rp ${totalBalance.toLocaleString("id-ID")}
-- Akun: ${accountsInfo || "Belum ada akun"}
-- 30 Transaksi Terakhir:
+      const netCashFlowRecent = totalIncomeRecent - totalExpenseRecent;
+
+      const prompt = `Kamu adalah Fin.IQ Chief Financial Advisor, penasihat keuangan pribadi cerdas, profesional, dan berstandar industri perbankan/fintech modern di Indonesia.
+
+Data Telemetri Keuangan Pengguna Saat Ini:
+- Total Saldo Seluruh Akun: Rp ${totalBalance.toLocaleString("id-ID")}
+- Rincian Saldo Akun: ${accountsInfo || "Belum ada akun"}
+- Arus Pengeluaran (30 mutasi terakhir): Rp ${totalExpenseRecent.toLocaleString("id-ID")}
+- Arus Pemasukan (30 mutasi terakhir): Rp ${totalIncomeRecent.toLocaleString("id-ID")}
+- Net Cash Flow (30 mutasi terakhir): Rp ${netCashFlowRecent.toLocaleString("id-ID")}
+- Top Pos Pengeluaran: ${topCategories || "Belum ada pengeluaran"}
+- Sampel 30 Mutasi Transaksi Terakhir:
 ${txInfo || "Belum ada transaksi"}
 
 Pertanyaan Pengguna: "${input.question}"
 
-Instruksi:
-1. Jawab dalam Bahasa Indonesia yang ramah, ringkas, dan jelas.
-2. Berikan analisis angka yang faktual jika pengguna menanyakan pengeluaran, pemasukan, atau perbandingan.
-3. Berikan saran praktis yang dapat langsung diterapkan pengguna.
-4. Gunakan format markdown yang rapi (bullet points / bold).`;
+STANDAR FORMAT & STRUKTUR JAWABAN (Anti-AI-Slop):
+1. DILARANG menggunakan kata pembuka klise, basa-basi, atau filler AI (seperti "Halo!", "Tentu saja!", "Senang bisa membantu Anda", "Sebagai AI..."). Langsung berikan wawasan eksekutif bernilai tinggi.
+2. Gunakan struktur 3 bagian dengan heading level 3 Markdown (###):
+   - ### Ringkasan Eksekutif
+     Jawaban ringkas 1-2 kalimat padat yang langsung menjawab pertanyaan utama pengguna.
+   - ### Temuan & Analisis Data
+     Sajikan fakta angka. Jika membandingkan pos pengeluaran atau rincian anggaran, sangat dianjurkan menyajikan Tabel Markdown bersih:
+     | Kategori / Pos | Nominal | Proporsi | Status |
+     Gunakan bullet points '-' jika menjelaskan rincian deskriptif.
+   - ### Rekomendasi Aksi Nyata
+     Berikan 2-3 langkah konkret dan terukur bernomor (1., 2., 3.) yang realistis diterapkan pengguna saat ini juga.
+3. Selalu format nominal mata uang dalam standar Rupiah Indonesia: 'Rp X.XXX.XXX' (jangan disingkat seperti '50k' kecuali diminta).
+4. Jika terdapat peringatan defisit atau anomali anggaran, gunakan blockquote Markdown: '> **Catatan Penting:** ...'
+5. Jangan gunakan tanda bintang bertumpuk tanpa spasi atau format aneh. Pastikan sintaks Markdown rapi dan valid.`;
 
       const ai = new GoogleGenAI({ apiKey });
       try {
@@ -751,7 +800,7 @@ ATURAN:
           .trim();
 
         const parsed = JSON.parse(jsonStr);
-        const amount = Math.round(Number(parsed.amount) || 0);
+        const amount = cleanNumericAmount(parsed.amount);
 
         const matchedAcc = fuzzyMatchAccount(parsed.accountName, userAccounts);
         const matchedCat = fuzzyMatchCategory(parsed.categoryName, userCategories);

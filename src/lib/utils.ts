@@ -113,3 +113,30 @@ export function parseInputIDR(formatted: string): number {
   const digits = formatted.replace(/[^\d]/g, "");
   return digits ? parseInt(digits, 10) : 0;
 }
+
+/**
+ * Membersihkan dan mengekstrak nominal transaksi keuangan dari berbagai format AI / OCR.
+ * Menangani: 50000, "50000", "50.000", "Rp 50.000", "50.000,00", "25,000", "Rp. 1.250.000"
+ */
+export function cleanNumericAmount(val: any): number {
+  if (typeof val === "number" && !isNaN(val)) {
+    return Math.max(0, Math.round(val));
+  }
+  if (!val) return 0;
+  const str = String(val).trim();
+  if (!/\d/.test(str)) return 0;
+
+  // Handle format "50.000,00" -> hilangkan desimal sen di belakang koma
+  let cleanStr = str.replace(/,\d{1,2}$/, "");
+
+  // Jika formatnya titik sebagai pemisah ribuan (e.g. 50.000 atau 1.500.000)
+  if (/\d+\.\d{3}/.test(cleanStr)) {
+    cleanStr = cleanStr.replace(/\./g, "");
+  }
+
+  // Ambil hanya digit
+  const digits = cleanStr.replace(/[^\d]/g, "");
+  if (!digits) return 0;
+  const parsed = parseInt(digits, 10);
+  return isNaN(parsed) ? 0 : Math.max(0, parsed);
+}

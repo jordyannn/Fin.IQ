@@ -360,7 +360,7 @@ export default function LoginPage() {
                   <select
                     value={currency}
                     onChange={(e) => setCurrency(e.target.value)}
-                    className="w-full pl-9 h-10 text-xs rounded-[10px] border border-input bg-background text-foreground px-3 font-medium focus:ring-2 focus:ring-[#059669]/20 focus:border-[#059669] outline-none"
+                    className="w-full pl-9 pr-8 h-10 text-xs rounded-md border border-border bg-card text-foreground font-medium shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
                     <option value="IDR">IDR : Rupiah Indonesia</option>
                     <option value="USD">USD : US Dollar</option>

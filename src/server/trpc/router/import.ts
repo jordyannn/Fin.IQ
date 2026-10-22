@@ -5,6 +5,7 @@ import { accounts, categories, transactions, ledgers } from "../../db/schema";
 import { eq, sql } from "drizzle-orm";
 import { GoogleGenAI } from "@google/genai";
 import { getEffectiveGeminiKey, generateWithFallback } from "../../gemini";
+import { cleanNumericAmount } from "@/lib/utils";
 
 export function fuzzyMatchAccount(rawName: string | undefined, userAccounts: { id: string; name: string }[]): string {
   if (!rawName || !rawName.trim()) {
@@ -219,8 +220,8 @@ ATURAN EKSTRAKSI PENTING:
           }
 
           for (const item of parsedItems) {
-            const rawAmount = Number(item.amount);
-            if (isNaN(rawAmount) || rawAmount <= 0) continue;
+            const rawAmount = cleanNumericAmount(item.amount);
+            if (rawAmount <= 0) continue;
 
             const txType: "expense" | "income" | "transfer" =
               item.txType === "income" || item.txType === "transfer" ? item.txType : "expense";
@@ -436,8 +437,8 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
 
         for (let idx = 0; idx < rawList.length; idx++) {
           const item = rawList[idx];
-          const rawAmount = Number(item.amount);
-          if (isNaN(rawAmount) || rawAmount <= 0) continue;
+          const rawAmount = cleanNumericAmount(item.amount);
+          if (rawAmount <= 0) continue;
 
           const txType: "expense" | "income" | "transfer" =
             item.txType === "income" || item.txType === "transfer" ? item.txType : "expense";
