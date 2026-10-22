@@ -646,16 +646,17 @@ ATURAN EKSTRAKSI PENTING:
     }),
 
   getAiConfig: protectedProcedure.query(async ({ ctx }) => {
+    const quota = await getAiQuota(ctx.db, ctx.userId);
     return {
       provider: "OpenRouter (Free Tier)",
       defaultModel: DEFAULT_MODEL_ID,
       availableModels: OPENROUTER_FREE_MODELS,
-      quota: getAiQuota(ctx.userId),
+      quota,
     };
   }),
 
   getAiQuota: protectedProcedure.query(async ({ ctx }) => {
-    return getAiQuota(ctx.userId);
+    return await getAiQuota(ctx.db, ctx.userId);
   }),
 
   listChatSessions: protectedProcedure.query(async ({ ctx }) => {
@@ -856,14 +857,14 @@ ATURAN EKSTRAKSI PENTING:
         return {
           answer: refusalText,
           modelUsed: modelId,
-          quota: getAiQuota(ctx.userId),
+          quota: await getAiQuota(ctx.db, ctx.userId),
           guardrailBlocked: true,
           sessionId: activeSessionId,
         };
       }
 
       // 2. LIMIT PROMPTING & RATE LIMITING PER USER
-      const quotaCheck = consumeAiQuota(ctx.userId);
+      const quotaCheck = await consumeAiQuota(ctx.db, ctx.userId);
       if (!quotaCheck.allowed) {
         throw new TRPCError({
           code: "TOO_MANY_REQUESTS",
@@ -1013,7 +1014,7 @@ Pertanyaan Pengguna: "${input.question}"`;
         return {
           answer: result.text,
           modelUsed: result.modelUsed,
-          quota: getAiQuota(ctx.userId),
+          quota: await getAiQuota(ctx.db, ctx.userId),
           guardrailBlocked: false,
           sessionId: activeSessionId,
         };
@@ -1057,7 +1058,7 @@ Pertanyaan Pengguna: "${input.question}"`;
           return {
             answer: answerText,
             modelUsed: modelUsedName,
-            quota: getAiQuota(ctx.userId),
+            quota: await getAiQuota(ctx.db, ctx.userId),
             guardrailBlocked: false,
             sessionId: activeSessionId,
           };

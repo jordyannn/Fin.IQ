@@ -106,13 +106,27 @@ interface ChatMessage {
 }
 
 function AIAdvisorPageContent() {
+  const utils = trpc.useUtils();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
 
   // 1. Ambil Konfigurasi Model Free-Tier & Status Kuota
   const { data: aiConfig, refetch: refetchAiConfig } = trpc.ai.getAiConfig.useQuery(undefined, {
-    staleTime: 1000 * 30,
+    staleTime: 1000 * 10,
   });
+
+  const [localQuota, setLocalQuota] = useState<{
+    limit: number;
+    used: number;
+    remaining: number;
+    resetHours: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (aiConfig?.quota) {
+      setLocalQuota(aiConfig.quota);
+    }
+  }, [aiConfig?.quota]);
 
   const availableModels =
     aiConfig?.availableModels && aiConfig.availableModels.length > 0
@@ -150,7 +164,7 @@ function AIAdvisorPageContent() {
       description: "Model cepat dan stabil untuk analisis keuangan.",
     };
 
-  const quota = aiConfig?.quota || { limit: 20, used: 0, remaining: 20, resetHours: 0 };
+  const quota = localQuota || aiConfig?.quota || { limit: 20, used: 0, remaining: 20, resetHours: 0 };
 
   // ============================================================================
   // 2. SESSION & HISTORY STATE
@@ -249,7 +263,16 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
         setActiveSessionId(data.sessionId);
       }
 
-      refetchAiConfig();
+      if (data.quota) {
+        setLocalQuota(data.quota);
+        utils.ai.getAiConfig.setData(undefined, (old) =>
+          old ? { ...old, quota: data.quota } : old
+        );
+        utils.ai.getAiQuota.setData(undefined, data.quota);
+      }
+
+      utils.ai.getAiConfig.invalidate();
+      utils.ai.getAiQuota.invalidate();
       refetchSessions();
     },
     onError: (err) => {
@@ -262,13 +285,30 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
           time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
-      refetchAiConfig();
+
+      if (aiConfig?.quota) {
+        setLocalQuota(aiConfig.quota);
+      }
+      utils.ai.getAiConfig.invalidate();
+      utils.ai.getAiQuota.invalidate();
     },
   });
 
   const handleSendChat = (questionText?: string) => {
     const q = (questionText || chatInput).trim();
     if (!q || askAssistantMutation.isPending || quota.remaining <= 0) return;
+
+    // Optimistic decrement for immediate visual feedback
+    setLocalQuota((prev) => {
+      const current =
+        prev || aiConfig?.quota || { limit: 20, used: 0, remaining: 20, resetHours: 0 };
+      const nextUsed = current.used + 1;
+      return {
+        ...current,
+        used: nextUsed,
+        remaining: Math.max(0, current.limit - nextUsed),
+      };
+    });
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
