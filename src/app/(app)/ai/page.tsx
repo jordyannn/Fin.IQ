@@ -25,6 +25,51 @@ const SUGGESTIONS = [
   "Evaluasi arus kas saya dan berikan 3 rekomendasi langkah hemat konkret.",
 ];
 
+export const FALLBACK_FREE_MODELS = [
+  {
+    id: "minimax/minimax-m3.1-flash:free",
+    name: "MiniMax M3.1 Flash",
+    provider: "MiniMax",
+    tag: "Rekomendasi / Responsif",
+    description: "Model cepat, stabil, dan sangat natural dalam memahami konteks keuangan Indonesia.",
+  },
+  {
+    id: "recursive/flint-v1.0:free",
+    name: "Recursive Flint v1.0",
+    provider: "Recursive",
+    tag: "Ultra Cepat",
+    description: "Latensi minimal untuk analisis ringkas dan perbandingan pos pengeluaran.",
+  },
+  {
+    id: "dots-studio/dots-3-note-preview:free",
+    name: "Dots Studio 3 Note",
+    provider: "Dots Studio",
+    tag: "Analitis",
+    description: "Sintesis data transaksi terstruktur dengan fokus laporan ringkas & objektif.",
+  },
+  {
+    id: "nvidia/nemotron-3.5-lightning:free",
+    name: "NVIDIA Nemotron 3.5 Lightning",
+    provider: "NVIDIA",
+    tag: "Deep Reasoning",
+    description: "Penalaran finansial mendalam untuk evaluasi target tabungan dan alokasi dana.",
+  },
+  {
+    id: "google/gemma-4-31b-it:free",
+    name: "Google Gemma 4 31B",
+    provider: "Google",
+    tag: "Komprehensif",
+    description: "Model parameter besar Google dengan kapabilitas analitis komprehensif.",
+  },
+  {
+    id: "google/gemma-4-26b-a4b-it:free",
+    name: "Google Gemma 4 26B",
+    provider: "Google",
+    tag: "Seimbang",
+    description: "Model dialog efisien dan seimbang untuk konsultasi harian.",
+  },
+];
+
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -43,7 +88,11 @@ function AIAdvisorPageContent() {
     staleTime: 1000 * 30,
   });
 
-  const availableModels = aiConfig?.availableModels || [];
+  const availableModels =
+    aiConfig?.availableModels && aiConfig.availableModels.length > 0
+      ? aiConfig.availableModels
+      : FALLBACK_FREE_MODELS;
+
   const [selectedModelId, setSelectedModelId] = useState<string>("minimax/minimax-m3.1-flash:free");
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
