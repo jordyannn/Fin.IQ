@@ -9,9 +9,13 @@ import {
   Copy,
   Check,
   RotateCcw,
-  ArrowRight,
-  KeyRound,
   Loader2,
+  ChevronDown,
+  Shield,
+  Zap,
+  Cpu,
+  Sparkles,
+  Info,
 } from "lucide-react";
 import { AIMessageRenderer } from "@/components/ai/AIMessageRenderer";
 
@@ -21,25 +25,69 @@ const SUGGESTIONS = [
   "Evaluasi arus kas saya dan berikan 3 rekomendasi langkah hemat konkret.",
 ];
 
+interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  time: string;
+  modelUsed?: string;
+  guardrailBlocked?: boolean;
+}
+
 function AIAdvisorPageContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
 
-  // Gemini Connection Status
-  const { data: geminiStatus, isLoading: isStatusLoading } = trpc.user.testGeminiStatus.useQuery();
+  // 1. Ambil Konfigurasi Model Free-Tier & Status Kuota
+  const { data: aiConfig, refetch: refetchAiConfig } = trpc.ai.getAiConfig.useQuery(undefined, {
+    staleTime: 1000 * 30,
+  });
 
-  // Chat Advisor State
-  const [chatMessages, setChatMessages] = useState<
-    Array<{ id: string; role: "user" | "assistant"; text: string; time: string }>
-  >([
+  const availableModels = aiConfig?.availableModels || [];
+  const [selectedModelId, setSelectedModelId] = useState<string>("minimax/minimax-m3.1-flash:free");
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Sync default model jika aiConfig termuat
+  useEffect(() => {
+    if (aiConfig?.defaultModel && !selectedModelId) {
+      setSelectedModelId(aiConfig.defaultModel);
+    }
+  }, [aiConfig]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsModelDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const activeModel =
+    availableModels.find((m) => m.id === selectedModelId) ||
+    availableModels[0] || {
+      id: "minimax/minimax-m3.1-flash:free",
+      name: "MiniMax M3.1 Flash",
+      tag: "Default / Responsif",
+      description: "Model cepat dan stabil untuk analisis keuangan.",
+    };
+
+  const quota = aiConfig?.quota || { limit: 20, used: 0, remaining: 20, resetHours: 0 };
+
+  // Chat State
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       id: "welcome-msg",
       role: "assistant",
-      text: `### Konsultasi Keuangan Aktif
-Data akun kas, saldo riil, dan 30 transaksi mutasi Anda telah terhubung.
+      text: `### Konsultasi Keuangan Aktif (OpenRouter Free Tier)
+Data akun kas, saldo riil, dan 30 transaksi mutasi Anda telah terhubung secara otomatis.
 
-Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis arus kas dan strategi finansial Anda.`,
+Silakan pilih model AI gratis di atas atau ketik pertanyaan langsung untuk menganalisis arus kas, pos anggaran, dan strategi finansial Anda.`,
       time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+      modelUsed: activeModel.name,
     },
   ]);
   const [chatInput, setChatInput] = useState(initialQuery);
@@ -65,8 +113,12 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
           role: "assistant",
           text: data.answer,
           time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+          modelUsed: data.modelUsed,
+          guardrailBlocked: data.guardrailBlocked,
         },
       ]);
+      // Segarkan kuota setelah pesan berhasil diproses
+      refetchAiConfig();
     },
     onError: (err) => {
       setChatMessages((prev) => [
@@ -74,20 +126,21 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
         {
           id: `err-${Date.now()}`,
           role: "assistant",
-          text: `Gagal memproses data: ${err.message || "Koneksi ke Gemini terganggu."}`,
+          text: `Gagal memproses data: ${err.message || "Koneksi ke AI terganggu."}`,
           time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
+      refetchAiConfig();
     },
   });
 
   const handleSendChat = (questionText?: string) => {
     const q = (questionText || chatInput).trim();
-    if (!q || askAssistantMutation.isPending) return;
+    if (!q || askAssistantMutation.isPending || quota.remaining <= 0) return;
 
-    const userMsg = {
+    const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
-      role: "user" as const,
+      role: "user",
       text: q,
       time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
     };
@@ -95,7 +148,7 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
     setChatMessages((prev) => [...prev, userMsg]);
     setChatInput("");
 
-    askAssistantMutation.mutate({ question: q });
+    askAssistantMutation.mutate({ question: q, model: selectedModelId });
   };
 
   useEffect(() => {
@@ -110,8 +163,9 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
         id: `welcome-${Date.now()}`,
         role: "assistant",
         text: `### Sesi Baru Dimulai
-Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos, atau strategi anggaran Anda.`,
+Silakan ajukan pertanyaan seputar evaluasi pengeluaran, perbandingan pos anggaran, atau simulasi target tabungan Anda.`,
         time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+        modelUsed: activeModel.name,
       },
     ]);
     setChatInput("");
@@ -129,34 +183,106 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos, a
   return (
     <div className="flex flex-col h-[calc(100vh-5.5rem)] max-w-4xl mx-auto">
       {/* ==================================================================== */}
-      {/* 1. MINIMAL EXECUTIVE HEADER (Anti-Slop: Zero Decorative Bloat) */}
+      {/* 1. EXECUTIVE HEADER & MODEL SWITCHER (Anti-Slop: Zero Decorative Bloat) */}
       {/* ==================================================================== */}
-      <header className="flex items-center justify-between pb-3 border-b border-border/70 shrink-0">
-        <div className="flex items-center gap-2.5">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-border/70 shrink-0">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <h1 className="text-sm sm:text-base font-bold tracking-tight text-foreground">
             AI Advisor
           </h1>
-          <span className="text-[11px] font-mono text-muted-foreground/80">
-            Gemini 3 Flash
-          </span>
+
+          {/* Model Switcher Dropdown (Hanya Free Tier) */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsModelDropdownOpen((v) => !v)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono rounded-md border border-border/80 bg-muted/40 hover:bg-muted text-foreground transition-colors cursor-pointer select-none"
+              title="Ganti Model AI (Khusus Free Tier)"
+            >
+              <Cpu className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="font-sans font-medium truncate max-w-[140px] sm:max-w-[180px]">
+                {activeModel.name}
+              </span>
+              <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-semibold">
+                Free
+              </span>
+              <ChevronDown className="h-3 w-3 text-muted-foreground ml-0.5 opacity-70" />
+            </button>
+
+            {/* Dropdown Menu */}
+            {isModelDropdownOpen && (
+              <div className="absolute left-0 top-full mt-1.5 w-72 sm:w-80 rounded-lg border border-border/80 bg-popover p-1.5 shadow-xl shadow-black/10 z-50 animate-in fade-in zoom-in-95 duration-100">
+                <div className="px-2 py-1.5 border-b border-border/60 mb-1 flex items-center justify-between">
+                  <span className="text-[10px] font-mono uppercase text-muted-foreground font-semibold">
+                    Pilihan Model AI (Free Tier)
+                  </span>
+                  <span className="text-[9px] font-mono text-emerald-600 dark:text-emerald-400">
+                    OpenRouter Demo
+                  </span>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto space-y-1">
+                  {availableModels.map((m) => {
+                    const isSelected = m.id === selectedModelId;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedModelId(m.id);
+                          setIsModelDropdownOpen(false);
+                        }}
+                        className={`w-full text-left p-2 rounded-md transition-colors text-xs cursor-pointer flex items-start justify-between gap-2 ${
+                          isSelected
+                            ? "bg-zinc-100 dark:bg-zinc-800/90 text-foreground"
+                            : "hover:bg-muted/60 text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-[11px] truncate text-foreground">
+                              {m.name}
+                            </span>
+                            {m.tag && (
+                              <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-muted text-muted-foreground">
+                                {m.tag}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground/80 line-clamp-1 mt-0.5 font-sans">
+                            {m.description}
+                          </p>
+                        </div>
+                        {isSelected && (
+                          <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {geminiStatus?.connected ? (
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Aktif
+        {/* Right Toolbar: Quota Counter, Status, & Reset */}
+        <div className="flex items-center gap-2 justify-between sm:justify-end">
+          {/* Quota Badge */}
+          <div
+            className={`inline-flex items-center gap-1.5 px-2 py-0.8 rounded text-[10px] font-mono border ${
+              quota.remaining <= 3
+                ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                : "border-border/70 bg-muted/40 text-muted-foreground"
+            }`}
+            title="Batas pemakaian prompt demo gratis per 24 jam"
+          >
+            <Zap className="h-2.5 w-2.5 shrink-0" />
+            <span>
+              Kuota Demo: <strong className="font-bold">{quota.remaining}</strong>/{quota.limit}
             </span>
-          ) : !isStatusLoading ? (
-            <Link
-              href="/settings"
-              className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400 hover:underline"
-            >
-              <KeyRound className="h-3 w-3" />
-              Pasang API Key
-            </Link>
-          ) : null}
+          </div>
 
+          {/* Reset Action */}
           <button
             type="button"
             onClick={handleResetChat}
@@ -164,23 +290,18 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos, a
             title="Reset percakapan"
           >
             <RotateCcw className="h-3 w-3" />
-            <span>Mulai Baru</span>
+            <span className="hidden sm:inline">Mulai Baru</span>
           </button>
         </div>
       </header>
 
-      {/* Warning banner jika API key belum terpasang */}
-      {!geminiStatus?.connected && !isStatusLoading && (
-        <div className="mt-3 p-3 rounded-md border border-amber-500/30 bg-amber-500/5 flex items-center justify-between text-xs shrink-0">
-          <span className="text-foreground">
-            Google Gemini API Key belum dipasang. Tambahkan token untuk mengaktifkan analisis.
+      {/* Quota Depleted Warning Banner */}
+      {quota.remaining <= 0 && (
+        <div className="mt-2.5 p-3 rounded-md border border-rose-500/30 bg-rose-500/5 flex items-center gap-2 text-xs shrink-0 text-foreground">
+          <Info className="h-4 w-4 text-rose-500 shrink-0" />
+          <span>
+            Batas kuota uji coba demo harian Anda (20 pertanyaan) telah tercapai. Kuota akan di-reset bertahap besok agar pengunjung lain dapat turut mencoba demo Fin.IQ AI.
           </span>
-          <Link
-            href="/settings"
-            className="font-bold text-amber-600 dark:text-amber-400 hover:underline inline-flex items-center gap-1 shrink-0 ml-3"
-          >
-            Pengaturan <ArrowRight className="h-3 w-3" />
-          </Link>
         </div>
       )}
 
@@ -194,12 +315,33 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos, a
             className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
           >
             {msg.role === "assistant" ? (
-              <div className="w-full max-w-[92%] sm:max-w-[88%] rounded-lg p-3.5 sm:p-4 text-xs bg-muted/30 border border-border/60 text-foreground group transition-colors">
+              <div
+                className={`w-full max-w-[92%] sm:max-w-[88%] rounded-lg p-3.5 sm:p-4 text-xs border text-foreground group transition-colors ${
+                  msg.guardrailBlocked
+                    ? "bg-amber-500/5 border-amber-500/30"
+                    : "bg-muted/30 border-border/60"
+                }`}
+              >
+                {/* Guardrail Blocked Header */}
+                {msg.guardrailBlocked && (
+                  <div className="mb-2.5 pb-2 border-b border-amber-500/20 flex items-center gap-1.5 text-[10px] font-mono text-amber-600 dark:text-amber-400 font-semibold uppercase tracking-wider">
+                    <Shield className="h-3 w-3 shrink-0" />
+                    <span>Guardrail Fin.IQ Keuangan Aktif</span>
+                  </div>
+                )}
+
                 <AIMessageRenderer content={msg.text} />
 
                 {/* Minimal Footer Toolbar */}
                 <div className="mt-2.5 pt-2 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground font-mono">
-                  <span>{msg.time}</span>
+                  <div className="flex items-center gap-2">
+                    <span>{msg.time}</span>
+                    {msg.modelUsed && (
+                      <span className="text-[9px] text-muted-foreground/60 hidden sm:inline">
+                        • {msg.modelUsed}
+                      </span>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() => handleCopyText(msg.id, msg.text)}
@@ -236,12 +378,12 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos, a
         {askAssistantMutation.isPending && (
           <div className="w-full max-w-[92%] sm:max-w-[88%] rounded-lg p-3.5 text-xs bg-muted/20 border border-border/50 text-muted-foreground flex items-center gap-2.5 animate-in fade-in duration-150">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span>Menganalisis transaksi dan menyusun rekomendasi...</span>
+            <span>Menganalisis transaksi dengan {activeModel.name}...</span>
           </div>
         )}
 
         {/* Suggestion Prompts (Only visible when conversation is short) */}
-        {chatMessages.length <= 2 && !askAssistantMutation.isPending && (
+        {chatMessages.length <= 2 && !askAssistantMutation.isPending && quota.remaining > 0 && (
           <div className="pt-2">
             <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider mb-2">
               Ide Topik Cepat
@@ -281,9 +423,13 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos, a
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Tanyakan analisis keuangan, pengeluaran, atau strategi hemat..."
-              className="w-full h-10 px-3.5 text-xs rounded-md bg-background border border-border/80 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-600 text-foreground transition-all placeholder:text-muted-foreground/60 pr-14"
-              disabled={askAssistantMutation.isPending}
+              placeholder={
+                quota.remaining <= 0
+                  ? "Batas kuota harian tercapai. Silakan coba kembali besok."
+                  : `Tanyakan analisis keuangan kepada ${activeModel.name}...`
+              }
+              className="w-full h-10 px-3.5 text-xs rounded-md bg-background border border-border/80 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-600 text-foreground transition-all placeholder:text-muted-foreground/60 pr-14 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={askAssistantMutation.isPending || quota.remaining <= 0}
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-muted-foreground/60 hidden sm:inline select-none pointer-events-none">
               ↵ Enter
@@ -292,7 +438,7 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos, a
 
           <button
             type="submit"
-            disabled={askAssistantMutation.isPending || !chatInput.trim()}
+            disabled={askAssistantMutation.isPending || !chatInput.trim() || quota.remaining <= 0}
             className="h-10 px-4 rounded-md text-xs font-semibold bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition-all active:scale-[0.97] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0 flex items-center gap-1.5"
           >
             {askAssistantMutation.isPending ? (
