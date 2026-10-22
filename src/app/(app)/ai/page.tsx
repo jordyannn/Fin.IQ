@@ -20,13 +20,35 @@ import {
   Plus,
   MessageSquare,
   Trash2,
+  ArrowUpRight,
 } from "lucide-react";
 import { AIMessageRenderer } from "@/components/ai/AIMessageRenderer";
 
 const SUGGESTIONS = [
-  "Berapa total pengeluaran bulan ini dan pos apa yang paling boros?",
-  "Tampilkan tabel perbandingan pengeluaran per kategori beserta proporsinya.",
-  "Evaluasi arus kas saya dan berikan 3 rekomendasi langkah hemat konkret.",
+  {
+    title: "Audit Pos Boros & Kebocoran",
+    desc: "Deteksi anomali mutasi dan pangkas pos pengeluaran terbesar.",
+    prompt:
+      "Audit pos pengeluaran terbesar saya: mana transaksi yang paling boros atau tidak wajar dan bagaimana cara memangkasnya?",
+  },
+  {
+    title: "Batas Belanja Harian",
+    desc: "Hitung jatah aman belanja harian agar kas surplus di akhir bulan.",
+    prompt:
+      "Hitung batas maksimal belanja harian saya agar sisa bulan ini tetap surplus dan tidak boncos.",
+  },
+  {
+    title: "Alokasi Tabungan Pasti",
+    desc: "Hitung nominal realistis yang aman disisihkan ke tabungan/reksadana.",
+    prompt:
+      "Berdasarkan pemasukan dan pola pengeluaran saya, berapa nominal pasti yang aman saya sisihkan ke tabungan bulan ini?",
+  },
+  {
+    title: "Ketahanan Kas (Runway)",
+    desc: "Hitung berapa bulan cadangan dana bertahan tanpa pemasukan baru.",
+    prompt:
+      "Dengan rata-rata pengeluaran saat ini, berapa bulan total saldo saya bisa bertahan jika tanpa pemasukan?",
+  },
 ];
 
 const FALLBACK_FREE_MODELS = [
@@ -620,18 +642,31 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
           {/* Suggestion Prompts (Only visible when conversation is short) */}
           {chatMessages.length <= 2 && !askAssistantMutation.isPending && quota.remaining > 0 && (
             <div className="pt-2">
-              <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider mb-2">
-                Ide Topik Cepat
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
+                  Ide Analisis & Solusi Finansial
+                </p>
+                <span className="text-[10px] text-muted-foreground/60 font-mono hidden sm:inline">
+                  Klik untuk evaluasi instan
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {SUGGESTIONS.map((s, idx) => (
                   <button
                     key={idx}
                     type="button"
-                    onClick={() => handleSendChat(s)}
-                    className="p-2.5 rounded-md border border-border/70 bg-card hover:bg-muted/70 text-left text-xs text-foreground/90 transition-all active:scale-[0.98] cursor-pointer"
+                    onClick={() => handleSendChat(s.prompt)}
+                    className="p-3 rounded-lg border border-border/70 bg-card hover:bg-muted/60 hover:border-border transition-all text-left group active:scale-[0.99] cursor-pointer"
                   >
-                    {s}
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-xs font-semibold text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                        {s.title}
+                      </span>
+                      <ArrowUpRight className="h-3 w-3 text-muted-foreground/60 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors shrink-0" />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground line-clamp-1 mt-1 font-sans">
+                      {s.desc}
+                    </p>
                   </button>
                 ))}
               </div>
