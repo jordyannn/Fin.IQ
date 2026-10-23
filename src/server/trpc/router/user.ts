@@ -5,6 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { hashPassword, verifyPassword } from "../../auth";
 import { generateWithFallback } from "../../gemini";
+import { invalidateAuthUser } from "@/lib/redis";
 
 export const userRouter = router({
   getProfile: protectedProcedure.query(async ({ ctx }) => {
@@ -120,6 +121,16 @@ export const userRouter = router({
           .where(eq(userProfiles.userId, ctx.userId));
       }
 
+      // Invalidate Redis user cache
+      const userRec = await ctx.db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, ctx.userId))
+        .limit(1);
+      if (userRec[0]?.email) {
+        await invalidateAuthUser(userRec[0].email);
+      }
+
       return {
         success: true,
         message: "Profil berhasil diperbarui.",
@@ -164,6 +175,9 @@ export const userRouter = router({
         .update(users)
         .set({ passwordHash: newHash })
         .where(eq(users.id, ctx.userId));
+
+      // Invalidate Redis cache
+      await invalidateAuthUser(user.email);
 
       return {
         success: true,

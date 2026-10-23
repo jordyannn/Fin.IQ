@@ -11,10 +11,16 @@ export function fuzzyMatchAccount(rawName: string | undefined, userAccounts: { i
   if (!rawName || !rawName.trim()) {
     return userAccounts[0]?.name || "Kas Tunai";
   }
-  const clean = rawName.toLowerCase().trim();
+  const clean = rawName
+    .toLowerCase()
+    .replace(/\b(?:akun|rekening|rek|kartu|bank|dompet|saldo)\b/gi, "")
+    .trim();
 
   // 1. Exact match
-  const exact = userAccounts.find((a) => a.name.toLowerCase().trim() === clean);
+  const exact = userAccounts.find((a) => {
+    const aName = a.name.toLowerCase().trim();
+    return aName === clean || aName === rawName.toLowerCase().trim();
+  });
   if (exact) return exact.name;
 
   // 2. Substring match
@@ -24,20 +30,50 @@ export function fuzzyMatchAccount(rawName: string | undefined, userAccounts: { i
   });
   if (sub) return sub.name;
 
-  // 3. Known aliases in Indonesia
+  // 3. Special direct alias for blu / blue
+  if (clean === "blue" || clean === "blu" || clean.includes("blue") || clean.includes("blu")) {
+    const bluMatch = userAccounts.find((a) => {
+      const aName = a.name.toLowerCase();
+      return (
+        aName.includes("blu") ||
+        aName.includes("blue") ||
+        aName.includes("bca digital") ||
+        aName === "blu"
+      );
+    });
+    if (bluMatch) return bluMatch.name;
+  }
+
+  // 4. Known aliases in Indonesia
   const aliases: Record<string, string[]> = {
-    blu: ["bca digital", "blubybcadigital", "blu bca"],
-    bca: ["bank central asia", "klikbca", "m-bca", "mbca"],
-    mandiri: ["livin", "livin' by mandiri", "bank mandiri"],
-    bri: ["brimo", "bank rakyat indonesia"],
-    bni: ["wondr", "bni mobile", "bank negara indonesia"],
-    gopay: ["go-pay", "gojek"],
+    blu: [
+      "blue",
+      "bca digital",
+      "blubybcadigital",
+      "blu bca",
+      "blubca",
+      "blu by bca digital",
+      "kartu blu",
+      "kartu blue",
+    ],
+    bca: ["bank central asia", "klikbca", "m-bca", "mbca", "tahapan bca"],
+    mandiri: ["livin", "livin' by mandiri", "livin by mandiri", "bank mandiri"],
+    bri: ["brimo", "bank rakyat indonesia", "bri mo"],
+    bni: ["wondr", "bni mobile", "wondr by bni", "bank negara indonesia"],
+    gopay: ["go-pay", "gojek", "gopay tabungan"],
     ovo: ["ovo cash"],
-    dana: ["dompet dana"],
+    dana: ["dompet dana", "e-wallet dana"],
     shopeepay: ["shopee pay", "spay", "shopee"],
-    cash: ["tunai", "kas tunai", "dompet"],
+    cash: ["tunai", "kas tunai", "dompet", "uang tunai", "kas", "fisik"],
     jago: ["bank jago", "kantong jago"],
     seabank: ["sea bank", "sea"],
+    cimb: ["cimb niaga", "octo", "octo mobile", "octoclicks"],
+    permata: ["permata bank", "permata me"],
+    bsi: ["bank syariah indonesia", "bsi mobile"],
+    danamon: ["bank danamon", "d-bank"],
+    btn: ["bank tabungan negara", "btn mobile"],
+    jenius: ["btpn", "bank btpn", "jenius btpn"],
+    linkaja: ["link aja", "tcash"],
   };
 
   for (const [key, aliasList] of Object.entries(aliases)) {

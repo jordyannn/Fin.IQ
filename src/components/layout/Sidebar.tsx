@@ -20,6 +20,7 @@ import {
   SECONDARY_NAVIGATION_ITEMS,
   NavItem,
 } from "@/config/navigation";
+import { useTranslation } from "@/i18n";
 
 const navigationItems = MAIN_NAVIGATION_ITEMS;
 const secondaryItems = SECONDARY_NAVIGATION_ITEMS;
@@ -33,11 +34,13 @@ interface Ripple {
 
 function NavItemLink({
   item,
+  displayLabel,
   isActive,
   onItemClick,
   className,
 }: {
   item: NavItem;
+  displayLabel?: string;
   isActive: boolean;
   onItemClick?: () => void;
   className?: string;
@@ -82,7 +85,7 @@ function NavItemLink({
           isActive ? "scale-105" : "opacity-70 group-hover:opacity-100"
         )}
       />
-      <span className="truncate flex-1 font-medium">{item.label}</span>
+      <span className="truncate flex-1 font-medium">{displayLabel || item.label}</span>
       {item.isAI && (
         <span
           className={cn(
@@ -121,9 +124,29 @@ export function Sidebar({
   const router = useRouter();
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
+  const { t } = useTranslation();
   const [mounted, setMounted] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  const getNavLabel = (href: string, fallback: string) => {
+    switch (href) {
+      case "/overview": return t.nav.overview;
+      case "/transactions": return t.nav.transactions;
+      case "/ai": return t.nav.aiAdvisor;
+      case "/import": return t.nav.importData;
+      case "/analytics": return t.nav.analytics;
+      case "/calendar": return t.nav.calendar;
+      case "/accounts": return t.nav.accounts;
+      case "/categories": return t.nav.categories;
+      case "/budgets": return t.nav.budgets;
+      case "/ledgers": return t.nav.ledgers;
+      case "/annual-report": return t.nav.annualReport;
+      case "/settings": return t.nav.settings;
+      case "/integrity": return t.nav.integrity;
+      default: return fallback;
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -233,7 +256,7 @@ export function Sidebar({
                 className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors font-medium"
               >
                 <GeometricIcon name="settings" size="xs" active />
-                <span>Pengaturan &amp; Profil</span>
+                <span>{t.nav.settings}</span>
               </Link>
 
               <Link
@@ -245,7 +268,7 @@ export function Sidebar({
                 className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors font-medium"
               >
                 <GeometricIcon name="integrity" size="xs" active />
-                <span>Integritas Database</span>
+                <span>{t.nav.integrity}</span>
               </Link>
             </div>
 
@@ -255,7 +278,7 @@ export function Sidebar({
                 className="flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors font-semibold"
               >
                 <LogOut className="h-3.5 w-3.5" />
-                <span>Keluar Akun</span>
+                <span>{t.nav.logout}</span>
               </button>
             </div>
           </div>
@@ -269,7 +292,7 @@ export function Sidebar({
         {/* Menu Utama */}
         <nav data-tour="sidebar-nav" className="flex flex-col gap-0.5">
           <p className="px-2 text-[10px] font-bold tracking-wider text-muted-foreground/80 uppercase mb-0.5">
-            Menu Utama
+            {t.nav.mainMenu}
           </p>
           {navigationItems.map((item) => {
             const isActive =
@@ -280,6 +303,7 @@ export function Sidebar({
               <NavItemLink
                 key={item.href}
                 item={item}
+                displayLabel={getNavLabel(item.href, item.label)}
                 isActive={isActive}
                 onItemClick={onItemClick}
               />
@@ -290,7 +314,7 @@ export function Sidebar({
         {/* Preferensi */}
         <div className="pt-2 border-t border-border/60">
           <p className="px-2 text-[10px] font-bold tracking-wider text-muted-foreground/80 uppercase mb-0.5">
-            Preferensi
+            {t.nav.preferences}
           </p>
           <div className="flex flex-col gap-0.5">
             {secondaryItems.map((item) => {
@@ -300,6 +324,7 @@ export function Sidebar({
                 <NavItemLink
                   key={item.href}
                   item={item}
+                  displayLabel={getNavLabel(item.href, item.label)}
                   isActive={isActive}
                   onItemClick={onItemClick}
                   className="py-1.5"
@@ -326,7 +351,7 @@ export function Sidebar({
             ) : (
               <Moon className="h-4 w-4 text-slate-700 shrink-0" />
             )}
-            <span>{theme === "dark" ? "Mode Terang" : "Mode Gelap"}</span>
+            <span>{theme === "dark" ? t.nav.lightMode : t.nav.darkMode}</span>
           </Button>
         </div>
       )}

@@ -354,7 +354,7 @@ export default function AccountsPage() {
                 </div>
 
                 {/* Quick actions */}
-                <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() =>
                       setAdjustingAccount({
@@ -365,7 +365,8 @@ export default function AccountsPage() {
                         currency: acc.currency,
                       })
                     }
-                    className="p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-sm transition-colors"
+                    aria-label="Sesuaikan Saldo Cepat"
+                    className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 active:scale-95 transition-all"
                     title="Sesuaikan Saldo Cepat"
                   >
                     <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -384,7 +385,8 @@ export default function AccountsPage() {
                         isHidden: acc.isHidden,
                       })
                     }
-                    className="p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-sm transition-colors"
+                    aria-label="Ubah Rincian Akun"
+                    className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 active:scale-95 transition-all"
                     title="Ubah Rincian Akun"
                   >
                     <Edit2 className="h-3.5 w-3.5" />
@@ -394,7 +396,8 @@ export default function AccountsPage() {
                     onClick={() =>
                       toggleHiddenMutation.mutate({ id: acc.id, isHidden: !acc.isHidden })
                     }
-                    className="p-1 text-muted-foreground hover:text-foreground rounded-sm transition-colors"
+                    aria-label={acc.isHidden ? "Tampilkan Akun" : "Sembunyikan Akun"}
+                    className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all"
                     title={acc.isHidden ? "Tampilkan Akun" : "Sembunyikan Akun"}
                   >
                     {acc.isHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
@@ -413,7 +416,8 @@ export default function AccountsPage() {
                         deleteMutation.mutate({ id: acc.id });
                       }
                     }}
-                    className="p-1 text-muted-foreground hover:text-rose-600 rounded-sm transition-colors"
+                    aria-label="Hapus Akun"
+                    className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 active:scale-95 transition-all"
                     title="Hapus Akun"
                   >
                     <Trash2 className="h-3.5 w-3.5" />

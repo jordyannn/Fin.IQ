@@ -7,19 +7,21 @@ import { usePathname } from "next/navigation";
 import { Plus, Menu } from "lucide-react";
 import { GeometricIcon } from "@/components/ui/GeometricIcon";
 import { useUIStore } from "@/store/ui.store";
+import { useTranslation } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 export function MobileBottomNav() {
   const pathname = usePathname();
   const { openQuickAdd, toggleSidebar } = useUIStore();
+  const { t } = useTranslation();
 
   const leftItems = [
-    { label: "Ringkasan", href: "/overview", iconName: "overview" as const },
-    { label: "Transaksi", href: "/transactions", iconName: "transactions" as const },
+    { label: t.nav.overview, href: "/overview", iconName: "overview" as const },
+    { label: t.nav.transactions, href: "/transactions", iconName: "transactions" as const },
   ];
 
   const rightItems = [
-    { label: "Akun", href: "/accounts", iconName: "accounts" as const },
+    { label: t.nav.accounts, href: "/accounts", iconName: "accounts" as const },
   ];
 
   const isMenuRoutes = ![
@@ -65,7 +67,7 @@ export function MobileBottomNav() {
         <button
           onClick={openQuickAdd}
           className="flex h-11 w-11 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-glow-emerald transition-transform active:scale-90 border-2 border-background"
-          aria-label="Catat Transaksi Cepat"
+          aria-label={t.topbar.quickAdd}
         >
           <Plus className="h-5 w-5 stroke-[3px]" />
         </button>
@@ -104,8 +106,9 @@ export function MobileBottomNav() {
       {/* Tombol Menu / Laci Seluler */}
       <button
         onClick={toggleSidebar}
+        data-tour="bottom-menu-toggle"
         className={cn(
-          "flex flex-col items-center justify-center gap-1 py-1 text-[11px] font-medium transition-colors w-14 active:scale-95",
+          "flex flex-col items-center justify-center gap-1 py-1 text-[11px] font-medium transition-colors w-14 active:scale-95 cursor-pointer",
           isMenuRoutes
             ? "text-primary font-bold"
             : "text-muted-foreground hover:text-foreground"

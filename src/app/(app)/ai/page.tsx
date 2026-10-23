@@ -21,8 +21,12 @@ import {
   MessageSquare,
   Trash2,
   ArrowUpRight,
+  X,
+  History,
+  Sparkles,
 } from "lucide-react";
 import { AIMessageRenderer } from "@/components/ai/AIMessageRenderer";
+import { useTranslation } from "@/i18n";
 
 const SUGGESTIONS = [
   {
@@ -109,6 +113,7 @@ function AIAdvisorPageContent() {
   const utils = trpc.useUtils();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
+  const { t, locale } = useTranslation();
 
   // 1. Ambil Konfigurasi Model Free-Tier & Status Kuota
   const { data: aiConfig, refetch: refetchAiConfig } = trpc.ai.getAiConfig.useQuery(undefined, {
@@ -169,7 +174,12 @@ function AIAdvisorPageContent() {
   // ============================================================================
   // 2. SESSION & HISTORY STATE
   // ============================================================================
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth >= 1024) {
+      setIsSidebarOpen(true);
+    }
+  }, []);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   // Daftar Sesi Percakapan Pengguna
@@ -324,6 +334,7 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
       question: q,
       model: selectedModelId,
       sessionId: activeSessionId || undefined,
+      lang: locale,
     });
   };
 
@@ -372,90 +383,119 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
   };
 
   return (
-    <div className="flex h-[calc(100vh-5.5rem)] max-w-6xl mx-auto gap-4">
+    <div className="flex h-[calc(100dvh-12rem)] sm:h-[calc(100dvh-13rem)] lg:h-[calc(100vh-5.5rem)] max-w-6xl mx-auto gap-4">
       {/* ==================================================================== */}
       {/* 1. SIDEBAR RIWAYAT SESI AI (Interactive Sessions Drawer) */}
       {/* ==================================================================== */}
       {isSidebarOpen && (
-        <aside className="w-64 sm:w-72 flex-col border border-border/80 bg-card rounded-lg flex shrink-0 overflow-hidden shadow-xs">
-          {/* Header Sidebar Sesi */}
-          <div className="p-3 border-b border-border/70 flex items-center justify-between gap-2 shrink-0 bg-muted/20">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <MessageSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <span className="text-xs font-semibold text-foreground truncate">
-                Riwayat Sesi
-              </span>
-              <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-muted text-muted-foreground">
-                {sessions.length}
-              </span>
+        <>
+          {/* Mobile backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 lg:hidden animate-in fade-in duration-200"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+          <aside className="fixed inset-y-0 left-0 z-50 w-72 bg-card border-r border-border p-0 shadow-2xl flex flex-col lg:static lg:z-auto lg:w-64 lg:rounded-lg lg:border lg:shadow-xs shrink-0 overflow-hidden animate-in slide-in-from-left duration-200 lg:animate-none">
+            {/* Header Sidebar Sesi */}
+            <div className="p-3 border-b border-border/70 flex items-center justify-between gap-2 shrink-0 bg-muted/20">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <History className="h-4 w-4 text-primary shrink-0" />
+                <span className="text-xs font-bold text-foreground truncate">
+                  Riwayat Percakapan
+                </span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold">
+                  {sessions.length}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleNewSession();
+                    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                      setIsSidebarOpen(false);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-md bg-primary text-white hover:bg-[#047857] active:scale-95 transition-all cursor-pointer shadow-xs"
+                  title="Buat Sesi Chat Baru"
+                >
+                  <Plus className="h-3 w-3 stroke-[2.5]" />
+                  <span>Baru</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted lg:hidden cursor-pointer"
+                  title="Tutup riwayat"
+                  aria-label="Tutup riwayat"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleNewSession}
-              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition-all cursor-pointer"
-              title="Buat Sesi Chat Baru"
-            >
-              <Plus className="h-3 w-3" />
-              <span>Baru</span>
-            </button>
-          </div>
-
-          {/* List Sesi Percakapan */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {isSessionsLoading ? (
-              <div className="p-4 text-center">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mx-auto mb-1" />
-                <span className="text-[11px] text-muted-foreground">Memuat riwayat...</span>
-              </div>
-            ) : sessions.length === 0 ? (
-              <div className="p-4 text-center">
-                <p className="text-xs text-muted-foreground">Belum ada riwayat sesi.</p>
-                <p className="text-[10px] text-muted-foreground/70 mt-1">
-                  Ketik pertanyaan untuk memulai percakapan pertama Anda.
-                </p>
-              </div>
-            ) : (
-              sessions.map((s) => {
-                const isActive = activeSessionId === s.id;
-                return (
-                  <div
-                    key={s.id}
-                    className={`group relative flex items-center justify-between rounded-md p-2 text-xs transition-colors cursor-pointer ${
-                      isActive
-                        ? "bg-zinc-200/80 dark:bg-zinc-800 text-foreground font-medium border border-border/60"
-                        : "hover:bg-muted/60 text-muted-foreground hover:text-foreground"
-                    }`}
-                    onClick={() => setActiveSessionId(s.id)}
-                  >
-                    <div className="flex-1 min-w-0 pr-2">
-                      <p className="truncate text-[11px] font-medium leading-tight">
-                        {s.title}
-                      </p>
-                      <div className="flex items-center gap-1.5 mt-1 text-[9px] font-mono text-muted-foreground/70">
-                        <span>{formatSessionTime(s.updatedAt)}</span>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (confirm("Hapus riwayat sesi ini?")) {
-                          deleteSessionMutation.mutate({ sessionId: s.id });
+            {/* List Sesi Percakapan */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+              {isSessionsLoading ? (
+                <div className="p-4 text-center">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mx-auto mb-1" />
+                  <span className="text-[11px] text-muted-foreground">Memuat riwayat...</span>
+                </div>
+              ) : sessions.length === 0 ? (
+                <div className="p-4 text-center">
+                  <p className="text-xs text-muted-foreground">Belum ada riwayat sesi.</p>
+                  <p className="text-[10px] text-muted-foreground/70 mt-1">
+                    Ketik pertanyaan untuk memulai percakapan pertama Anda.
+                  </p>
+                </div>
+              ) : (
+                sessions.map((s) => {
+                  const isActive = activeSessionId === s.id;
+                  return (
+                    <div
+                      key={s.id}
+                      className={`group relative flex items-center justify-between rounded-md p-2 text-xs transition-colors cursor-pointer ${
+                        isActive
+                          ? "bg-primary/10 text-primary font-bold border border-primary/30"
+                          : "hover:bg-muted/60 text-muted-foreground hover:text-foreground"
+                      }`}
+                      onClick={() => {
+                        setActiveSessionId(s.id);
+                        if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                          setIsSidebarOpen(false);
                         }
                       }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-rose-500/10 hover:text-rose-600 text-muted-foreground cursor-pointer"
-                      title="Hapus sesi"
                     >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </aside>
+                      <div className="flex-1 min-w-0 pr-2">
+                        <p className="truncate text-[11px] font-medium leading-tight">
+                          {s.title}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-1 text-[9px] font-mono text-muted-foreground/70">
+                          <span>{formatSessionTime(s.updatedAt)}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm("Hapus riwayat sesi ini?")) {
+                            deleteSessionMutation.mutate({ sessionId: s.id });
+                          }
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-rose-500/10 hover:text-rose-600 text-muted-foreground cursor-pointer"
+                        title="Hapus sesi"
+                        aria-label="Hapus sesi"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </aside>
+        </>
       )}
 
       {/* ==================================================================== */}
@@ -463,42 +503,64 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
       {/* ==================================================================== */}
       <main className="flex-1 flex flex-col min-w-0 h-full">
         {/* EXECUTIVE HEADER & MODEL SWITCHER */}
-        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-border/70 shrink-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Toggle Sidebar Button */}
+        <header className="flex flex-col gap-2.5 pb-3 border-b border-border/70 shrink-0">
+          {/* Top Line: Dedicated History Button + Title + New Session Button */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              {/* Dedicated History Drawer Button */}
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen((v) => !v)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border/80 bg-card hover:bg-muted text-xs font-semibold text-foreground shadow-2xs active:scale-95 transition-all cursor-pointer"
+                title="Buka Riwayat Sesi Percakapan"
+                aria-label="Buka Riwayat Sesi Percakapan"
+              >
+                <History className="h-4 w-4 text-primary shrink-0" />
+                <span className="font-bold">Riwayat</span>
+                <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-mono font-bold leading-none">
+                  {sessions.length}
+                </span>
+              </button>
+
+              <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-foreground truncate">
+                AI Advisor
+              </h1>
+            </div>
+
+            {/* Quick New Session Action */}
             <button
               type="button"
-              onClick={() => setIsSidebarOpen((v) => !v)}
-              className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted/70 transition-colors cursor-pointer"
-              title={isSidebarOpen ? "Sembunyikan Riwayat" : "Tampilkan Riwayat Sesi"}
+              onClick={handleNewSession}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary hover:bg-[#047857] text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer shrink-0"
+              title="Mulai Sesi Chat Baru"
             >
-              {isSidebarOpen ? (
-                <PanelLeftClose className="h-4 w-4" />
-              ) : (
-                <PanelLeft className="h-4 w-4" />
-              )}
+              <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
+              <span>Chat Baru</span>
             </button>
+          </div>
 
-            <h1 className="text-sm sm:text-base font-bold tracking-tight text-foreground">
-              AI Advisor
-            </h1>
-
+          {/* Sub Bar: Model Selector Dropdown & Quota Badge */}
+          <div className="flex items-center justify-between gap-2 text-xs">
             {/* Model Switcher Dropdown (Hanya Free Tier) */}
-            <div className="relative" ref={dropdownRef}>
+            <div className="relative flex-1 min-w-0 max-w-[210px] sm:max-w-xs" ref={dropdownRef}>
               <button
                 type="button"
                 onClick={() => setIsModelDropdownOpen((v) => !v)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono rounded-md border border-border/80 bg-muted/40 hover:bg-muted text-foreground transition-colors cursor-pointer select-none"
+                className="w-full inline-flex items-center justify-between gap-1.5 px-2.5 py-1 text-[11px] font-mono rounded-md border border-border/80 bg-muted/40 hover:bg-muted text-foreground transition-colors cursor-pointer select-none"
                 title="Ganti Model AI (Khusus Free Tier)"
               >
-                <Cpu className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span className="font-sans font-medium truncate max-w-[130px] sm:max-w-[170px]">
-                  {activeModel.name}
-                </span>
-                <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-semibold">
-                  Free
-                </span>
-                <ChevronDown className="h-3 w-3 text-muted-foreground ml-0.5 opacity-70" />
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Cpu className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="font-sans font-medium truncate">
+                    {activeModel.name}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-semibold">
+                    Free
+                  </span>
+                  <ChevronDown className="h-3 w-3 text-muted-foreground opacity-70" />
+                </div>
               </button>
 
               {/* Dropdown Menu */}
@@ -555,35 +617,21 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Right Toolbar: Quota Counter, Status, & Reset */}
-          <div className="flex items-center gap-2 justify-between sm:justify-end">
             {/* Quota Badge */}
             <div
-              className={`inline-flex items-center gap-1.5 px-2 py-0.8 rounded text-[10px] font-mono border ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-mono border shrink-0 ${
                 quota.remaining <= 3
                   ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
                   : "border-border/70 bg-muted/40 text-muted-foreground"
               }`}
               title="Batas pemakaian prompt demo gratis per 24 jam"
             >
-              <Zap className="h-2.5 w-2.5 shrink-0" />
+              <Zap className="h-3 w-3 shrink-0" />
               <span>
-                Kuota Demo: <strong className="font-bold">{quota.remaining}</strong>/{quota.limit}
+                Kuota: <strong className="font-bold text-foreground">{quota.remaining}</strong>/{quota.limit}
               </span>
             </div>
-
-            {/* Reset Action */}
-            <button
-              type="button"
-              onClick={handleNewSession}
-              className="text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-sm hover:bg-muted/70 flex items-center gap-1 cursor-pointer"
-              title="Mulai sesi baru"
-            >
-              <RotateCcw className="h-3 w-3" />
-              <span className="hidden sm:inline">Mulai Baru</span>
-            </button>
           </div>
         </header>
 
@@ -681,8 +729,8 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
 
           {/* Suggestion Prompts (Only visible when conversation is short) */}
           {chatMessages.length <= 2 && !askAssistantMutation.isPending && quota.remaining > 0 && (
-            <div className="pt-2">
-              <div className="flex items-center justify-between mb-2">
+            <div className="pt-1.5 sm:pt-2">
+              <div className="flex items-center justify-between mb-2 px-0.5">
                 <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
                   Ide Analisis & Solusi Finansial
                 </p>
@@ -690,23 +738,40 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
                   Klik untuk evaluasi instan
                 </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+
+              {/* Desktop / Tablet Grid */}
+              <div className="hidden sm:grid sm:grid-cols-2 gap-2">
                 {SUGGESTIONS.map((s, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => handleSendChat(s.prompt)}
-                    className="p-3 rounded-lg border border-border/70 bg-card hover:bg-muted/60 hover:border-border transition-all text-left group active:scale-[0.99] cursor-pointer"
+                    className="p-3 rounded-lg border border-border/70 bg-card hover:bg-muted/60 hover:border-border transition-all text-left group active:scale-[0.99] cursor-pointer shadow-2xs"
                   >
                     <div className="flex items-center justify-between gap-1">
-                      <span className="text-xs font-semibold text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                      <span className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
                         {s.title}
                       </span>
-                      <ArrowUpRight className="h-3 w-3 text-muted-foreground/60 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors shrink-0" />
+                      <ArrowUpRight className="h-3 w-3 text-muted-foreground/60 group-hover:text-primary transition-colors shrink-0" />
                     </div>
                     <p className="text-[11px] text-muted-foreground line-clamp-1 mt-1 font-sans">
                       {s.desc}
                     </p>
+                  </button>
+                ))}
+              </div>
+
+              {/* Mobile Compact Horizontal Scroll Chips */}
+              <div className="flex sm:hidden items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                {SUGGESTIONS.map((s, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSendChat(s.prompt)}
+                    className="shrink-0 px-3 py-1.5 rounded-full border border-border/80 bg-card hover:bg-muted text-foreground text-xs font-semibold flex items-center gap-1.5 active:scale-95 transition-all shadow-2xs"
+                  >
+                    <Sparkles className="h-3 w-3 text-primary shrink-0" />
+                    <span className="whitespace-nowrap">{s.title}</span>
                   </button>
                 ))}
               </div>
@@ -717,7 +782,7 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
         </div>
 
         {/* INPUT BAR */}
-        <footer className="pt-3 border-t border-border/70 shrink-0">
+        <footer className="pt-2 sm:pt-3 border-t border-border/70 shrink-0">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -733,10 +798,10 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder={
                   quota.remaining <= 0
-                    ? "Batas kuota harian tercapai. Silakan coba kembali besok."
-                    : `Tanyakan analisis keuangan kepada ${activeModel.name}...`
+                    ? "Batas kuota harian tercapai. Coba lagi besok."
+                    : `Tanyakan analisis keuangan...`
                 }
-                className="w-full h-10 px-3.5 text-xs rounded-md bg-background border border-border/80 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-600 text-foreground transition-all placeholder:text-muted-foreground/60 pr-14 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-11 sm:h-10 px-3.5 text-xs rounded-xl sm:rounded-md bg-background border border-border/80 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground transition-all placeholder:text-muted-foreground/60 pr-12 sm:pr-14 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
                 disabled={askAssistantMutation.isPending || quota.remaining <= 0}
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-muted-foreground/60 hidden sm:inline select-none pointer-events-none">
@@ -747,12 +812,13 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
             <button
               type="submit"
               disabled={askAssistantMutation.isPending || !chatInput.trim() || quota.remaining <= 0}
-              className="h-10 px-4 rounded-md text-xs font-semibold bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition-all active:scale-[0.97] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0 flex items-center gap-1.5"
+              aria-label="Kirim Pesan"
+              className="h-11 px-3.5 sm:h-10 sm:px-4 rounded-xl sm:rounded-md text-xs font-bold bg-primary hover:bg-[#047857] text-white shadow-xs transition-all active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0 flex items-center justify-center gap-1.5"
             >
               {askAssistantMutation.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Send className="h-3.5 w-3.5" />
+                <Send className="h-4 w-4" />
               )}
               <span className="hidden sm:inline">Kirim</span>
             </button>

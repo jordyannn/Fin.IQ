@@ -746,6 +746,7 @@ const ACCOUNT_FAMILY_KEYWORDS: Record<string, string[]> = {
     "rekening gaji",
     "rekening bca",
     "rekening blu",
+    "rekening blue",
   ],
   cash: [
     "cash",
@@ -758,18 +759,60 @@ const ACCOUNT_FAMILY_KEYWORDS: Record<string, string[]> = {
     "bayar cash",
     "secara cash",
     "dompet",
+    "fisik",
   ],
-  blu: ["blu", "blue", "bca digital", "blubca", "akun blue", "akun blu"],
-  bca: ["bca", "bank bca", "klikbca", "tahapan bca"],
-  mandiri: ["mandiri", "livin", "bank mandiri"],
-  bri: ["bri", "brimo", "bank bri"],
-  bni: ["bni", "bni mobile", "bank bni"],
-  jago: ["jago", "bank jago"],
-  dana: ["dana", "dompet dana"],
-  gopay: ["gopay", "gojek", "go pay"],
-  ovo: ["ovo"],
-  shopeepay: ["shopeepay", "shopee", "spay", "shopee pay"],
-  seabank: ["seabank", "sea bank"],
+  blu: [
+    "blu",
+    "blue",
+    "bca digital",
+    "blubca",
+    "blu bca",
+    "blue bca",
+    "akun blue",
+    "akun blu",
+    "bank blue",
+    "bank blu",
+    "rekening blue",
+    "rekening blu",
+    "kartu blu",
+    "kartu blue",
+    "blu by bca digital",
+    "blu by bca",
+  ],
+  bca: [
+    "bca",
+    "bank bca",
+    "klikbca",
+    "tahapan bca",
+    "m-bca",
+    "mbca",
+    "rekening bca",
+    "atm bca",
+  ],
+  mandiri: [
+    "mandiri",
+    "livin",
+    "livin by mandiri",
+    "livin' by mandiri",
+    "bank mandiri",
+    "mandiri livin",
+    "atm mandiri",
+  ],
+  bri: ["bri", "brimo", "bank bri", "bri mo", "atm bri"],
+  bni: ["bni", "bni mobile", "bank bni", "wondr", "wondr by bni", "atm bni"],
+  jago: ["jago", "bank jago", "kantong jago"],
+  seabank: ["seabank", "sea bank", "sea"],
+  dana: ["dana", "dompet dana", "e-wallet dana", "saldo dana", "akun dana"],
+  gopay: ["gopay", "gojek", "go pay", "gopay tabungan", "saldo gopay", "akun gopay"],
+  ovo: ["ovo", "ovo cash", "saldo ovo", "akun ovo"],
+  shopeepay: ["shopeepay", "shopee", "spay", "shopee pay", "saldo shopeepay", "akun shopeepay"],
+  linkaja: ["linkaja", "link aja", "tcash"],
+  cimb: ["cimb", "cimb niaga", "octo", "octo mobile", "octoclicks"],
+  permata: ["permata", "permata bank", "permata me"],
+  bsi: ["bsi", "bank syariah indonesia", "bsi mobile"],
+  danamon: ["danamon", "bank danamon", "d-bank"],
+  btn: ["btn", "bank tabungan negara", "btn mobile"],
+  jenius: ["jenius", "btpn", "bank btpn", "jenius btpn"],
 };
 
 /**
@@ -785,10 +828,18 @@ function matchAccountScore(text: string, acc: AccountItem): number {
   const escapedName = accName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const nameRegex = new RegExp(`\\b${escapedName}\\b`, "i");
   if (nameRegex.test(lower)) {
-    score += 150 + accName.length * 5;
+    score += 180 + accName.length * 5;
     if (lower === accName) score += 200;
   } else if (lower.includes(accName)) {
-    score += 80 + accName.length * 3;
+    score += 90 + accName.length * 3;
+  }
+
+  // 1b. Khusus Blu / Blue alias phonetics
+  const hasBluePhonetic = /\b(?:blue|blu|blubca|blue\s+bca|blu\s+bca|bca\s+digital)\b/i.test(lower);
+  if (hasBluePhonetic) {
+    if (accName === "blu" || accName === "blue" || accName.includes("blu") || accName.includes("blue") || accName.includes("bca digital")) {
+      score += 260;
+    }
   }
 
   // 2. Deteksi kata 'rekening', 'rek', 'tabungan', 'atm', 'bank'
@@ -799,7 +850,7 @@ function matchAccountScore(text: string, acc: AccountItem): number {
     } else if (
       accGroup.includes("bank") ||
       accGroup.includes("card") ||
-      ["blu", "bca", "mandiri", "bri", "bni", "jago", "seabank", "cimb", "permata", "btn", "danamon", "bsi", "jenius"].includes(accName)
+      ["blu", "blue", "bca", "mandiri", "bri", "bni", "jago", "seabank", "cimb", "permata", "btn", "danamon", "bsi", "jenius"].includes(accName)
     ) {
       score += 190;
     }
@@ -851,8 +902,10 @@ function matchAccountScore(text: string, acc: AccountItem): number {
         const escapedKw = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const kwRegex = new RegExp(`\\b${escapedKw}\\b`, "i");
         if (kwRegex.test(lower)) {
-          score += 100 + kw.length * 3;
-          if (accName === kw) score += 100;
+          score += 120 + kw.length * 3;
+          if (accName === kw || (familyKey === "blu" && (accName === "blu" || accName === "blue"))) {
+            score += 120;
+          }
         }
       }
     }
@@ -948,11 +1001,18 @@ export function detectAccount(
 
   // I. Pola single "pake [A]" / "ke [A]" umum
   if (!fromHint && !toHint) {
-    const singleAccountMatch = lower.match(/(?:pake|pakai|lewat|melalui|dengan|dari|akun)\s+([a-z0-9\s]+)/i);
-    if (singleAccountMatch) {
-      fromHint = cleanAccountHint(singleAccountMatch[1]);
+    const explicitAccountMatch = lower.match(
+      /(?:bayar\s+pake|bayar\s+pakai|bayar\s+lewat|bayar\s+via|pake\s+akun|pakai\s+akun|dengan\s+akun|dari\s+akun|ke\s+akun|lewat|melalui|via|pake|pakai|akun)\s+([a-z0-9\s]+?)(?:\s*(?:pada|saat\s+ini|sekarang|tadi|kemarin|jam|$))/i
+    );
+    if (explicitAccountMatch) {
+      fromHint = cleanAccountHint(explicitAccountMatch[1]);
     } else {
-      fromHint = lower;
+      const singleAccountMatch = lower.match(/(?:pake|pakai|lewat|melalui|dengan|dari|akun)\s+([a-z0-9\s]+)/i);
+      if (singleAccountMatch) {
+        fromHint = cleanAccountHint(singleAccountMatch[1]);
+      } else {
+        fromHint = lower;
+      }
     }
   }
 
@@ -968,7 +1028,9 @@ export function detectAccount(
   let maxScore = -1;
 
   for (const acc of userAccounts) {
-    const sc = matchAccountScore(fromHint || lower, acc);
+    const scFromHint = fromHint ? matchAccountScore(fromHint, acc) : 0;
+    const scFull = matchAccountScore(lower, acc);
+    const sc = Math.max(scFromHint > 0 ? scFromHint + 50 : 0, scFull);
     if (sc > maxScore) {
       maxScore = sc;
       bestAcc = acc;
@@ -1578,15 +1640,44 @@ export function extractDateTimeFromText(
 export function cleanSpeechToNote(text: string): string {
   if (!text) return "";
 
+  const trimmed = text.trim();
+
+  // Pola transfer khusus:
+  // "transfer ke dana 50rb dari akun blue" -> "Transfer ke Dana"
+  // "tarik tunai 100rb dari bca" -> "Tarik tunai"
+  // "setor tunai 500rb ke mandiri" -> "Setor tunai"
+  // "top up gopay 50rb dari blu" -> "Top up GoPay"
+  const topUpMatch = trimmed.match(/(?:top\s*up|isi\s+saldo)\s+([a-zA-Z0-9\s]+?)(?:\s+(?:dari|pake|pakai|lewat|sebesar|sejumlah|\d)|$)/i);
+  if (topUpMatch) {
+    const dest = topUpMatch[1].trim();
+    return `Top up ${dest.charAt(0).toUpperCase() + dest.slice(1)}`;
+  }
+
+  const tarikMatch = trimmed.match(/(?:tarik\s+tunai|tarik\s+di\s+atm|ambil\s+tunai)/i);
+  if (tarikMatch) {
+    return "Tarik tunai";
+  }
+
+  const setorMatch = trimmed.match(/(?:setor\s+tunai|nabung)/i);
+  if (setorMatch) {
+    return "Setor tunai";
+  }
+
+  const transferKeMatch = trimmed.match(/(?:transfer|pindahin|kirim\s+uang)\s+(?:saldo\s+)?(?:ke|to)\s+([a-zA-Z0-9\s]+?)(?:\s+(?:sebesar|sejumlah|nominal|dari|pake|pakai|lewat|\d)|$)/i);
+  if (transferKeMatch) {
+    const target = transferKeMatch[1].trim();
+    return `Transfer ke ${target.charAt(0).toUpperCase() + target.slice(1)}`;
+  }
+
   let cleaned = text;
 
-  // 1. Hapus frasa pembuka
+  // 1. Hapus penanda waktu awal & frasa pembuka/perintah
   cleaned = cleaned.replace(
-    /^(?:saya\s+baru|baru\s+saja|barusan|tadi\s+saya|tadi|tolong\s+catatkan|tolong\s+catat|catatkan|catat\s+transaksi|catat)\s+/i,
+    /^(?:saya\s+baru|baru\s+saja|barusan|tadi\s+saya|tadi\s+pagi|tadi\s+siang|tadi\s+sore|tadi\s+malam|pagi\s+tadi|siang\s+tadi|sore\s+tadi|malam\s+tadi|kemarin\s+pagi|kemarin\s+siang|kemarin\s+sore|kemarin\s+malam|kemarin\s+lusa|kemarin|semalam|tadi|tolong\s+catatkan|tolong\s+catat|tolong\s+masukin|catatkan|catat\s+transaksi|catat\s+pengeluaran|catat\s+pemasukan|catat\s+dong|catat|pengeluaran|pemasukan|masukin|input\s+dong|input|tolong\s+tulis|tuliskan|tulis)\s+/i,
     ""
   );
 
-  // 2. Hapus pola tanggal numerik DULU sebelum regex angka nominal (misal: 25/08/2026)
+  // 2. Hapus tanggal numerik (25/08/2026, 25-08-2026)
   cleaned = cleaned.replace(/\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/g, "");
 
   // 3. Hapus pola tanggal kata: "tanggal 25 agustus 2026", "tgl 15 maret", "tanggal 15"
@@ -1599,19 +1690,7 @@ export function cleanSpeechToNote(text: string): string {
     ""
   );
 
-  // 4. Hapus pola deklarasi nominal: "dengan nominal Rp 30.000", "sebesar 30rb", "seharga 50.000"
-  cleaned = cleaned.replace(
-    /(?:dengan\s+nominal|nominal\s+sebesar|sebesar|seharga|nominalnya|harga)?\s*(?:rp|idr)?\.?\s*(\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+[\.,]?\d*\s*(?:rb|ribu|k|jt|juta)|(?:\d{4,9}))/gi,
-    ""
-  );
-
-  // Hapus pola nominal kata (e.g. "tiga puluh ribu")
-  cleaned = cleaned.replace(
-    /(?:dengan\s+nominal|sebesar|seharga)?\s*(?:satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh|sebelas|dua\s+belas|seratus|seribu|sejuta)\s*(?:belas|puluh|ratus|ribu|juta)*/gi,
-    ""
-  );
-
-  // 5. Hapus pola waktu jam: "jam 2 siang", "jam 14.30", "pukul 8 pagi", "jam setengah 2 siang", "jam 2 lewat 15"
+  // 4. Hapus pola waktu jam: "jam 2 siang", "jam 14.30", "pukul 8 pagi", "jam setengah 2 siang", "jam 2 lewat 15"
   cleaned = cleaned.replace(
     /(?:pada\s+)?(?:pukul|jam)\s+setengah\s+\d{1,2}(?:\s*(?:pagi|siang|sore|malam))?/gi,
     ""
@@ -1621,13 +1700,17 @@ export function cleanSpeechToNote(text: string): string {
     ""
   );
 
-  // 6. Hapus pola durasi lalu: "2 jam lalu", "30 menit yang lalu", "sejam lalu"
+  // 5. Hapus pola durasi lalu
   cleaned = cleaned.replace(/(?:(\d+)|se)\s*jam\s*(?:yang\s*)?lalu/gi, "");
   cleaned = cleaned.replace(/\d+\s*menit\s*(?:yang\s*)?lalu/gi, "");
 
-  // 7. Hapus penanda hari & bagian hari:
+  // 6. Hapus penanda hari & bagian hari
   cleaned = cleaned.replace(
     /(?:pada\s+)?(?:waktu\s+saat\s+ini|waktu\s+sekarang|jam\s+sekarang|saat\s+ini|sekarang\s+ini|hari\s+ini|sekarang)/gi,
+    ""
+  );
+  cleaned = cleaned.replace(
+    /(?:pada\s+)?(?:kemarin\s+(?:pagi|siang|sore|malam)|tadi\s+(?:pagi|siang|sore|malam)|(?:pagi|siang|sore|malam)\s+tadi|(?:pagi|siang|sore|malam)\s+ini|kemarin\s+lusa|dua\s+hari\s+lalu|2\s+hari\s+lalu|2\s+hari\s+yang\s+lalu|kemarin|semalam|lusa|besok)/gi,
     ""
   );
   cleaned = cleaned.replace(
@@ -1635,28 +1718,11 @@ export function cleanSpeechToNote(text: string): string {
     ""
   );
   cleaned = cleaned.replace(
-    /(?:pada\s+)?(?:kemarin\s+lusa|dua\s+hari\s+lalu|2\s+hari\s+lalu|2\s+hari\s+yang\s+lalu)/gi,
-    ""
-  );
-  cleaned = cleaned.replace(
-    /(?:kemarin\s+(?:pagi|siang|sore|malam)|tadi\s+(?:pagi|siang|sore|malam)|(?:pagi|siang|sore|malam)\s+tadi|(?:pagi|siang|sore|malam)\s+ini)/gi,
-    ""
-  );
-  cleaned = cleaned.replace(/(?:kemarin|semalam|lusa|besok)/gi, "");
-  cleaned = cleaned.replace(
     /(?:pada\s+)?(?:hari\s+)?(?:senin|selasa|rabu|kamis|jumat|sabtu|minggu)(?:\s+(?:lalu|kemarin))?/gi,
     ""
   );
   cleaned = cleaned.replace(
-    /(?:pada\s+)?(?:\d+|se|satu|dua|tiga|empat|lima)\s*(?:minggu|pekan)\s*(?:yang\s*)?lalu/gi,
-    ""
-  );
-  cleaned = cleaned.replace(
-    /(?:pada\s+)?(?:\d+|se|satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh|sebelas)\s*bulan\s*(?:yang\s*)?lalu/gi,
-    ""
-  );
-  cleaned = cleaned.replace(
-    /(?:pada\s+)?(?:\d+|se|satu|dua|tiga|empat|lima)\s*tahun\s*(?:yang\s*)?lalu/gi,
+    /(?:pada\s+)?(?:\d+|se|satu|dua|tiga|empat|lima)\s*(?:minggu|pekan|bulan|tahun)\s*(?:yang\s*)?lalu/gi,
     ""
   );
   cleaned = cleaned.replace(
@@ -1664,16 +1730,40 @@ export function cleanSpeechToNote(text: string): string {
     ""
   );
 
-  // 8. Hapus deklarasi akun: "dengan akun blue", "pakai akun blu", "ke akun blu", "pake cash"
+  // 7. Hapus deklarasi akun & metode pembayaran (termasuk "lewat blu bca", "pake kartu blu", "dari akun blue")
   cleaned = cleaned.replace(
-    /(?:ke|dari|dengan|pake|pakai|menggunakan|lewat|melalui)\s+(?:akun\s+)?(?:blue|blu|cash|tunai|kas|dana|gopay|ovo|shopee|shopeepay|spay|bca|mandiri|bri|bni|jago|seabank|rekening\s+\w+)/gi,
+    /\b(?:ke|dari|dengan|pake|pakai|menggunakan|lewat|melalui|via|bayar\s+pake|bayar\s+pakai|bayar\s+lewat|bayar\s+via)\s+(?:akun\s+|rekening\s+|kartu\s+|bank\s+)?(?:blu\s+bca|blue\s+bca|bca\s+digital|bank\s+\w+|blue|blu|cash|tunai|kas\s+tunai|kas|dana|gopay|ovo|shopee|shopeepay|spay|bca|mandiri|bri|bni|jago|seabank|cimb(?:\s+niaga)?|permata|danamon|bsi|btn|jenius|linkaja|rekening(?:\s+\w+)?)\b/gi,
     ""
   );
-  cleaned = cleaned.replace(/(?:akun\s+)?(?:blue|blu|cash|tunai|dana|gopay|ovo|shopeepay|spay)\b/gi, "");
+  cleaned = cleaned.replace(
+    /\b(?:akun\s+|rekening\s+|kartu\s+|bank\s+)?(?:blu\s+bca|blue\s+bca|bca\s+digital|blue|blu|cash|tunai|dana|gopay|ovo|shopeepay|spay|linkaja|seabank|jenius)\b/gi,
+    ""
+  );
 
-  // 9. Hapus kata penghubung/preposisi sisa di akhir atau awal: "pada", "di", "ke", "dengan", "dari"
-  cleaned = cleaned.replace(/\b(?:ke|di|dari|pada|untuk|dengan|pake|pakai)\s*$/gi, "").trim();
-  cleaned = cleaned.replace(/^(?:ke|di|dari|pada|untuk|dengan|pake|pakai)\s+/gi, "").trim();
+  // 8. Hapus slang nominal
+  cleaned = cleaned.replace(/\b(?:goceng|ceban|goban|cepek|seceng|gopek|pego|nopeng)\b/gi, "");
+
+  // 9. Hapus pola deklarasi nominal & angka rupiah
+  cleaned = cleaned.replace(
+    /(?:dengan\s+nominal|nominal\s+sebesar|sebesar|seharga|nominalnya|nominal|harga|sejumlah|senilai)?\s*(?:rp|idr)?\.?\s*(\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+[\.,]?\d*\s*(?:rb|ribu|k|jt|juta)|(?:\d{4,9}))\b/gi,
+    ""
+  );
+
+  // Hapus pola nominal kata (e.g. "tiga puluh ribu")
+  cleaned = cleaned.replace(
+    /(?:dengan\s+nominal|sebesar|seharga|sejumlah)?\s*(?:satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh|sebelas|dua\s+belas|seratus|seribu|sejuta)\s*(?:belas|puluh|ratus|ribu|juta)*/gi,
+    ""
+  );
+
+  // 10. Hapus kata kerja pembayaran & transaksi sisa di akhir kalimat (e.g. "bayar", "transfer")
+  cleaned = cleaned.replace(/\b(?:bayar|pembayaran|transfer|tf|isi\s+saldo|top\s*up)\s*$/gi, "");
+
+  // 11. Hapus kata penghubung/preposisi sisa di akhir atau awal
+  cleaned = cleaned.replace(/\b(?:ke|di|dari|pada|untuk|dengan|pake|pakai|buat|via|lewat|melalui|bayar)\s*$/gi, "").trim();
+  cleaned = cleaned.replace(/^(?:ke|di|dari|pada|untuk|dengan|pake|pakai|buat|via|lewat|melalui)\s+/gi, "").trim();
+
+  // 12. Hapus filler & kata seru umum
+  cleaned = cleaned.replace(/\b(ya|dong|deh|nih|lah|sih|wkwk|hehe|gan|kak|bos)\b/gi, "");
 
   // Bersihkan spasi ganda, tanda baca berlebih di awal/akhir
   cleaned = cleaned
@@ -1682,9 +1772,9 @@ export function cleanSpeechToNote(text: string): string {
     .replace(/[\s,.\-—:]+$/, "")
     .trim();
 
-  // Jika setelah dibersihkan teksnya kosong, ambil kata kerja + objek pertama
+  // Jika setelah dibersihkan teksnya kosong, ambil kata kerja + objek pertama atau teks asli
   if (!cleaned || cleaned.length < 2) {
-    const fallbackMatch = text.match(/(?:beli|bayar|makan|minum|jajan|transfer|kirim|gaji)\s+[\w\s]{2,20}/i);
+    const fallbackMatch = text.match(/(?:beli|bayar|makan|minum|jajan|transfer|kirim|gaji)\s+[\w\s]{2,40}/i);
     if (fallbackMatch) {
       cleaned = fallbackMatch[0].trim();
     } else {
@@ -1709,7 +1799,7 @@ export function smartParseIndonesianTransaction(
   const { categoryHint, matchedCategoryId, recommendedCategory, isDatasetMatch } = detectCategory(normalized, txType, options?.categories);
   const { accountHint, matchedAccountId, toAccountHint, matchedToAccountId } = detectAccount(normalized, options?.accounts);
   const { happenedAt, happenedAtFormatted } = extractDateTimeFromText(normalized, options?.referenceDate);
-  const fullSpeech = text.trim();
+  const cleanedNote = cleanSpeechToNote(text);
 
   return {
     txType,
@@ -1725,8 +1815,8 @@ export function smartParseIndonesianTransaction(
     isDatasetMatch: txType === "transfer" ? true : isDatasetMatch,
     happenedAt,
     happenedAtFormatted,
-    cleanNote: fullSpeech,
-    note: fullSpeech,
+    cleanNote: cleanedNote,
+    note: cleanedNote,
     rawText: text,
   };
 }

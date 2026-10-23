@@ -10,19 +10,25 @@ import { CommandPalette } from "@/components/cmdk/CommandPalette";
 import { ConfirmModalDialog } from "@/components/ui/ConfirmModalDialog";
 import { MascotNavigator } from "@/components/mascot/MascotNavigator";
 import { useUIStore } from "@/store/ui.store";
+import { useMascotStore } from "@/store/mascot.store";
 import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { isSidebarOpen, setSidebarOpen } = useUIStore();
+  const { isTourActive } = useMascotStore();
 
   return (
-    <div className="flex min-h-screen w-full overflow-x-clip bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary">
+    <div
+      suppressHydrationWarning
+      className="flex min-h-screen w-full overflow-x-clip bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary"
+    >
       {/* Desktop Sidebar */}
       <Sidebar />
 
       {/* Mobile Drawer Sidebar */}
       {isSidebarOpen && (
-        <div className="fixed inset-0 z-50 flex lg:hidden">
+        <div className={cn("fixed inset-0 flex lg:hidden", isTourActive ? "z-[165]" : "z-50")}>
           <div
             className="fixed inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setSidebarOpen(false)}

@@ -18,9 +18,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { GeometricIcon } from "@/components/ui/GeometricIcon";
+import { useTranslation } from "@/i18n";
+import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t, locale } = useTranslation();
   const [activeTab, setActiveTab] = useState<"login" | "register">("login");
 
   // Form states
@@ -154,7 +157,10 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8 sm:px-6">
       <div className="w-full max-w-md">
         {/* Brand Header */}
-        <div className="flex flex-col items-center text-center mb-6">
+        <div className="flex flex-col items-center text-center mb-6 relative">
+          <div className="absolute right-0 top-0">
+            <LanguageSwitcher size="sm" />
+          </div>
           <div className="flex items-center gap-2.5 mb-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#059669] text-white shadow-level-1">
               <GeometricIcon name="overview" className="h-5 w-5" />
@@ -164,7 +170,7 @@ export default function LoginPage() {
             </span>
           </div>
           <p className="text-xs text-muted-foreground max-w-xs">
-            Buku kas presisi dan asisten intelijen finansial.
+            {activeTab === "login" ? t.auth.loginSubtitle : t.auth.registerSubtitle}
           </p>
         </div>
 
@@ -185,7 +191,7 @@ export default function LoginPage() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Masuk
+              {t.auth.loginButton}
             </button>
             <button
               type="button"
@@ -200,7 +206,7 @@ export default function LoginPage() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Daftar Akun Baru
+              {t.auth.registerButton}
             </button>
           </div>
 

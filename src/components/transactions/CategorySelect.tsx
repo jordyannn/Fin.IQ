@@ -95,9 +95,9 @@ export function CategorySelect({
         const spaceAbove = rect.top;
         setOpenUpward(spaceBelow < 310 && spaceAbove > spaceBelow);
 
-        if (align === "right") {
+        if (align === "right" && window.innerWidth >= 640) {
           setOpenRightAligned(true);
-        } else if (align === "left") {
+        } else if (align === "left" || window.innerWidth < 640) {
           setOpenRightAligned(false);
         } else {
           // Auto: check if closer to right edge of viewport or container
@@ -357,8 +357,8 @@ export function CategorySelect({
           onClick={(e) => e.stopPropagation()}
           onWheel={(e) => e.stopPropagation()}
           className={cn(
-            "absolute z-50 rounded-md border border-border bg-card p-2.5 shadow-level-2 animate-in fade-in zoom-in-95 duration-140 flex flex-col gap-2 text-card-foreground font-sans",
-            "w-full min-w-[280px] sm:min-w-[320px] max-w-[calc(100vw-2rem)]",
+            "absolute z-50 rounded-xl border border-border bg-card p-2.5 shadow-level-2 animate-in fade-in zoom-in-95 duration-140 flex flex-col gap-2 text-card-foreground font-sans",
+            "w-full sm:w-[320px] max-w-[calc(100vw-2rem)]",
             openRightAligned
               ? "right-0 left-auto origin-top-right"
               : "left-0 right-auto origin-top-left",
@@ -400,9 +400,9 @@ export function CategorySelect({
             </div>
           )}
 
-          {/* Search Input */}
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          {/* Search Input Bar - Perfectly Aligned Icon & Input */}
+          <div className="relative flex items-center w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none shrink-0" />
             <input
               ref={searchInputRef}
               type="text"
@@ -410,16 +410,16 @@ export function CategorySelect({
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               placeholder="Cari kategori (kopi, makan, gaji...)"
-              className="h-8.5 w-full rounded-md bg-muted/40 pl-8.5 pr-8 text-xs font-sans text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary border border-border"
+              className="h-9 w-full rounded-lg bg-muted/40 pl-9 pr-9 text-xs font-sans text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary border border-border transition-colors"
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-full"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-md transition-colors active:scale-95 cursor-pointer"
                 title="Hapus kata kunci pencarian"
               >
-                <X className="h-3 w-3" />
+                <X className="h-3.5 w-3.5" />
               </button>
             )}
           </div>

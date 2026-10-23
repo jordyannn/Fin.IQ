@@ -4518,6 +4518,11 @@ export const DATASET_SLANG_AMOUNTS: Record<string, number> = {
  */
 export const DATASET_STANDARD_ACCOUNTS: string[] = [
   "BCA",
+  "Blu",
+  "blu",
+  "blue",
+  "Blu BCA",
+  "BCA Digital",
   "Mandiri",
   "BRI",
   "BNI",
@@ -4529,6 +4534,11 @@ export const DATASET_STANDARD_ACCOUNTS: string[] = [
   "Jenius",
   "SeaBank",
   "Bank Jago",
+  "CIMB Niaga",
+  "Permata",
+  "BSI",
+  "Bank Danamon",
+  "BTN",
   "dompet",
   "tabungan",
   "rekening utama",

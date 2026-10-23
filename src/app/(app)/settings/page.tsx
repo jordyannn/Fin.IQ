@@ -25,6 +25,7 @@ import {
   EyeOff,
   ExternalLink,
   Loader2,
+  Globe,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,11 +33,14 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useConfirm } from "@/store/confirm.store";
 import { GeometricIcon } from "@/components/ui/GeometricIcon";
+import { useTranslation } from "@/i18n";
+import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 
 export default function SettingsPage() {
   const router = useRouter();
   const utils = trpc.useUtils();
   const confirm = useConfirm();
+  const { t, locale } = useTranslation();
 
   // Gemini AI Key State
   const [geminiKeyInput, setGeminiKeyInput] = useState("");
@@ -189,10 +193,10 @@ export default function SettingsPage() {
           <div className="h-8 w-8 rounded-md bg-[#A7F3D0]/40 flex items-center justify-center text-[#064E3B] shrink-0">
             <GeometricIcon name="settings" className="h-4 w-4" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Pengaturan &amp; Profil</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">{t.settings.title}</h1>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Kelola profil pengguna, keamanan akun, mata uang dasar, dan integrasi AI.
+          {t.settings.subtitle}
         </p>
       </div>
 
@@ -652,6 +656,50 @@ export default function SettingsPage() {
                 Tersedia
               </Badge>
             </div>
+          </div>
+        </Card>
+
+        {/* Preferensi Bahasa / Language Preferences Card */}
+        <Card className="p-4 sm:p-5 rounded-md shadow-sm border border-border/80 bg-card flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-border/60 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-sm bg-[#A7F3D0]/40 text-[#064E3B]">
+                  <Globe className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-foreground">
+                    {t.settings.languageSection}
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">{t.settings.languageDesc}</p>
+                </div>
+              </div>
+              <Badge className="bg-[#A7F3D0]/40 text-[#064E3B] text-[10px] px-2 py-0 border-none font-semibold rounded-sm">
+                {locale === "en" ? "English (EN)" : "Indonesia (ID)"}
+              </Badge>
+            </div>
+
+            <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+              {locale === "en"
+                ? "Fin.IQ uses clean, professional financial English with locale-adapted date and currency formatting."
+                : "Fin.IQ menggunakan Bahasa Indonesia standar perbankan modern dengan format tanggal dan nominal angka yang disesuaikan."}
+            </p>
+
+            <div className="flex items-center justify-between p-3 rounded-md border border-border/70 bg-muted/30">
+              <div>
+                <div className="text-xs font-bold text-foreground">{t.settings.activeLanguage}</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {locale === "en" ? "Active: English (EN)" : "Aktif: Bahasa Indonesia (ID)"}
+                </div>
+              </div>
+              <LanguageSwitcher size="md" />
+            </div>
+          </div>
+
+          <div className="pt-4 border-t mt-6 text-[11px] text-muted-foreground">
+            {locale === "en"
+              ? "Language preference is automatically saved to your browser session."
+              : "Preferensi bahasa tersimpan otomatis di sesi peramban Anda."}
           </div>
         </Card>
       </div>

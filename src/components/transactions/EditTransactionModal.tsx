@@ -172,16 +172,27 @@ export function EditTransactionModal({
     }
     if (data.matchedAccountId) {
       setAccountId(data.matchedAccountId);
-    } else if (accountsData?.accounts && data.accountHint) {
-      const foundAcc = accountsData.accounts.find((a) =>
-        a.name.toLowerCase().includes(data.accountHint.toLowerCase()) ||
-        data.accountHint.toLowerCase().includes(a.name.toLowerCase())
-      );
-      if (foundAcc) setAccountId(foundAcc.id);
+    } else if (accountsData?.accounts && (data.accountHint || data.rawText)) {
+      const detected = detectAccount(data.accountHint || data.rawText, accountsData.accounts);
+      if (detected.matchedAccountId) {
+        setAccountId(detected.matchedAccountId);
+      } else {
+        const foundAcc = accountsData.accounts.find(
+          (a) =>
+            a.name.toLowerCase().includes((data.accountHint || "").toLowerCase()) ||
+            (data.accountHint && (data.accountHint || "").toLowerCase().includes(a.name.toLowerCase()))
+        );
+        if (foundAcc) setAccountId(foundAcc.id);
+      }
     }
 
     if (data.matchedToAccountId) {
       setToAccountId(data.matchedToAccountId);
+    } else if (data.txType === "transfer" && accountsData?.accounts && (data.toAccountHint || data.rawText)) {
+      const detected = detectAccount(data.toAccountHint || data.rawText, accountsData.accounts);
+      if (detected.matchedToAccountId) {
+        setToAccountId(detected.matchedToAccountId);
+      }
     }
 
     if (data.matchedCategoryId) {

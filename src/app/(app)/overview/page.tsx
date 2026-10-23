@@ -4,7 +4,7 @@
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { useTranslation } from "@/i18n";
 import { DateFilterPreset, computeDateRange } from "@/lib/date-filters";
 import { useUIStore } from "@/store/ui.store";
 import {
@@ -75,6 +75,7 @@ const PIE_COLORS = [
 export default function OverviewPage() {
   const { openQuickAdd } = useUIStore();
   const utils = trpc.useUtils();
+  const { t, formatCurrency, formatDate } = useTranslation();
 
   // Date Filter state - Disamakan dengan Transactions Page
   const [datePreset, setDatePreset] = useState<DateFilterPreset>("this_month");
@@ -544,7 +545,7 @@ export default function OverviewPage() {
           <div className="flex flex-col gap-1">
             <span className="text-[11px] uppercase tracking-wider font-extrabold text-muted-foreground flex items-center gap-2">
               <GeometricIcon name="bank" size="xs" active />
-              <span>TOTAL SALDO REKENING</span>
+              <span>{t.overview.netBalance.toUpperCase()}</span>
             </span>
             <div className="text-3xl sm:text-4xl lg:text-5xl font-black text-foreground tracking-tight">
               {isHeroLoading ? "..." : formatCurrency(totalUserBalance)}
@@ -564,7 +565,7 @@ export default function OverviewPage() {
               className="rounded-md bg-primary hover:bg-[#047857] text-white font-bold gap-2 text-xs sm:text-sm px-4 py-2 shadow-xs active:scale-95 transition-all"
             >
               <Plus className="h-4 w-4 stroke-[3px]" />
-              Catat Transaksi
+              {t.quickAdd.title}
             </Button>
           </div>
         </div>
@@ -576,7 +577,7 @@ export default function OverviewPage() {
             <div className="flex items-center justify-between gap-2 mb-1.5">
               <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <GeometricIcon name="trend-up" size="xs" active />
-                <span>Kas Masuk</span>
+                <span>{t.overview.totalIncome}</span>
               </span>
               <span className="text-[10px] font-semibold text-muted-foreground">{periodLabel}</span>
             </div>
@@ -591,7 +592,7 @@ export default function OverviewPage() {
             <div className="flex items-center justify-between gap-2 mb-1.5">
               <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <GeometricIcon name="trend-down" size="xs" active />
-                <span>Kas Keluar</span>
+                <span>{t.overview.totalExpense}</span>
               </span>
               <span className="text-[10px] font-semibold text-muted-foreground">{periodLabel}</span>
             </div>
@@ -606,7 +607,7 @@ export default function OverviewPage() {
             <div className="flex items-center justify-between gap-2 mb-1.5">
               <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <GeometricIcon name="sparkles" size="xs" active />
-                <span>Selisih Arus Kas</span>
+                <span>{t.overview.netCashFlow}</span>
               </span>
               {summary.net > 0 && (
                 <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold bg-secondary text-secondary-foreground border border-emerald-300 dark:border-emerald-800">

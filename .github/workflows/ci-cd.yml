@@ -1,21 +1,64 @@
-name: Build, Push & Deploy to k3s
+name: CI/CD Pipeline
 
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.vscode/**'
+      - '.idea/**'
+      - 'LICENSE'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.vscode/**'
+      - '.idea/**'
+      - 'LICENSE'
   workflow_dispatch:
 
-# GITHUB_TOKEN dipakai untuk push image ke ghcr.io
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: write
 
 jobs:
-  build-and-push:
-    name: Build & Push ke ghcr.io
+  # 1. Fast Validation for Pull Requests (hemat runner minutes: cek build Next.js tanpa Docker/deploy)
+  verify-pr:
+    name: Verify PR Build
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Verify Build
+        run: npm run build
+        env:
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'ci-test-secret-key-32-chars-minimum' }}
+          DEMO_USER_ID: ${{ secrets.DEMO_USER_ID || '9728be5f-a414-42f3-a827-4504a56c1370' }}
+          NEXT_PUBLIC_DEFAULT_CURRENCY: "IDR"
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'mysql://avnadmin:AVNS_CpIAQBJBbUy_hH9zbT8@finiq-1-jordanngz12-6510.c.aivencloud.com:12551/defaultdb' }}
+
+  # 2. Build, Push ke GHCR & Deploy ke k3s dalam 1 Runner (tanpa re-build berulang dan tanpa runner ganda)
+  build-and-deploy:
+    name: Build, Push & Deploy to k3s
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
@@ -36,23 +79,14 @@ jobs:
           tags: |
             ghcr.io/jordyannn/fin-iq:latest
             ghcr.io/jordyannn/fin-iq:${{ github.sha }}
-          # DATABASE_URL cuma dipakai saat `next build` (build-time),
-          # tidak masuk ke image final.
           build-args: |
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            DATABASE_URL=${{ secrets.DATABASE_URL || 'mysql://avnadmin:AVNS_CpIAQBJBbUy_hH9zbT8@finiq-1-jordanngz12-6510.c.aivencloud.com:12551/defaultdb' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
-    name: Deploy ke k3s
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      # Server TIDAK punya kredensial ghcr (PAT tanpa scope packages),
-      # jadi image di-transfer dari runner Actions ke server lewat SSH.
+      # Server tidak punya kredensial ghcr -> image di-transfer via SSH & di-import ke containerd
       - name: Pull image di runner
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           docker pull ghcr.io/jordyannn/fin-iq:${{ github.sha }}
 
       - name: Kirim image ke server & import ke containerd
@@ -61,12 +95,11 @@ jobs:
         run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
-          # docker save -> ssh -> ctr images import (stdin), tag dipertahankan.
           docker save ghcr.io/jordyannn/fin-iq:${{ github.sha }} | \
             ssh -i ~/.ssh/deploy_key \
                 -o StrictHostKeyChecking=no \
                 -p "${{ secrets.SERVER_PORT || 22 }}" \
-                "${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }}" \
+                "${{ secrets.SERVER_USERNAME || 'ubuntu' }}@${{ secrets.SERVER_HOST }}" \
                 "sudo k3s ctr -n k8s.io images import -"
 
       - name: Apply manifest & rollout
@@ -86,8 +119,7 @@ jobs:
 
             kubectl apply -f k8s/
 
-            # Ganti tag image -> memicu rolling update. HPA akan
-            # menjaga kalau replika bertambah karena beban.
+            # Ganti tag image -> memicu rolling update
             kubectl -n finiq set image deployment/finiq-app \
               finiq=ghcr.io/jordyannn/fin-iq:${{ github.sha }}
 

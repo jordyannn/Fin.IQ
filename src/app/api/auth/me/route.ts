@@ -3,6 +3,7 @@ import { db } from "@/server/db";
 import { users, userProfiles } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { verifySessionToken } from "@/server/auth";
+import { getCachedSession, setCachedSession } from "@/lib/redis";
 
 export async function GET(req: Request) {
   try {
@@ -19,6 +20,23 @@ export async function GET(req: Request) {
       return NextResponse.json({ authenticated: false, user: null }, { status: 401 });
     }
 
+    // 1. REDIS-FIRST: Periksa sesi yang tersimpan di memori Redis
+    const cachedSession = await getCachedSession(sessionToken);
+    if (cachedSession) {
+      return NextResponse.json({
+        authenticated: true,
+        source: "redis",
+        user: {
+          id: cachedSession.userId,
+          email: cachedSession.email,
+          displayName: cachedSession.displayName,
+          primaryCurrency: cachedSession.primaryCurrency,
+          isAdmin: cachedSession.isAdmin,
+        },
+      });
+    }
+
+    // 2. Jika tidak ada di Redis (Cache Miss), ambil dari Database
     const userRecords = await db
       .select()
       .from(users)
@@ -37,15 +55,32 @@ export async function GET(req: Request) {
       .limit(1);
 
     const profile = profileRecords[0];
+    const displayName = profile?.displayName || user.email.split("@")[0];
+    const primaryCurrency = profile?.primaryCurrency || "IDR";
+
+    // Simpan kembali ke Redis agar request selanjutnya tidak menyentuh database
+    await setCachedSession(
+      sessionToken,
+      {
+        userId: user.id,
+        email: user.email,
+        displayName,
+        primaryCurrency,
+        isAdmin: Boolean(user.isAdmin),
+        createdAt: Date.now(),
+      },
+      30 * 86400
+    );
 
     return NextResponse.json({
       authenticated: true,
+      source: "database",
       user: {
         id: user.id,
         email: user.email,
-        displayName: profile?.displayName || user.email.split("@")[0],
+        displayName,
         avatarUrl: profile?.avatarUrl || null,
-        primaryCurrency: profile?.primaryCurrency || "IDR",
+        primaryCurrency,
         isAdmin: user.isAdmin,
       },
     });

@@ -28,6 +28,7 @@ import {
   Maximize2,
   Moon,
   Minus,
+  Menu,
 } from "lucide-react";
 
 const RANDOM_TIPS = [
@@ -72,12 +73,23 @@ export function MascotNavigator() {
     toggleOutfit,
   } = useMascotStore();
 
-  const { isQuickAddOpen, openQuickAdd, isCommandPaletteOpen, isSidebarOpen } = useUIStore();
+  const { isQuickAddOpen, openQuickAdd, isCommandPaletteOpen, isSidebarOpen, setSidebarOpen } = useUIStore();
   const [mounted, setMounted] = useState(false);
   const [tipIndex, setTipIndex] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [showTooltipHint, setShowTooltipHint] = useState(false);
   const [isCardMinimized, setIsCardMinimized] = useState(false);
+  const [isMobileScreen, setIsMobileScreen] = useState(false);
+
+  // Responsive mobile screen tracking
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobileScreen(window.innerWidth < 1024);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   // Adaptive behavior states
   const [hasOpenDomModal, setHasOpenDomModal] = useState(false);
@@ -258,6 +270,34 @@ export function MascotNavigator() {
       : BASIC_TOUR_STEPS;
   const currentStep: TourStep = activeSteps[currentStepIndex] || activeSteps[0];
 
+  const isSidebarStep =
+    currentStep.id === "ai-studio" || currentStep.id === "sidebar-nav";
+  const needsMobileSidebarClick = isMobileScreen && isSidebarStep && !isSidebarOpen;
+
+  const effectiveTitle = needsMobileSidebarClick
+    ? "Buka Bilah Menu Sidebar"
+    : currentStep.title;
+  const effectiveDescription = needsMobileSidebarClick
+    ? "Fitur ini berada di bilah menu navigasi. Klik tombol Menu / Sidebar untuk membuka dan menampilkan menu navigasi terlebih dahulu."
+    : currentStep.description;
+  const effectiveQuote = needsMobileSidebarClick
+    ? "Klik tombol Menu untuk buka sidebar!"
+    : currentStep.speechQuote;
+
+  const handlePrevStep = () => {
+    if (isMobileScreen && isSidebarStep && isSidebarOpen) {
+      setSidebarOpen(false);
+    }
+    prevStep();
+  };
+
+  const handleEndTour = () => {
+    if (isMobileScreen && isSidebarOpen) {
+      setSidebarOpen(false);
+    }
+    endTour();
+  };
+
   // Track target element during tour with smart scrolling so card never covers content
   useEffect(() => {
     if (!isTourActive) {
@@ -266,7 +306,10 @@ export function MascotNavigator() {
     }
 
     const updateRect = () => {
-      const selector = `[${currentStep.targetAttr}]`;
+      let selector = `[${currentStep.targetAttr}]`;
+      if (needsMobileSidebarClick) {
+        selector = "[data-tour='topbar-sidebar-toggle'], [data-tour='bottom-menu-toggle']";
+      }
       const el = document.querySelector(selector);
       if (el) {
         if (activeTourType === "transaction") {
@@ -321,7 +364,7 @@ export function MascotNavigator() {
       window.removeEventListener("scroll", handleResize, true);
       clearTimeout(timer);
     };
-  }, [isTourActive, currentStepIndex, currentStep, pathname, router]);
+  }, [isTourActive, currentStepIndex, currentStep, pathname, router, isSidebarOpen, needsMobileSidebarClick]);
 
   // Helper to calculate card position so it NEVER covers the target element
   const getCardPositionStyle = (): React.CSSProperties => {
@@ -397,8 +440,17 @@ export function MascotNavigator() {
       }
     }
 
-    // If step is on sidebar (right positioning), place card completely to the right of the sidebar
-    if (positionPref === "right") {
+    // If step is on sidebar (right positioning), place card completely to the right of the sidebar on desktop, or pin to bottom on mobile
+    if (positionPref === "right" || (winW < 1024 && isSidebarStep)) {
+      if (winW < 1024) {
+        return {
+          bottom: "16px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: `${cardW}px`,
+          maxHeight: "calc(45vh)",
+        };
+      }
       const left = Math.min(winW - cardW - 16, targetRect.right + 16);
       const top = Math.max(
         16,
@@ -643,7 +695,7 @@ export function MascotNavigator() {
                 <span className="absolute -inset-1 rounded-md border border-[#059669]/50 animate-tour-ripple-1 pointer-events-none" />
                 <span className="absolute -inset-2.5 rounded-md border border-[#059669]/30 animate-tour-ripple-2 pointer-events-none" />
 
-                {/* Subtle Target Beacon Badge: "PILIH DI SINI" */}
+                {/* Subtle Target Beacon Badge: "PILIH DI SINI" / "KLIK MENU SIDEBAR" */}
                 <div
                   className={`absolute z-20 flex items-center gap-1.5 px-2.5 py-0.5 rounded-sm bg-[#059669] text-white text-[10px] font-bold shadow-md border border-white/50 tracking-wider pointer-events-none select-none transition-all ${
                     targetRect.top < 65 ? "-bottom-3.5 left-3" : "-top-3.5 left-3"
@@ -651,18 +703,22 @@ export function MascotNavigator() {
                 >
                   <span className="h-1.5 w-1.5 rounded-xs bg-white/90 shadow-xs" />
                   <span>
-                    {currentStep.targetAttr.includes("quick-add") ||
-                    currentStep.targetAttr.includes("ai-studio") ||
-                    currentStep.targetAttr.includes("filter") ||
-                    currentStep.targetAttr.includes("modal-ai-tools")
+                    {needsMobileSidebarClick
+                      ? "KLIK MENU SIDEBAR"
+                      : currentStep.targetAttr.includes("quick-add") ||
+                        currentStep.targetAttr.includes("ai-studio") ||
+                        currentStep.targetAttr.includes("filter") ||
+                        currentStep.targetAttr.includes("modal-ai-tools")
                       ? "PILIH DI SINI"
                       : "FOKUS"}
                   </span>
                   <span className="text-[11px]">
-                    {currentStep.targetAttr.includes("quick-add") ||
-                    currentStep.targetAttr.includes("ai-studio") ||
-                    currentStep.targetAttr.includes("filter") ||
-                    currentStep.targetAttr.includes("modal-ai-tools")
+                    {needsMobileSidebarClick
+                      ? "👆"
+                      : currentStep.targetAttr.includes("quick-add") ||
+                        currentStep.targetAttr.includes("ai-studio") ||
+                        currentStep.targetAttr.includes("filter") ||
+                        currentStep.targetAttr.includes("modal-ai-tools")
                       ? "👆"
                       : "🎯"}
                   </span>
@@ -701,7 +757,7 @@ export function MascotNavigator() {
                         : "Panduan Dasar"} • Langkah {currentStepIndex + 1} dari {activeSteps.length}
                     </span>
                     <h4 className="font-extrabold text-sm sm:text-base text-foreground leading-tight">
-                      {currentStep.title}
+                      {effectiveTitle}
                     </h4>
                   </div>
                 </div>
@@ -719,7 +775,7 @@ export function MascotNavigator() {
                     {isCardMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
                   </button>
                   <button
-                    onClick={endTour}
+                    onClick={handleEndTour}
                     className="p-1.5 rounded-md text-muted-foreground hover:bg-muted"
                     title="Lewati Tur"
                   >
@@ -732,25 +788,38 @@ export function MascotNavigator() {
                 /* Compact / Minimized View */
                 <div className="mt-2 pt-2 border-t border-border/70 flex items-center justify-between gap-2">
                   <p className="text-xs text-muted-foreground italic truncate max-w-[210px]">
-                    💬 "{currentStep.speechQuote}"
+                    💬 "{effectiveQuote}"
                   </p>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {currentStepIndex > 0 && (
                       <button
-                        onClick={prevStep}
+                        onClick={handlePrevStep}
                         className="p-1 rounded-md border border-input text-foreground hover:bg-muted transition-colors text-xs font-semibold"
                         title="Kembali"
                       >
                         <ChevronLeft className="h-3.5 w-3.5" />
                       </button>
                     )}
-                    <button
-                      onClick={nextStep}
-                      className="py-1 px-2.5 rounded-md text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1 cursor-pointer shadow-xs"
-                    >
-                      {currentStepIndex === activeSteps.length - 1 ? "Selesai" : "Lanjut"}
-                      <ChevronRight className="h-3 w-3" />
-                    </button>
+                    {needsMobileSidebarClick ? (
+                      <button
+                        onClick={() => {
+                          mascotSound.playPop();
+                          setSidebarOpen(true);
+                        }}
+                        className="py-1 px-2.5 rounded-md text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1 cursor-pointer shadow-xs"
+                      >
+                        <Menu className="h-3 w-3" />
+                        Buka Menu
+                      </button>
+                    ) : (
+                      <button
+                        onClick={nextStep}
+                        className="py-1 px-2.5 rounded-md text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1 cursor-pointer shadow-xs"
+                      >
+                        {currentStepIndex === activeSteps.length - 1 ? "Selesai" : "Lanjut"}
+                        <ChevronRight className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -758,15 +827,39 @@ export function MascotNavigator() {
                   {/* Body: Explanation & Mascot Speech Bubble */}
                   <div className="mt-3 space-y-2 overflow-y-auto pr-0.5">
                     <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed font-normal">
-                      {currentStep.description}
+                      {effectiveDescription}
                     </p>
 
                     <div className="rounded-sm bg-primary/10 border border-primary/20 px-2.5 py-1.5 text-xs font-medium text-foreground flex items-center gap-2">
                       <span className="text-xs">💬</span>
                       <span className="italic font-semibold text-primary">
-                        "{currentStep.speechQuote}"
+                        "{effectiveQuote}"
                       </span>
                     </div>
+
+                    {/* Mobile Sidebar Prompt helper */}
+                    {needsMobileSidebarClick && (
+                      <div className="mt-2.5 p-2.5 rounded-lg bg-primary/10 border border-primary/30 space-y-2 animate-in fade-in duration-200">
+                        <p className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                          <Menu className="h-4 w-4 text-primary shrink-0" />
+                          Sidebar sedang tertutup di smartphone
+                        </p>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">
+                          Tekan tombol menu di kiri atas layar atau tombol berikut untuk memunculkan sidebar Fin.IQ:
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            mascotSound.playPop();
+                            setSidebarOpen(true);
+                          }}
+                          className="w-full h-8 px-3 rounded-md text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs transition-transform active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Menu className="h-3.5 w-3.5" />
+                          Buka Sidebar Sekarang
+                        </button>
+                      </div>
+                    )}
 
                     {/* Interactive prompt on quick-add step */}
                     {currentStep.targetAttr.includes("quick-add") && (
@@ -824,7 +917,7 @@ export function MascotNavigator() {
                     <div className="flex items-center gap-2">
                       {currentStepIndex > 0 && (
                         <button
-                          onClick={prevStep}
+                          onClick={handlePrevStep}
                           className="p-2 rounded-md border border-input text-foreground hover:bg-muted transition-colors text-xs font-semibold flex items-center gap-1"
                         >
                           <ChevronLeft className="h-3.5 w-3.5" />
@@ -835,7 +928,7 @@ export function MascotNavigator() {
                       {activeTourType === "transaction" && resumeBasicTourAfter && currentStepIndex === activeSteps.length - 1 && (
                         <button
                           type="button"
-                          onClick={() => endTour()}
+                          onClick={() => handleEndTour()}
                           className="py-2 px-2.5 rounded-md text-xs font-semibold border border-input bg-card text-foreground hover:bg-muted transition-colors"
                           title="Selesaikan tutorial dan coba isi form transaksi sendiri"
                         >
@@ -843,29 +936,42 @@ export function MascotNavigator() {
                         </button>
                       )}
 
-                      <button
-                        onClick={nextStep}
-                        className="relative py-2 px-3.5 rounded-md font-bold text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 animate-button-ripple"
-                      >
-                        {currentStepIndex === activeSteps.length - 1 ? (
-                          activeTourType === "transaction" && resumeBasicTourAfter ? (
-                            <>
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Lanjut Tur Utama 🚀
-                            </>
+                      {needsMobileSidebarClick ? (
+                        <button
+                          onClick={() => {
+                            mascotSound.playPop();
+                            setSidebarOpen(true);
+                          }}
+                          className="relative py-2 px-3.5 rounded-md font-bold text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 animate-button-ripple"
+                        >
+                          <Menu className="h-3.5 w-3.5" />
+                          Buka Sidebar Dulu
+                        </button>
+                      ) : (
+                        <button
+                          onClick={nextStep}
+                          className="relative py-2 px-3.5 rounded-md font-bold text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 animate-button-ripple"
+                        >
+                          {currentStepIndex === activeSteps.length - 1 ? (
+                            activeTourType === "transaction" && resumeBasicTourAfter ? (
+                              <>
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Lanjut Tur Utama 🚀
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Selesai!
+                              </>
+                            )
                           ) : (
                             <>
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Selesai!
+                              Lanjut
+                              <ChevronRight className="h-3.5 w-3.5" />
                             </>
-                          )
-                        ) : (
-                          <>
-                            Lanjut
-                            <ChevronRight className="h-3.5 w-3.5" />
-                          </>
-                        )}
-                      </button>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </>
@@ -878,11 +984,13 @@ export function MascotNavigator() {
       {/* =========================================================================
           3. FLOATING INTERACTIVE BUBBLE (FAB) & MINI MENU (ADAPTIF & NON-INTRUSIF)
       ========================================================================= */}
-      {!isTourActive && (
+      {!isTourActive && !isQuickAddOpen && (
         <div
           className={`fixed transition-all duration-300 ease-out print:hidden ${
             isAnyModalActive
               ? "bottom-3 sm:bottom-4 right-3 sm:right-4 z-[210]"
+              : pathname === "/ai"
+              ? "bottom-28 lg:bottom-6 right-3.5 lg:right-6 z-[90]"
               : "bottom-20 lg:bottom-6 right-3.5 lg:right-6 z-[90]"
           } flex flex-col items-end pointer-events-none`}
         >
@@ -991,7 +1099,7 @@ export function MascotNavigator() {
                 >
                   <span className="flex items-center gap-2">
                     <Receipt className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                    Panduan Form Transaksi (5 Langkah)
+                    Panduan Form Transaksi (6 Langkah)
                   </span>
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
@@ -1040,44 +1148,33 @@ export function MascotNavigator() {
 
           {/* Floating Mascot Button: Adaptif & Non-Intrusif */}
           {isAnyModalActive ? (
-            /* Condition A: Minimized discreet pill when ANY modal or dialog is open */
-            <button
-              onClick={() => {
-                mascotSound.playPop();
-                if (isQuickAddOpen) {
-                  startTransactionTour(false);
-                } else {
+            /* Condition A: Minimized discreet pill when ANY modal or dialog is open (except QuickAdd which has in-card tutorial) */
+            isQuickAddOpen ? null : (
+              <button
+                onClick={() => {
+                  mascotSound.playPop();
                   toggleBubble();
-                }
-              }}
-              className="group pointer-events-auto relative flex h-8 items-center gap-1.5 pl-1.5 pr-2.5 rounded-full border border-emerald-500/30 bg-card/95 hover:bg-card text-foreground shadow-lg backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer"
-              title={isQuickAddOpen ? "Klik untuk panduan form transaksi" : "Klik untuk membuka Bang Peci"}
-              aria-label="Panduan Asisten Bang Peci"
-            >
-              <div className="relative h-5 w-5 shrink-0 flex items-center justify-center">
-                <Image
-                  src={mascotOutfit === "analyst" ? "/mascot/mascot-tech-halo.png" : "/mascot/mascot-halo.png"}
-                  alt="Bang Peci Avatar"
-                  fill
-                  sizes="20px"
-                  className="object-contain drop-shadow-xs select-none pointer-events-none"
-                  unoptimized
-                />
-              </div>
-              <span className="text-[11px] font-bold text-foreground/80 group-hover:text-primary transition-colors flex items-center gap-1">
-                {isQuickAddOpen ? (
-                  <>
-                    <Compass className="h-3 w-3 text-primary" />
-                    Panduan Form
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-3 w-3 text-primary" />
-                    Bang Peci
-                  </>
-                )}
-              </span>
-            </button>
+                }}
+                className="group pointer-events-auto relative flex h-8 items-center gap-1.5 pl-1.5 pr-2.5 rounded-full border border-emerald-500/30 bg-card/95 hover:bg-card text-foreground shadow-lg backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer"
+                title="Klik untuk membuka Bang Peci"
+                aria-label="Panduan Asisten Bang Peci"
+              >
+                <div className="relative h-5 w-5 shrink-0 flex items-center justify-center">
+                  <Image
+                    src={mascotOutfit === "analyst" ? "/mascot/mascot-tech-halo.png" : "/mascot/mascot-halo.png"}
+                    alt="Bang Peci Avatar"
+                    fill
+                    sizes="20px"
+                    className="object-contain drop-shadow-xs select-none pointer-events-none"
+                    unoptimized
+                  />
+                </div>
+                <span className="text-[11px] font-bold text-foreground/80 group-hover:text-primary transition-colors flex items-center gap-1">
+                  <Sparkles className="h-3 w-3 text-primary" />
+                  Bang Peci
+                </span>
+              </button>
+            )
           ) : isUserMinimized ? (
             /* Condition B: Mode Tenang - Compact docked badge when minimized by user */
             <button

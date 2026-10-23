@@ -40,6 +40,7 @@ import {
   isConfidentDatasetMatch,
 } from "@/lib/nlp-parser";
 import { useAlert, useConfirm } from "@/store/confirm.store";
+import { useTranslation } from "@/i18n";
 import { CategorySelect } from "./CategorySelect";
 import { AccountSelect } from "./AccountSelect";
 
@@ -48,6 +49,7 @@ export function QuickAddModal() {
   const { startTransactionTour } = useMascotStore();
   const utils = trpc.useUtils();
   const alert = useAlert();
+  const { t, locale } = useTranslation();
   const confirm = useConfirm();
 
   const [txType, setTxType] = useState<"expense" | "income" | "transfer">("expense");
@@ -156,27 +158,37 @@ export function QuickAddModal() {
     }
     if (data.matchedAccountId) {
       setAccountId(data.matchedAccountId);
-    } else if (accountsData?.accounts && data.accountHint) {
-      const foundAcc = accountsData.accounts.find(
-        (a) =>
-          a.name.toLowerCase().includes(data.accountHint.toLowerCase()) ||
-          data.accountHint.toLowerCase().includes(a.name.toLowerCase())
-      );
-      if (foundAcc) setAccountId(foundAcc.id);
+    } else if (accountsData?.accounts && (data.accountHint || data.rawText)) {
+      const detected = detectAccount(data.accountHint || data.rawText, accountsData.accounts);
+      if (detected.matchedAccountId) {
+        setAccountId(detected.matchedAccountId);
+      } else {
+        const foundAcc = accountsData.accounts.find(
+          (a) =>
+            a.name.toLowerCase().includes((data.accountHint || "").toLowerCase()) ||
+            (data.accountHint && (data.accountHint || "").toLowerCase().includes(a.name.toLowerCase()))
+        );
+        if (foundAcc) setAccountId(foundAcc.id);
+      }
     }
 
     if (data.txType === "transfer") {
       if (data.matchedToAccountId) {
         setToAccountId(data.matchedToAccountId);
-      } else if (accountsData?.accounts && data.toAccountHint) {
-        const fromId = data.matchedAccountId || accountId || accountsData.accounts[0]?.id;
-        const fallbackTo = accountsData.accounts.find(
-          (a) =>
-            a.id !== fromId &&
-            (a.name.toLowerCase().includes(data.toAccountHint.toLowerCase()) ||
-              data.toAccountHint.toLowerCase().includes(a.name.toLowerCase()))
-        );
-        if (fallbackTo) setToAccountId(fallbackTo.id);
+      } else if (accountsData?.accounts && (data.toAccountHint || data.rawText)) {
+        const detected = detectAccount(data.toAccountHint || data.rawText, accountsData.accounts);
+        if (detected.matchedToAccountId) {
+          setToAccountId(detected.matchedToAccountId);
+        } else {
+          const fromId = data.matchedAccountId || accountId || accountsData.accounts[0]?.id;
+          const fallbackTo = accountsData.accounts.find(
+            (a) =>
+              a.id !== fromId &&
+              (a.name.toLowerCase().includes((data.toAccountHint || "").toLowerCase()) ||
+                (data.toAccountHint && (data.toAccountHint || "").toLowerCase().includes(a.name.toLowerCase())))
+          );
+          if (fallbackTo) setToAccountId(fallbackTo.id);
+        }
       }
     } else {
       if (data.matchedCategoryId) {
@@ -592,7 +604,7 @@ export function QuickAddModal() {
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-foreground tracking-tight whitespace-nowrap">
-                  Catat Transaksi
+                  {t.quickAdd.title}
                 </h2>
                 {hasDraftData && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25 shrink-0">
@@ -608,11 +620,11 @@ export function QuickAddModal() {
             <button
               type="button"
               onClick={() => startTransactionTour(false)}
-              className="h-8 px-2.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-primary hover:bg-primary/10 border border-border/70 hover:border-primary/30 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
-              title="Buka panduan interaktif form transaksi"
+              className="h-8 px-2.5 sm:px-3 rounded-lg text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs"
+              title="Buka tutorial interaktif form transaksi"
             >
               <Compass className="h-3.5 w-3.5 text-primary" />
-              <span className="hidden sm:inline">Panduan</span>
+              <span>Tutorial</span>
             </button>
             <button
               type="button"
@@ -673,7 +685,7 @@ export function QuickAddModal() {
                 disabled={isVoiceBusy || isScanningBill}
                 onClick={isListening ? stopListening : startListening}
                 className={cn(
-                  "h-8.5 rounded-lg text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 transition-all shadow-2xs active:scale-[0.98] cursor-pointer",
+                  "h-9 rounded-lg text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 transition-all shadow-2xs active:scale-[0.98] cursor-pointer",
                   isListening && "animate-pulse bg-rose-500 text-white border-rose-500 hover:bg-rose-600",
                   isVoiceBusy && "border-primary/40 text-primary animate-pulse"
                 )}
@@ -696,7 +708,7 @@ export function QuickAddModal() {
                 size="sm"
                 disabled={isScanningBill || isVoiceBusy}
                 onClick={() => cameraInputRef.current?.click()}
-                className="h-8.5 rounded-lg text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 hover:text-primary transition-all shadow-2xs cursor-pointer active:scale-[0.98]"
+                className="h-9 rounded-lg text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 hover:text-primary transition-all shadow-2xs cursor-pointer active:scale-[0.98]"
                 title="Buka Kamera untuk foto struk atau mutasi"
               >
                 {isScanningBill ? (
@@ -714,7 +726,7 @@ export function QuickAddModal() {
                 size="sm"
                 disabled={isScanningBill || isVoiceBusy}
                 onClick={() => galleryInputRef.current?.click()}
-                className="h-8.5 rounded-lg text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 hover:text-primary transition-all shadow-2xs cursor-pointer active:scale-[0.98]"
+                className="h-9 rounded-lg text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 hover:text-primary transition-all shadow-2xs cursor-pointer active:scale-[0.98]"
                 title="Buka Galeri foto atau dokumen"
               >
                 {isScanningBill ? (
@@ -749,7 +761,7 @@ export function QuickAddModal() {
                     }
                   }
                 }}
-                className="h-8.5 rounded-lg text-xs bg-background/90 border border-input/80 px-3 placeholder:text-muted-foreground/60 focus-visible:border-primary"
+                className="h-9 rounded-lg text-xs bg-background/90 border border-input/80 px-3 placeholder:text-muted-foreground/60 focus-visible:border-primary"
               />
               <Button
                 type="button"
@@ -992,7 +1004,7 @@ export function QuickAddModal() {
               )}
             >
               <ArrowDownLeft className="h-3.5 w-3.5" />
-              <span>Pengeluaran</span>
+              <span>{t.quickAdd.tabExpense}</span>
             </button>
             <button
               type="button"
@@ -1005,7 +1017,7 @@ export function QuickAddModal() {
               )}
             >
               <ArrowUpRight className="h-3.5 w-3.5" />
-              <span>Pemasukan</span>
+              <span>{t.quickAdd.tabIncome}</span>
             </button>
             <button
               type="button"
@@ -1018,14 +1030,14 @@ export function QuickAddModal() {
               )}
             >
               <ArrowRightLeft className="h-3.5 w-3.5" />
-              <span>Transfer</span>
+              <span>{t.quickAdd.tabTransfer}</span>
             </button>
           </div>
 
           {/* Nominal Input */}
           <div data-tour="modal-amount">
             <div className="flex items-center justify-between h-6 mb-1.5">
-              <label className="text-xs font-medium text-foreground/80">Nominal Transaksi</label>
+              <label className="text-xs font-medium text-foreground/80">{t.quickAdd.amountLabel}</label>
               <VoiceMicButton
                 size="xs"
                 title="Dikte nominal (misal: lima puluh ribu)"
@@ -1039,7 +1051,7 @@ export function QuickAddModal() {
             </div>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-sm select-none">
-                Rp
+                {locale === "en" ? "IDR" : "Rp"}
               </span>
               <Input
                 type="text"
@@ -1171,7 +1183,7 @@ export function QuickAddModal() {
           )}
 
           {/* Akun & Kategori */}
-          <div data-tour="modal-account-category" className="grid grid-cols-2 gap-3">
+          <div data-tour="modal-account-category" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Akun Sumber */}
             <div>
               <div className="flex items-center justify-between h-6 mb-1.5">
@@ -1331,16 +1343,16 @@ export function QuickAddModal() {
               title={hasDraftData ? "Bersihkan seluruh input form" : "Form masih kosong"}
             >
               <RotateCcw className="h-3.5 w-3.5 shrink-0" />
-              <span>Bersihkan</span>
+              <span>{locale === "en" ? "Clear" : "Bersihkan"}</span>
             </Button>
             <Button
               type="button"
               variant="ghost"
               className="rounded-lg h-9 px-3 text-xs font-semibold cursor-pointer text-muted-foreground hover:text-foreground active:scale-[0.98]"
               onClick={closeQuickAdd}
-              title="Tutup modal (Draf input tetap tersimpan)"
+              title={locale === "en" ? "Close modal (draft remains saved)" : "Tutup modal (Draf input tetap tersimpan)"}
             >
-              Batal
+              {t.common.cancel}
             </Button>
           </div>
           <Button
@@ -1348,7 +1360,7 @@ export function QuickAddModal() {
             disabled={isSubmitting}
             className="flex-1 max-w-[240px] bg-primary hover:bg-primary/90 text-white font-bold rounded-lg h-9 text-xs shadow-xs cursor-pointer transition-all active:scale-[0.98]"
           >
-            {isSubmitting ? "Menyimpan..." : "Simpan Transaksi"}
+            {isSubmitting ? t.quickAdd.saving : t.quickAdd.saveButton}
           </Button>
         </div>
       </form>

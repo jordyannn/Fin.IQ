@@ -24,6 +24,7 @@ import {
   ALL_NAVIGATION_ITEMS,
   NavItem,
 } from "@/config/navigation";
+import { useTranslation } from "@/i18n";
 
 export function CommandPalette() {
   const router = useRouter();
@@ -34,6 +35,7 @@ export function CommandPalette() {
     openQuickAddWithScan,
   } = useUIStore();
   const { theme, setTheme } = useTheme();
+  const { t, locale } = useTranslation();
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "nav" | "ai" | "action">("all");
@@ -124,7 +126,7 @@ export function CommandPalette() {
               setSearch(e.target.value);
               setActiveIndex(0);
             }}
-            placeholder="Cari menu, halaman, fitur, atau tanya AI..."
+            placeholder={t.cmdk.placeholder}
             className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground text-foreground"
           />
           {search && (
@@ -132,7 +134,7 @@ export function CommandPalette() {
               onClick={() => setSearch("")}
               className="rounded-sm px-1.5 py-0.5 text-muted-foreground hover:bg-muted text-xs cursor-pointer"
             >
-              Hapus
+              {locale === "en" ? "Clear" : "Hapus"}
             </button>
           )}
           <button
@@ -156,7 +158,7 @@ export function CommandPalette() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Semua
+            {t.common.all}
           </button>
           <button
             onClick={() => setFilter("nav")}
@@ -166,7 +168,7 @@ export function CommandPalette() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Menu Sidebar
+            {t.cmdk.navigationGroup}
           </button>
           <button
             onClick={() => setFilter("ai")}
@@ -177,7 +179,7 @@ export function CommandPalette() {
             }`}
           >
             <GeometricIcon name="ai" size="xs" active={filter === "ai"} />
-            <span>Fitur AI</span>
+            <span>AI Advisor</span>
           </button>
           <button
             onClick={() => setFilter("action")}
@@ -187,7 +189,7 @@ export function CommandPalette() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Aksi Cepat
+            {t.cmdk.actionsGroup}
           </button>
         </div>
 

@@ -36,6 +36,72 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id" className={plusJakartaSans.variable} suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  function cleanElement(el) {
+                    if (!el || el.nodeType !== 1) return;
+                    var attrs = el.attributes;
+                    if (!attrs) return;
+                    for (var i = attrs.length - 1; i >= 0; i--) {
+                      var name = attrs[i].name;
+                      if (
+                        name.indexOf('bis_') === 0 ||
+                        name.indexOf('data-bis-') === 0 ||
+                        name === 'cz-shortcut-listen'
+                      ) {
+                        el.removeAttribute(name);
+                      }
+                    }
+                  }
+
+                  if (typeof MutationObserver !== 'undefined') {
+                    var observer = new MutationObserver(function(mutations) {
+                      for (var i = 0; i < mutations.length; i++) {
+                        var m = mutations[i];
+                        if (m.type === 'attributes') {
+                          var name = m.attributeName;
+                          if (
+                            name &&
+                            (name.indexOf('bis_') === 0 ||
+                             name.indexOf('data-bis-') === 0 ||
+                             name === 'cz-shortcut-listen') &&
+                            m.target.hasAttribute(name)
+                          ) {
+                            m.target.removeAttribute(name);
+                          }
+                        } else if (m.type === 'childList') {
+                          for (var j = 0; j < m.addedNodes.length; j++) {
+                            var n = m.addedNodes[j];
+                            if (n.nodeType === 1) {
+                              cleanElement(n);
+                              if (n.firstElementChild) {
+                                var children = n.querySelectorAll('*');
+                                for (var k = 0; k < children.length; k++) {
+                                  cleanElement(children[k]);
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    });
+
+                    observer.observe(document.documentElement, {
+                      attributes: true,
+                      childList: true,
+                      subtree: true,
+                    });
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className="min-h-screen bg-background font-sans antialiased selection:bg-emerald-500/20 selection:text-emerald-900 dark:selection:text-emerald-200" suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <TRPCProvider>{children}</TRPCProvider>

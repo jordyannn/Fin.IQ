@@ -4,7 +4,7 @@
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { useTranslation } from "@/i18n";
 import { useUIStore } from "@/store/ui.store";
 import {
   Search,
@@ -39,6 +39,7 @@ export default function TransactionsPage() {
   const utils = trpc.useUtils();
   const confirm = useConfirm();
   const alert = useAlert();
+  const { t, formatCurrency, formatDateTime } = useTranslation();
 
   // Filters state
   const [search, setSearch] = useState("");
@@ -254,9 +255,9 @@ export default function TransactionsPage() {
       {/* Page Title & Main Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Transaksi</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t.transactions.title}</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Daftar mutasi rekening, dompet digital, dan kas tunai.
+            {t.transactions.subtitle}
           </p>
         </div>
 
@@ -264,12 +265,12 @@ export default function TransactionsPage() {
           <Link href="/import">
             <Button variant="outline" size="sm" className="gap-2 text-xs rounded-md">
               <GeometricIcon name="import" size="xs" active />
-              Impor Data
+              {t.nav.importData}
             </Button>
           </Link>
           <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2 text-xs rounded-md">
-            <GeometricIcon name="ledgers" size="xs" active />
-            Ekspor CSV
+              <GeometricIcon name="ledgers" size="xs" active />
+            {t.transactions.exportCsv}
           </Button>
           <Button
             variant="chip"
@@ -282,7 +283,7 @@ export default function TransactionsPage() {
           </Button>
           <Button size="sm" onClick={openQuickAdd} className="bg-primary hover:bg-[#047857] text-white gap-2 text-xs shadow-xs rounded-md font-bold">
             <Plus className="h-4 w-4 stroke-[3px]" />
-            Catat Transaksi
+            {t.transactions.addTransaction}
           </Button>
         </div>
       </div>
@@ -296,7 +297,7 @@ export default function TransactionsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Cari transaksi..."
+              placeholder={t.transactions.searchPlaceholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 pr-8 text-xs h-9"
@@ -323,7 +324,7 @@ export default function TransactionsPage() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Semua
+              {t.common.all}
             </button>
             <button
               onClick={() => setSelectedType("expense")}
@@ -333,7 +334,7 @@ export default function TransactionsPage() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Pengeluaran
+              {t.common.expense}
             </button>
             <button
               onClick={() => setSelectedType("income")}
@@ -343,7 +344,7 @@ export default function TransactionsPage() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Pemasukan
+              {t.common.income}
             </button>
             <button
               onClick={() => setSelectedType("transfer")}
@@ -353,7 +354,7 @@ export default function TransactionsPage() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Transfer
+              {t.common.transfer}
             </button>
           </div>
         </div>
@@ -647,7 +648,7 @@ export default function TransactionsPage() {
 
                 <div className="text-right shrink-0 flex flex-col items-end gap-1">
                   <span
-                    className={`font-black text-xs sm:text-sm ${
+                    className={`font-black text-xs sm:text-sm font-mono tabular-nums ${
                       isExpense
                         ? "text-foreground"
                         : isIncome
@@ -659,17 +660,19 @@ export default function TransactionsPage() {
                     {isIncome && "+ "}
                     {formatCurrency(tx.amount, tx.currency)}
                   </span>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 mt-0.5">
                     <button
                       onClick={() => setEditingTx(tx as any)}
-                      className="p-1 rounded-sm text-muted-foreground hover:text-[#059669] hover:bg-emerald-50 dark:hover:bg-emerald-950 transition-colors"
+                      aria-label="Edit Transaksi"
+                      className="h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-[#059669] hover:bg-emerald-500/10 active:scale-95 transition-all"
                       title="Edit Transaksi"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => handleDelete(tx.id)}
-                      className="p-1 rounded-sm text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors"
+                      aria-label="Hapus Transaksi"
+                      className="h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 active:scale-95 transition-all"
                       title="Hapus Transaksi"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
