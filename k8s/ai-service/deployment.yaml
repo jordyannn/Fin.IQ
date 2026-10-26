@@ -24,6 +24,8 @@ spec:
         app: finiq
         component: ai-service
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: ai-service
           image: ghcr.io/jordyannn/finiq-ai-service:latest

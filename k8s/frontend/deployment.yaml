@@ -24,6 +24,8 @@ spec:
         app: finiq
         component: frontend
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: frontend
           image: ghcr.io/jordyannn/finiq-frontend:latest

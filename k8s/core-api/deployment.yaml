@@ -24,6 +24,8 @@ spec:
         app: finiq
         component: core-api
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: core-api
           image: ghcr.io/jordyannn/finiq-core-api:latest
