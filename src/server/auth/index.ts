@@ -31,60 +31,62 @@ export function verifyPassword(password: string, storedHash: string): boolean {
   }
 }
 
+import jwt from "jsonwebtoken";
+
 export interface SessionPayload {
   userId: string;
   email: string;
+  iat?: number;
   exp?: number;
 }
 
 const DEFAULT_SECRET = "finiq-secret-key-32-chars-minimum-token-super-safe";
+const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || DEFAULT_SECRET;
+const JWT_EXPIRES_IN = "30d";
 
 /**
- * Generate HMAC-SHA256 signed session token
+ * Generate standard JWT session token
  */
 export function createSessionToken(payload: { userId: string; email: string }): string {
-  const secret = process.env.NEXTAUTH_SECRET || DEFAULT_SECRET;
-  const tokenData: SessionPayload = {
-    ...payload,
-    exp: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
-  };
-
-  const payloadStr = JSON.stringify(tokenData);
-  const dataB64 = Buffer.from(payloadStr, "utf8").toString("base64url");
-  const signature = crypto.createHmac("sha256", secret).update(payloadStr).digest("base64url");
-
-  return `${dataB64}.${signature}`;
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 }
 
 /**
- * Verify HMAC-SHA256 session token
+ * Verify session token (supports both JWT and legacy HMAC for seamless transition)
  */
 export function verifySessionToken(token: string): SessionPayload | null {
   if (!token || typeof token !== "string") return null;
 
-  const parts = token.split(".");
-  if (parts.length !== 2) return null;
-
-  const [dataB64, signature] = parts;
-  if (!dataB64 || !signature) return null;
-
-  const secret = process.env.NEXTAUTH_SECRET || DEFAULT_SECRET;
-
+  // 1. Try standard JWT verification
   try {
-    const payloadStr = Buffer.from(dataB64, "base64url").toString("utf8");
-    const expectedSig = crypto.createHmac("sha256", secret).update(payloadStr).digest("base64url");
-
-    if (signature !== expectedSig) {
-      return null;
+    const decoded = jwt.verify(token, JWT_SECRET) as SessionPayload;
+    if (decoded && decoded.userId) {
+      return decoded;
     }
-
-    const payload = JSON.parse(payloadStr) as SessionPayload;
-    if (payload.exp && payload.exp < Date.now()) {
-      return null;
-    }
-
-    return payload;
   } catch {
-    return null;
+    // Fall through to legacy HMAC check
   }
+
+  // 2. Legacy HMAC verification
+  try {
+    const parts = token.split(".");
+    if (parts.length === 2) {
+      const [dataB64, signature] = parts;
+      if (dataB64 && signature) {
+        const secret = process.env.NEXTAUTH_SECRET || DEFAULT_SECRET;
+        const payloadStr = Buffer.from(dataB64, "base64url").toString("utf8");
+        const expectedSig = crypto.createHmac("sha256", secret).update(payloadStr).digest("base64url");
+        if (signature === expectedSig) {
+          const payload = JSON.parse(payloadStr) as SessionPayload;
+          if (!payload.exp || payload.exp >= Date.now()) {
+            return payload;
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore legacy parse errors
+  }
+
+  return null;
 }

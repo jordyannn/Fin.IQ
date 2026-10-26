@@ -221,10 +221,15 @@ export const authRouter = router({
     };
   }),
 
-  logout: publicProcedure.mutation(async () => {
+  logout: publicProcedure.mutation(async ({ ctx }) => {
+    if (ctx.sessionToken) {
+      const { deleteCachedSession } = await import("@/lib/redis");
+      await deleteCachedSession(ctx.sessionToken);
+      console.log(`[Redis Session] Session ${ctx.sessionToken.substring(0, 16)}... automatically deleted & revoked on logout.`);
+    }
     return {
       success: true,
-      message: "Berhasil keluar dari akun.",
+      message: "Berhasil keluar dari akun. Sesi Redis telah dihapus.",
     };
   }),
 });

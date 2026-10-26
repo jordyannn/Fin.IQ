@@ -113,7 +113,9 @@ if (typeof window === "undefined" && process.env.REDIS_URL) {
 const PREFIX = {
   USER: "finiq:auth:user:",
   SESSION: "finiq:auth:session:",
+  REVOKED_TOKEN: "finiq:auth:revoked:",
   RATELIMIT: "finiq:ratelimit:login:",
+  RATELIMIT_IP: "finiq:ratelimit:ip:",
 };
 
 /**
@@ -236,6 +238,123 @@ export async function deleteCachedSession(token: string): Promise<void> {
   }
 
   deleteFromMemory(key);
+  await revokeSessionToken(token, 30 * 86400);
+}
+
+export async function revokeSessionToken(token: string, ttlSeconds = 30 * 86400): Promise<void> {
+  if (!token) return;
+  const key = `${PREFIX.REVOKED_TOKEN}${token}`;
+
+  const client = getRedisClient();
+  if (client && isRedisAvailable) {
+    try {
+      await client.set(key, "1", "EX", ttlSeconds);
+    } catch (err) {
+      console.warn("[Redis revokeSessionToken error]", err);
+    }
+  }
+
+  setToMemory(key, true, ttlSeconds);
+}
+
+export async function isSessionRevoked(token: string): Promise<boolean> {
+  if (!token) return true;
+  const key = `${PREFIX.REVOKED_TOKEN}${token}`;
+
+  const client = getRedisClient();
+  if (client && isRedisAvailable) {
+    try {
+      const exists = await client.exists(key);
+      if (exists === 1) return true;
+    } catch (err) {
+      console.warn("[Redis isSessionRevoked error]", err);
+    }
+  }
+
+  return getFromMemory<boolean>(key) === true;
+}
+
+export async function checkIpRateLimit(
+  ip: string,
+  action: string = "general",
+  maxRequests: number = 60,
+  windowSeconds: number = 60
+): Promise<{
+  allowed: boolean;
+  current: number;
+  remaining: number;
+  retryAfterSeconds: number;
+}> {
+  const cleanIp = ip.replace(/[^a-zA-Z0-9_.-]/g, "_");
+  const key = `${PREFIX.RATELIMIT_IP}${action}:${cleanIp}`;
+
+  const client = getRedisClient();
+  if (client && isRedisAvailable) {
+    try {
+      const pipeline = client.pipeline();
+      pipeline.incr(key);
+      pipeline.ttl(key);
+      const results = await pipeline.exec();
+
+      const count = (results?.[0]?.[1] as number) || 1;
+      let ttl = (results?.[1]?.[1] as number) || -1;
+
+      if (ttl === -1) {
+        await client.expire(key, windowSeconds);
+        ttl = windowSeconds;
+      }
+
+      if (count > maxRequests) {
+        return {
+          allowed: false,
+          current: count,
+          remaining: 0,
+          retryAfterSeconds: Math.max(1, ttl),
+        };
+      }
+
+      return {
+        allowed: true,
+        current: count,
+        remaining: Math.max(0, maxRequests - count),
+        retryAfterSeconds: 0,
+      };
+    } catch (err) {
+      console.warn("[Redis checkIpRateLimit error]", err);
+    }
+  }
+
+  const mem = getFromMemory<{ count: number; expiry: number }>(key);
+  const now = Date.now();
+  if (!mem || now > mem.expiry) {
+    setToMemory(key, { count: 1, expiry: now + windowSeconds * 1000 }, windowSeconds);
+    return {
+      allowed: true,
+      current: 1,
+      remaining: maxRequests - 1,
+      retryAfterSeconds: 0,
+    };
+  }
+
+  const nextCount = mem.count + 1;
+  const remainingSeconds = Math.max(1, Math.round((mem.expiry - now) / 1000));
+  mem.count = nextCount;
+
+  if (nextCount > maxRequests) {
+    return {
+      allowed: false,
+      current: nextCount,
+      remaining: 0,
+      retryAfterSeconds: remainingSeconds,
+    };
+  }
+
+  return {
+    allowed: true,
+    current: nextCount,
+    remaining: maxRequests - nextCount,
+    retryAfterSeconds: 0,
+  };
 }
 
 /**

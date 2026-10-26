@@ -1,6 +1,10 @@
-# 🚀 Fin.IQ — Cloud Financial Management
+# 🚀 Fin.IQ — Cloud Financial Management & Microservices
 
-> Rebuild & Modernisasi Total dari BeeCount Cloud ke Next.js 15, Drizzle ORM, tRPC, Shadcn/ui, dan Serverless PostgreSQL (Neon).
+> Platform manajemen keuangan pribadi modern dengan arsitektur **4 Microservices di K3s** (Core API dengan HPA Auto-Scaling, AI Service, Frontend Next.js SSR, dan Redis 7 Cache).
+
+📘 **Dokumentasi Lengkap:**
+- [Struktur & Arsitektur Microservices (ARCHITECTURE.md)](file:///c:/Project%20Coding/Fin.IQ/ARCHITECTURE.md)
+- [Spesifikasi Resmi REST API (API.md)](file:///c:/Project%20Coding/Fin.IQ/API.md)
 
 ---
 

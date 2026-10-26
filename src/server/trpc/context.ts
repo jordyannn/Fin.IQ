@@ -7,6 +7,7 @@ export interface Context {
   db: typeof db;
   userId: string;
   userEmail?: string;
+  sessionToken?: string;
 }
 
 function parseCookie(cookieHeader?: string | null, name?: string): string | null {
@@ -151,5 +152,6 @@ export async function createContext(opts?: { req?: Request }): Promise<Context> 
     db,
     userId: authenticatedUserId || "",
     userEmail: authenticatedEmail,
+    sessionToken: sessionToken || undefined,
   };
 }
