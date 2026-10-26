@@ -44,8 +44,8 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Verify Shared Package Typecheck
-        run: cd packages/shared && npx tsc --noEmit
+      - name: Build Shared Package
+        run: cd packages/shared && npx tsc
 
       - name: Verify Core API Typecheck
         run: cd packages/core-api && npx tsc --noEmit

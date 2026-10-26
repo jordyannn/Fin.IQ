@@ -9,10 +9,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
-    "paths": {
-      "@finiq/shared": ["../shared/src/index.ts"],
-      "@finiq/shared/*": ["../shared/src/*"]
-    }
+    "rootDir": "./src"
   },
-  "include": ["src/**/*", "../shared/src/**/*"]
+  "include": ["src/**/*"]
 }
