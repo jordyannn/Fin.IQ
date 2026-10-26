@@ -161,6 +161,11 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
+            # Bersihkan legacy monolith resources agar NodePort 30080 tidak bentrok dengan service frontend baru
+            kubectl -n finiq delete svc finiq --ignore-not-found=true
+            kubectl -n finiq delete deploy finiq-app --ignore-not-found=true
+            kubectl -n finiq delete hpa finiq --ignore-not-found=true
+
             # Apply all microservices manifests (Redis, Core API, AI Service, Frontend)
             kubectl apply -R -f k8s/
 
