@@ -364,14 +364,13 @@ export default function TransactionsPage() {
         </div>
 
         {/* Row 2: Deep Filters (Waktu, Buku Kas, Akun, Kategori, Reset) */}
-        <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-          {/* Preset Waktu */}
+        <div className="flex items-center gap-2 pt-1 text-xs overflow-x-auto no-scrollbar pb-1 w-full">
           {/* Preset Waktu & Tombol Kalender Interaktif */}
-          <div className="relative flex items-center gap-1.5">
+          <div className="relative flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={() => setIsMonthPickerOpen((prev) => !prev)}
-              className={`h-8 w-8 rounded-md border flex items-center justify-center transition-all shadow-2xs ${
+              className={`h-8 w-8 rounded-md border flex items-center justify-center transition-all shadow-2xs shrink-0 ${
                 isMonthPickerOpen
                   ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/20"
                   : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 active:scale-95 cursor-pointer"
@@ -387,16 +386,16 @@ export default function TransactionsPage() {
                 setDatePreset(e.target.value as DateFilterPreset);
                 setIsMonthPickerOpen(false);
               }}
-              className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground"
+              className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground shrink-0"
             >
               <option value="this_month">Bulan Ini</option>
               <option value="today">Hari Ini</option>
-              <option value="last_7_days">7 Hari Terakhir</option>
-              <option value="last_30_days">30 Hari Terakhir</option>
+              <option value="last_7_days">7 Hari</option>
+              <option value="last_30_days">30 Hari</option>
               <option value="last_month">Bulan Lalu</option>
               <option value="this_year">Tahun Ini</option>
-              <option value="all">Semua Waktu</option>
-              <option value="custom">Kustom Tanggal</option>
+              <option value="all">Semua</option>
+              <option value="custom">Kustom</option>
             </select>
 
             {/* MonthYearPicker Dropdown saat preset BUKAN this_month tapi tombol kalender diklik */}
@@ -416,7 +415,7 @@ export default function TransactionsPage() {
 
           {/* Month Switcher (when this_month is selected) */}
           {datePreset === "this_month" && (
-            <div className="relative flex items-center gap-1 rounded-md border border-input bg-background/80 px-1 py-0.5">
+            <div className="relative flex items-center gap-1 rounded-md border border-input bg-background/80 px-1 py-0.5 shrink-0 shadow-2xs">
               <Button
                 variant="ghost"
                 size="icon"
@@ -452,7 +451,7 @@ export default function TransactionsPage() {
               {!isCurrentMonthNow && (
                 <button
                   onClick={handleResetMonth}
-                  className="px-1.5 py-0.5 text-[10px] font-medium text-primary hover:underline border-l border-border/60 pl-2 cursor-pointer"
+                  className="px-1.5 py-0.5 text-[10px] font-medium text-primary hover:underline border-l border-border/60 pl-2 cursor-pointer whitespace-nowrap"
                   title="Kembali ke bulan saat ini"
                 >
                   Bulan Ini
@@ -475,7 +474,7 @@ export default function TransactionsPage() {
 
           {/* Custom Date Pickers */}
           {datePreset === "custom" && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 shrink-0">
               <Input
                 type="date"
                 value={customDateFrom}
@@ -499,7 +498,7 @@ export default function TransactionsPage() {
             <select
               value={selectedLedgerId || ""}
               onChange={(e) => setSelectedLedgerId(e.target.value || undefined)}
-              className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground"
+              className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground shrink-0"
             >
               <option value="">Semua Buku Kas</option>
               {ledgersData.map((l) => (
@@ -514,7 +513,7 @@ export default function TransactionsPage() {
           <select
             value={selectedAccountId || ""}
             onChange={(e) => setSelectedAccountId(e.target.value || undefined)}
-            className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground"
+            className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground shrink-0"
           >
             <option value="">Semua Akun</option>
             {accountsData?.accounts?.map((acc) => (
@@ -528,7 +527,7 @@ export default function TransactionsPage() {
           <select
             value={selectedCategoryId || ""}
             onChange={(e) => setSelectedCategoryId(e.target.value || undefined)}
-            className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground"
+            className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground shrink-0"
           >
             <option value="">Semua Kategori</option>
             <option value="uncategorized">Belum Berkategori</option>
@@ -553,12 +552,12 @@ export default function TransactionsPage() {
           </select>
 
           {/* Refresh & Reset Button */}
-          <div className="flex items-center gap-1 ml-auto">
+          <div className="flex items-center gap-1 shrink-0 ml-auto">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => refetch()}
-              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
               title="Perbarui data"
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -569,7 +568,7 @@ export default function TransactionsPage() {
                 variant="ghost"
                 size="sm"
                 onClick={handleResetAllFilters}
-                className="h-8 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 gap-1.5 px-2.5"
+                className="h-8 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 gap-1.5 px-2.5 shrink-0"
                 title="Reset semua filter ke default"
               >
                 <RotateCcw className="h-3.5 w-3.5" />

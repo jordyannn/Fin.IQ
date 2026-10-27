@@ -504,13 +504,16 @@ export default function AccountsPage() {
       {/* Modal 1: Tambah Akun Baru */}
       {/* ========================================================================= */}
       {isAddOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in">
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Tambah Akun Baru"
-            className="relative w-full max-w-md rounded-md bg-card border shadow-2xl p-5 text-card-foreground"
+            className="relative w-full max-w-md rounded-t-3xl sm:rounded-2xl bg-card border shadow-2xl p-5 text-card-foreground max-h-[90vh] overflow-y-auto pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5"
           >
+            {/* Visual Drag Handle Pill on Mobile */}
+            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-muted-foreground/30 sm:hidden" />
+
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <div>
                 <h2 className="text-sm font-bold">Tambah Akun Baru</h2>
@@ -520,7 +523,8 @@ export default function AccountsPage() {
               </div>
               <button
                 onClick={() => setIsAddOpen(false)}
-                className="p-1 rounded-sm text-muted-foreground hover:text-foreground"
+                className="h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                title="Tutup modal"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -624,13 +628,16 @@ export default function AccountsPage() {
       {/* Modal 2: Edit Akun Lengkap (Nama, Kelompok, Saldo, Catatan, dsb.) */}
       {/* ========================================================================= */}
       {editingAccount && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in">
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Ubah Akun Keuangan"
-            className="relative w-full max-w-md rounded-md bg-card border shadow-2xl p-5 text-card-foreground"
+            className="relative w-full max-w-md rounded-t-3xl sm:rounded-2xl bg-card border shadow-2xl p-5 text-card-foreground max-h-[90vh] overflow-y-auto pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5"
           >
+            {/* Visual Drag Handle Pill on Mobile */}
+            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-muted-foreground/30 sm:hidden" />
+
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <div>
                 <h2 className="text-sm font-bold">Ubah Akun Keuangan</h2>
@@ -640,7 +647,8 @@ export default function AccountsPage() {
               </div>
               <button
                 onClick={() => setEditingAccount(null)}
-                className="p-1 rounded-sm text-muted-foreground hover:text-foreground"
+                className="h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                title="Tutup modal"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -776,8 +784,11 @@ export default function AccountsPage() {
       {/* Modal 3: Sesuaikan Saldo Cepat (Quick Balance Adjustment) */}
       {/* ========================================================================= */}
       {adjustingAccount && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="relative w-full max-w-sm rounded-md bg-card border shadow-2xl p-5 text-card-foreground">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in">
+          <div className="relative w-full max-w-sm rounded-t-3xl sm:rounded-2xl bg-card border shadow-2xl p-5 text-card-foreground max-h-[90vh] overflow-y-auto pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5">
+            {/* Visual Drag Handle Pill on Mobile */}
+            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-muted-foreground/30 sm:hidden" />
+
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <div>
                 <h2 className="text-sm font-bold">Sesuaikan Saldo</h2>
@@ -787,7 +798,8 @@ export default function AccountsPage() {
               </div>
               <button
                 onClick={() => setAdjustingAccount(null)}
-                className="p-1 rounded-sm text-muted-foreground hover:text-foreground"
+                className="h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                title="Tutup modal"
               >
                 <X className="h-4 w-4" />
               </button>

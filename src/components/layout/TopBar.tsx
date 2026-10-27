@@ -35,28 +35,15 @@ export function TopBar() {
   const currentLabel = getRouteLabel();
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border/70 bg-card/90 px-3 sm:px-8 backdrop-blur-md shadow-level-1">
-      {/* Left: Breadcrumbs & Page Signpost */}
-      <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
-        {/* Mobile Sidebar Toggle Button */}
-        <button
-          type="button"
-          onClick={toggleSidebar}
-          data-tour="topbar-sidebar-toggle"
-          className="flex lg:hidden h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/70 active:scale-95 transition-all -ml-1 cursor-pointer shrink-0"
-          aria-label="Buka Menu Navigasi"
-          title="Buka Menu Navigasi"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
-
-        <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground font-medium">
-          <span className="font-bold text-foreground">Fin.IQ</span>
-          <span>/</span>
-          <span className="text-foreground font-semibold">{currentLabel}</span>
-        </div>
-        <div className="sm:hidden font-bold text-sm text-foreground truncate max-w-[110px] xs:max-w-[140px]">
-          {currentLabel}
+    <header className="sticky top-0 z-30 flex h-14 sm:h-16 w-full items-center justify-between border-b border-border/70 bg-card/95 px-3.5 sm:px-8 backdrop-blur-xl shadow-level-1 shrink-0 select-none">
+      {/* Left: Breadcrumbs & Page Signpost (Clean & No Mobile Menu Bar) */}
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs font-medium">
+          <span className="font-extrabold text-foreground tracking-tight text-sm sm:text-base">Fin.IQ</span>
+          <span className="text-muted-foreground/50">/</span>
+          <span className="text-foreground font-bold text-xs sm:text-sm truncate max-w-[130px] xs:max-w-[170px] sm:max-w-none">
+            {currentLabel}
+          </span>
         </div>
       </div>
 

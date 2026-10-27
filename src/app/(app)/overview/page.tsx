@@ -434,88 +434,44 @@ export default function OverviewPage() {
       ========================================================================= */}
       <div className="relative overflow-hidden rounded-md border border-border/70 bg-card p-4 sm:p-5 shadow-2xs transition-all flex flex-col gap-4">
         {/* Latar Aksen Mint Halus di Pojok Kanan Atas */}
-        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-md bg-primary/5 blur-3xl pointer-events-none" />
-
-        {/* Baris 1: Toolbar Periode & Pemilih Tanggal */}
-        <div data-tour="date-filter" className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3 text-xs">
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Preset Waktu Dropdown & Tombol Kalender Interaktif */}
-            <div className="relative flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setIsMonthPickerOpen((prev) => !prev)}
-                className={`h-8 w-8 rounded-md border flex items-center justify-center transition-all shadow-2xs ${
-                  isMonthPickerOpen
-                    ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/20"
-                    : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 active:scale-95 cursor-pointer"
-                }`}
-                title="Buka Pemilih Bulan & Kalender Langsung"
-                aria-label="Pilih Bulan Kalender"
-              >
-                <Calendar className="h-3.5 w-3.5" />
-              </button>
-              <select
-                value={datePreset}
-                onChange={(e) => {
-                  setDatePreset(e.target.value as DateFilterPreset);
-                  setIsMonthPickerOpen(false);
-                }}
-                className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground"
-              >
-                <option value="this_month">Bulan Ini</option>
-                <option value="today">Hari Ini</option>
-                <option value="last_7_days">7 Hari Terakhir</option>
-                <option value="last_30_days">30 Hari Terakhir</option>
-                <option value="last_month">Bulan Lalu</option>
-                <option value="this_year">Tahun Ini</option>
-                <option value="all">Semua Waktu</option>
-                <option value="custom">Kustom Tanggal</option>
-              </select>
-
-              {/* MonthYearPicker Dropdown saat preset BUKAN this_month tapi tombol kalender diklik */}
-              {datePreset !== "this_month" && datePreset !== "this_year" && isMonthPickerOpen && (
-                <MonthYearPicker
-                  currentDate={currentMonth}
-                  onSelectMonth={(newDate) => {
-                    setCurrentMonth(newDate);
-                    setDatePreset("this_month");
-                  }}
-                  isOpen={isMonthPickerOpen}
-                  onClose={() => setIsMonthPickerOpen(false)}
-                  align="left"
-                />
-              )}
-            </div>
-
-            {/* Navigasi Periode Bulan (saat Bulan Ini aktif) */}
+        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-md bg-primary/5 blur-3xl pointer-events-none" />        {/* Baris 1: Toolbar Periode & Pemilih Tanggal (Single Clean Horizontal Bar) */}
+        <div
+          data-tour="date-filter"
+          className="flex items-center justify-between gap-1.5 sm:gap-3 border-b border-border/60 pb-2.5 sm:pb-3 text-xs w-full overflow-x-auto no-scrollbar"
+        >
+          {/* Sisi Kiri: Navigasi Periode / Pemilih Bulan & Tahun */}
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            {/* Jika mode Bulan Ini aktif */}
             {datePreset === "this_month" && (
-              <div className="relative flex items-center gap-1 rounded-md border border-input bg-background/80 px-1.5 py-0.5">
+              <div
+                data-tour="month-filter"
+                className="relative flex items-center gap-0.5 sm:gap-1 rounded-md border border-input bg-background/90 px-1 py-0.5 shadow-2xs"
+              >
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer"
+                  className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
                   onClick={handlePrevPeriod}
                   title="Bulan sebelumnya"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                 </Button>
 
-                {/* Tombol Pemilih Bulan Langsung (Bisa langsung klik nama bulan!) */}
                 <button
                   type="button"
                   onClick={() => setIsMonthPickerOpen((prev) => !prev)}
-                  className="flex items-center gap-1.5 px-2 py-0.5 text-xs font-bold capitalize rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-foreground select-none group cursor-pointer"
+                  className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 text-xs font-bold capitalize rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-foreground select-none group cursor-pointer active:scale-95"
                   title="Klik untuk memilih bulan secara langsung dari kalender"
                 >
-                  <CalendarDays className="h-3.5 w-3.5 text-primary group-hover:scale-105 transition-transform" />
-                  <span className="min-w-[80px] text-center">{periodLabel}</span>
-                  <ChevronDown className="h-3 w-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+                  <Calendar className="h-3.5 w-3.5 text-primary group-hover:scale-105 transition-transform shrink-0" />
+                  <span className="whitespace-nowrap font-bold">{periodLabel}</span>
+                  <ChevronDown className="h-3 w-3 opacity-60 group-hover:opacity-100 transition-opacity shrink-0" />
                 </button>
 
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer"
+                  className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
                   onClick={handleNextPeriod}
                   title="Bulan berikutnya"
                 >
@@ -525,14 +481,13 @@ export default function OverviewPage() {
                 {!isCurrentMonthNow && (
                   <button
                     onClick={handleResetPeriod}
-                    className="px-2 py-0.5 text-[10px] font-bold text-primary hover:underline rounded-sm border-l border-border/60 pl-2 cursor-pointer"
+                    className="hidden xs:inline-block px-1.5 py-0.5 text-[10px] font-bold text-primary hover:underline rounded-sm border-l border-border/60 pl-1.5 cursor-pointer whitespace-nowrap"
                     title="Kembali ke bulan saat ini"
                   >
                     Bulan Ini
                   </button>
                 )}
 
-                {/* Popover Kalender Pemilih Bulan & Tahun */}
                 <MonthYearPicker
                   currentDate={currentMonth}
                   onSelectMonth={(newDate) => {
@@ -546,31 +501,33 @@ export default function OverviewPage() {
               </div>
             )}
 
-            {/* Navigasi Tahun (saat Tahun Ini aktif) */}
+            {/* Jika mode Tahun Ini aktif */}
             {datePreset === "this_year" && (
-              <div className="relative flex items-center gap-1 rounded-md border border-input bg-background/80 px-1.5 py-0.5">
+              <div className="relative flex items-center gap-0.5 sm:gap-1 rounded-md border border-input bg-background/80 px-1 py-0.5 shadow-2xs">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer"
+                  className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
                   onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear() - 1, 0, 1))}
                   title="Tahun sebelumnya"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                 </Button>
+
                 <button
                   type="button"
                   onClick={() => setIsMonthPickerOpen((prev) => !prev)}
-                  className="flex items-center gap-1.5 px-2 py-0.5 text-xs font-bold rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-foreground cursor-pointer"
+                  className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 text-xs font-bold rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-foreground cursor-pointer active:scale-95 whitespace-nowrap"
                   title="Pilih tahun atau bulan langsung"
                 >
                   <span>Tahun {currentMonth.getFullYear()}</span>
                   <ChevronDown className="h-3 w-3 opacity-60" />
                 </button>
+
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer"
+                  className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
                   onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear() + 1, 0, 1))}
                   title="Tahun berikutnya"
                 >
@@ -580,10 +537,10 @@ export default function OverviewPage() {
                 {currentMonth.getFullYear() !== new Date().getFullYear() && (
                   <button
                     onClick={() => setCurrentMonth(new Date())}
-                    className="px-2 py-0.5 text-[10px] font-bold text-primary hover:underline rounded-sm border-l border-border/60 pl-2 cursor-pointer"
+                    className="hidden xs:inline-block px-1.5 py-0.5 text-[10px] font-bold text-primary hover:underline rounded-sm border-l border-border/60 pl-1.5 cursor-pointer whitespace-nowrap"
                     title="Kembali ke tahun sekarang"
                   >
-                    Tahun Sekarang
+                    Tahun Ini
                   </button>
                 )}
 
@@ -602,12 +559,12 @@ export default function OverviewPage() {
 
             {/* Custom Date Pickers */}
             {datePreset === "custom" && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 <Input
                   type="date"
                   value={customDateFrom}
                   onChange={(e) => setCustomDateFrom(e.target.value)}
-                  className="h-8 text-xs w-32 px-2.5 rounded-md"
+                  className="h-8 text-xs w-28 xs:w-32 px-2 rounded-md"
                   placeholder="Dari"
                 />
                 <span className="text-muted-foreground text-[11px]">-</span>
@@ -615,35 +572,89 @@ export default function OverviewPage() {
                   type="date"
                   value={customDateTo}
                   onChange={(e) => setCustomDateTo(e.target.value)}
-                  className="h-8 text-xs w-32 px-2.5 rounded-md"
+                  className="h-8 text-xs w-28 xs:w-32 px-2 rounded-md"
                   placeholder="Sampai"
                 />
               </div>
             )}
+
+            {/* Tombol Kalender Popover saat preset selain this_month & this_year */}
+            {datePreset !== "this_month" && datePreset !== "this_year" && datePreset !== "custom" && (
+              <div className="relative flex items-center">
+                <button
+                  type="button"
+                  onClick={() => setIsMonthPickerOpen((prev) => !prev)}
+                  className={`h-8 px-2.5 rounded-md border flex items-center gap-1.5 transition-all shadow-2xs text-xs font-semibold ${
+                    isMonthPickerOpen
+                      ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/20"
+                      : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 active:scale-95 cursor-pointer"
+                  }`}
+                  title="Buka Pemilih Bulan & Kalender Langsung"
+                >
+                  <Calendar className="h-3.5 w-3.5 text-primary" />
+                  <span className="hidden xs:inline">{periodLabel}</span>
+                  <ChevronDown className="h-3 w-3 opacity-60" />
+                </button>
+
+                {isMonthPickerOpen && (
+                  <MonthYearPicker
+                    currentDate={currentMonth}
+                    onSelectMonth={(newDate) => {
+                      setCurrentMonth(newDate);
+                      setDatePreset("this_month");
+                    }}
+                    isOpen={isMonthPickerOpen}
+                    onClose={() => setIsMonthPickerOpen(false)}
+                    align="left"
+                  />
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Tombol Perbarui & Reset Filter */}
-          <div className="flex items-center gap-1.5 ml-auto">
+          {/* Sisi Kanan: Preset Filter Dropdown & Tombol Refresh / Reset */}
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
+            {/* Preset Dropdown */}
+            <select
+              value={datePreset}
+              onChange={(e) => {
+                setDatePreset(e.target.value as DateFilterPreset);
+                setIsMonthPickerOpen(false);
+              }}
+              className="h-8 max-w-[95px] xs:max-w-[115px] sm:max-w-none rounded-md border border-border bg-card pl-2 pr-7 text-xs font-bold text-foreground shadow-2xs transition-all hover:border-primary/40 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary truncate"
+            >
+              <option value="this_month">Bulan Ini</option>
+              <option value="today">Hari Ini</option>
+              <option value="last_7_days">7 Hari</option>
+              <option value="last_30_days">30 Hari</option>
+              <option value="last_month">Bulan Lalu</option>
+              <option value="this_year">Tahun Ini</option>
+              <option value="all">Semua</option>
+              <option value="custom">Kustom</option>
+            </select>
+
+            {/* Tombol Perbarui */}
             <Button
               variant="ghost"
               size="icon"
               onClick={handleRefreshAll}
-              className="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
+              className="h-8 w-8 rounded-md border border-border/80 bg-card text-muted-foreground hover:text-foreground shrink-0 shadow-2xs active:scale-95 cursor-pointer"
               title="Perbarui data overview"
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
 
+            {/* Tombol Reset Filter */}
             {isAnyFilterActive && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleResetAllFilters}
-                className="h-8 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 gap-1.5 px-2.5 rounded-md font-bold"
-                title="Reset semua filter ke Bulan Ini"
+                className="h-8 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 gap-1 px-2 rounded-md font-bold shrink-0 border border-rose-500/25 shadow-2xs cursor-pointer active:scale-95"
+                title="Reset filter ke Bulan Ini"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                Reset Filter
+                <span className="hidden sm:inline">Reset</span>
               </Button>
             )}
           </div>
@@ -1005,7 +1016,7 @@ export default function OverviewPage() {
             {/* Donut Chart Visualisasi Komposisi Akun Langsung di Halaman */}
             {accountChartData.length > 0 && (
               <div className="mb-3.5 p-3 rounded-md bg-muted/20 border border-border/50">
-                <div className="h-44 sm:h-48 w-full flex items-center justify-center relative">
+                <div className="h-40 sm:h-44 w-full flex items-center justify-center relative">
                   <ResponsiveContainer width="100%" height="100%">
                     <RechartsPieChart>
                       <Tooltip
@@ -1041,18 +1052,25 @@ export default function OverviewPage() {
                     </RechartsPieChart>
                   </ResponsiveContainer>
 
-                  {/* Label Total Saldo di Tengah Donut */}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
-                      Total Saldo
-                    </span>
-                    <span className="text-xs sm:text-sm font-black text-foreground">
-                      {formatCurrency(totalUserBalance)}
-                    </span>
-                    <span className="text-[10px] font-semibold text-primary">
-                      {accountChartData.length} Akun
-                    </span>
+                  {/* Ikon di Tengah Donut Hole */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="h-9 w-9 rounded-full bg-card/90 border border-border/60 flex items-center justify-center text-primary shadow-2xs">
+                      <GeometricIcon name="accounts" size="xs" active />
+                    </div>
                   </div>
+                </div>
+
+                {/* Isi Saldo di Tengah Bawah Grafik */}
+                <div className="mt-1 pt-2 border-t border-border/40 flex flex-col items-center justify-center text-center">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+                    Total Saldo Akun
+                  </span>
+                  <span className="text-sm sm:text-base font-black text-foreground tracking-tight mt-0.5">
+                    {formatCurrency(totalUserBalance)}
+                  </span>
+                  <span className="text-[10px] font-semibold text-primary mt-0.5">
+                    {accountChartData.length} Akun Terdaftar
+                  </span>
                 </div>
               </div>
             )}
