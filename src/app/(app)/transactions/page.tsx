@@ -19,8 +19,10 @@ import {
   TrendingDown,
   Pencil,
   Calendar,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   X,
   RotateCcw,
   Camera,
@@ -33,6 +35,7 @@ import { GeometricIcon } from "@/components/ui/GeometricIcon";
 import { EditTransactionModal, type TransactionToEdit } from "@/components/transactions/EditTransactionModal";
 import { DateFilterPreset, computeDateRange } from "@/lib/date-filters";
 import { useConfirm, useAlert } from "@/store/confirm.store";
+import { MonthYearPicker } from "@/components/ui/MonthYearPicker";
 
 export default function TransactionsPage() {
   const { openQuickAdd, openQuickAddWithScan } = useUIStore();
@@ -53,6 +56,7 @@ export default function TransactionsPage() {
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [customDateFrom, setCustomDateFrom] = useState<string>("");
   const [customDateTo, setCustomDateTo] = useState<string>("");
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editingTx, setEditingTx] = useState<TransactionToEdit | null>(null);
@@ -261,14 +265,14 @@ export default function TransactionsPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href="/import">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full no-scrollbar sm:flex-wrap">
+          <Link href="/import" className="shrink-0">
             <Button variant="outline" size="sm" className="gap-2 text-xs rounded-md">
               <GeometricIcon name="import" size="xs" active />
               {t.nav.importData}
             </Button>
           </Link>
-          <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2 text-xs rounded-md">
+          <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2 text-xs rounded-md shrink-0">
               <GeometricIcon name="ledgers" size="xs" active />
             {t.transactions.exportCsv}
           </Button>
@@ -276,12 +280,12 @@ export default function TransactionsPage() {
             variant="chip"
             size="sm"
             onClick={openQuickAddWithScan}
-            className="gap-2 text-xs rounded-md"
+            className="gap-2 text-xs rounded-md shrink-0"
           >
             <GeometricIcon name="ai" size="xs" active />
             Scan Struk
           </Button>
-          <Button size="sm" onClick={openQuickAdd} className="bg-primary hover:bg-[#047857] text-white gap-2 text-xs shadow-xs rounded-md font-bold">
+          <Button size="sm" onClick={openQuickAdd} className="bg-primary hover:bg-[#047857] text-white gap-2 text-xs shadow-xs rounded-md font-bold shrink-0">
             <Plus className="h-4 w-4 stroke-[3px]" />
             {t.transactions.addTransaction}
           </Button>
@@ -362,11 +366,27 @@ export default function TransactionsPage() {
         {/* Row 2: Deep Filters (Waktu, Buku Kas, Akun, Kategori, Reset) */}
         <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
           {/* Preset Waktu */}
-          <div className="flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          {/* Preset Waktu & Tombol Kalender Interaktif */}
+          <div className="relative flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setIsMonthPickerOpen((prev) => !prev)}
+              className={`h-8 w-8 rounded-md border flex items-center justify-center transition-all shadow-2xs ${
+                isMonthPickerOpen
+                  ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/20"
+                  : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 active:scale-95 cursor-pointer"
+              }`}
+              title="Buka Pemilih Bulan & Kalender Langsung"
+              aria-label="Pilih Bulan Kalender"
+            >
+              <Calendar className="h-3.5 w-3.5" />
+            </button>
             <select
               value={datePreset}
-              onChange={(e) => setDatePreset(e.target.value as DateFilterPreset)}
+              onChange={(e) => {
+                setDatePreset(e.target.value as DateFilterPreset);
+                setIsMonthPickerOpen(false);
+              }}
               className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground"
             >
               <option value="this_month">Bulan Ini</option>
@@ -378,41 +398,78 @@ export default function TransactionsPage() {
               <option value="all">Semua Waktu</option>
               <option value="custom">Kustom Tanggal</option>
             </select>
+
+            {/* MonthYearPicker Dropdown saat preset BUKAN this_month tapi tombol kalender diklik */}
+            {datePreset !== "this_month" && isMonthPickerOpen && (
+              <MonthYearPicker
+                currentDate={currentMonth}
+                onSelectMonth={(newDate) => {
+                  setCurrentMonth(newDate);
+                  setDatePreset("this_month");
+                }}
+                isOpen={isMonthPickerOpen}
+                onClose={() => setIsMonthPickerOpen(false)}
+                align="left"
+              />
+            )}
           </div>
 
           {/* Month Switcher (when this_month is selected) */}
           {datePreset === "this_month" && (
-            <div className="flex items-center gap-1 rounded-md border border-input bg-background/80 px-1 py-0.5">
+            <div className="relative flex items-center gap-1 rounded-md border border-input bg-background/80 px-1 py-0.5">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground cursor-pointer"
                 onClick={handlePrevMonth}
                 title="Bulan sebelumnya"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
-              <span className="px-1.5 text-xs font-semibold capitalize min-w-[90px] text-center select-none">
-                {periodLabel}
-              </span>
+
+              {/* Direct Month Selector Trigger Button */}
+              <button
+                type="button"
+                onClick={() => setIsMonthPickerOpen((prev) => !prev)}
+                className="flex items-center gap-1 px-2 py-0.5 text-xs font-bold capitalize rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-foreground select-none group cursor-pointer"
+                title="Klik untuk memilih bulan secara langsung dari kalender"
+              >
+                <CalendarDays className="h-3 w-3 text-primary group-hover:scale-105 transition-transform" />
+                <span className="min-w-[80px] text-center">{periodLabel}</span>
+                <ChevronDown className="h-3 w-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+              </button>
+
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground cursor-pointer"
                 onClick={handleNextMonth}
                 title="Bulan berikutnya"
               >
                 <ChevronRight className="h-3.5 w-3.5" />
               </Button>
+
               {!isCurrentMonthNow && (
                 <button
                   onClick={handleResetMonth}
-                  className="px-1.5 py-0.5 text-[10px] font-medium text-primary hover:underline"
+                  className="px-1.5 py-0.5 text-[10px] font-medium text-primary hover:underline border-l border-border/60 pl-2 cursor-pointer"
                   title="Kembali ke bulan saat ini"
                 >
                   Bulan Ini
                 </button>
               )}
+
+              {/* Popover Kalender Pemilih Bulan & Tahun */}
+              <MonthYearPicker
+                currentDate={currentMonth}
+                onSelectMonth={(newDate) => {
+                  setCurrentMonth(newDate);
+                  setDatePreset("this_month");
+                }}
+                isOpen={isMonthPickerOpen}
+                onClose={() => setIsMonthPickerOpen(false)}
+                align="left"
+              />
             </div>
           )}
 

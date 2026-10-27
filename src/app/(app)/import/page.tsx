@@ -304,7 +304,8 @@ function generateParsedItems(
   nlpEnabled: boolean,
   fallbackCatName?: string,
   existingItems?: ParsedFileTxItem[],
-  manualEditedRowIds?: Set<string>
+  manualEditedRowIds?: Set<string>,
+  defaultAccName?: string
 ): ParsedFileTxItem[] {
   const getCol = (row: string[], key: keyof FieldMapping) => {
     const colName = mapping[key];
@@ -335,7 +336,7 @@ function generateParsedItems(
     const rawCat = getCol(row, "category_name");
     const subCat = getCol(row, "subcategory_name");
     const rawFullCat = subCat ? `${rawCat} / ${subCat}` : rawCat;
-    const accName = getCol(row, "account_name") || getCol(row, "from_account_name") || "cash";
+    const accName = getCol(row, "account_name") || getCol(row, "from_account_name") || defaultAccName || "Kas Tunai";
     const toAccName = getCol(row, "to_account_name") || null;
     const note = getCol(row, "note");
     const tagsRaw = getCol(row, "tags");
@@ -1168,6 +1169,9 @@ export default function ImportPage() {
     const fallbackCat = fallbackCategoryId
       ? categoriesData?.find((c) => c.id === fallbackCategoryId)?.name
       : undefined;
+    const defaultAcc = defaultAccountId
+      ? accountsData?.accounts?.find((a) => a.id === defaultAccountId)?.name
+      : undefined;
     const generated = generateParsedItems(
       rawRows2D,
       currentMapping,
@@ -1176,7 +1180,8 @@ export default function ImportPage() {
       true, // force NLP
       fallbackCat,
       [],
-      new Set()
+      new Set(),
+      defaultAcc
     );
     setFileTxs(generated);
   };
@@ -1189,6 +1194,9 @@ export default function ImportPage() {
     const fallbackCat = fallbackCategoryId
       ? categoriesData?.find((c) => c.id === fallbackCategoryId)?.name
       : undefined;
+    const defaultAcc = defaultAccountId
+      ? accountsData?.accounts?.find((a) => a.id === defaultAccountId)?.name
+      : undefined;
     const generated = generateParsedItems(
       rawRows2D,
       mappingDraft,
@@ -1197,7 +1205,8 @@ export default function ImportPage() {
       enableNlpCategory,
       fallbackCat,
       [],
-      new Set()
+      new Set(),
+      defaultAcc
     );
     setFileTxs(generated);
     setIsMappingOpen(false);
@@ -2913,6 +2922,14 @@ export default function ImportPage() {
                   <span className="text-muted-foreground">Akun Baru Dibuat:</span>
                   <span className="font-semibold text-foreground">
                     {importResult.accountsCreated.join(", ")}
+                  </span>
+                </div>
+              )}
+              {importResult.categoriesCreated?.length > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Kategori Baru Dibuat:</span>
+                  <span className="font-semibold text-foreground">
+                    {importResult.categoriesCreated.join(", ")}
                   </span>
                 </div>
               )}

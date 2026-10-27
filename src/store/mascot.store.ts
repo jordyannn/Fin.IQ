@@ -187,9 +187,9 @@ export const TRANSACTION_TOUR_STEPS: TourStep[] = [
     targetAttr: "data-tour='modal-submit-action'",
     title: "6. Simpan Transaksi",
     description:
-      "Beri catatan ringkas bila perlu, lalu klik 'Simpan Transaksi'. Draf juga tersimpan otomatis jika form ditutup sewaktu-waktu.",
-    mascotExpression: "tech-acc",
-    speechQuote: "Klik Simpan, transaksi langsung dibukukan!",
+      "Ayo coba lengkapi form transaksi ini dan klik 'Simpan Transaksi'. Begitu transaksi berhasil dibukukan, Bang Peci akan langsung mengajakmu lanjut ke tur berikutnya!",
+    mascotExpression: "cuan",
+    speechQuote: "Isi nominal dan klik Simpan Transaksi!",
     position: "top",
   },
 ];
@@ -206,6 +206,7 @@ interface MascotState {
   isContinuationPromptOpen: boolean;
   isMuted: boolean;
   hasSeenWelcome: boolean;
+  hasJustAddedTourTransaction: boolean;
 
   // Outfit persona: 'casual' (Bang Peci Santai) | 'analyst' (Bang Peci Kacamata)
   mascotOutfit: "casual" | "analyst";
@@ -216,6 +217,7 @@ interface MascotState {
   startBasicTour: () => void;
   startTechnicalTour: () => void;
   startTransactionTour: (fromBasicTour?: boolean) => void;
+  completeTransactionTourSuccess: () => void;
   nextStep: () => void;
   prevStep: () => void;
   endTour: () => void;
@@ -245,6 +247,7 @@ export const useMascotStore = create<MascotState>((set, get) => ({
   isContinuationPromptOpen: false,
   isMuted: typeof window !== "undefined" ? mascotSound.getMuted() : false,
   hasSeenWelcome: false,
+  hasJustAddedTourTransaction: false,
 
   mascotOutfit: "casual",
   isTransforming: false,
@@ -269,6 +272,7 @@ export const useMascotStore = create<MascotState>((set, get) => ({
       isBubbleOpen: false,
       isWelcomePromptOpen: false,
       isContinuationPromptOpen: false,
+      hasJustAddedTourTransaction: false,
     });
   },
 
@@ -284,6 +288,7 @@ export const useMascotStore = create<MascotState>((set, get) => ({
       isBubbleOpen: false,
       isWelcomePromptOpen: false,
       isContinuationPromptOpen: false,
+      hasJustAddedTourTransaction: false,
     });
   },
 
@@ -297,7 +302,34 @@ export const useMascotStore = create<MascotState>((set, get) => ({
       isBubbleOpen: false,
       isWelcomePromptOpen: false,
       isContinuationPromptOpen: false,
+      hasJustAddedTourTransaction: false,
     });
+  },
+
+  completeTransactionTourSuccess: () => {
+    const { resumeBasicTourAfter } = get();
+    mascotSound.playChime();
+
+    if (resumeBasicTourAfter) {
+      set({
+        isTourActive: true,
+        activeTourType: "basic",
+        currentStepIndex: 2, // Step 3 in basic tour: date-filter
+        resumeBasicTourAfter: false,
+        isBubbleOpen: false,
+        isContinuationPromptOpen: false,
+        hasJustAddedTourTransaction: true,
+      });
+    } else {
+      set({
+        isTourActive: false,
+        activeTourType: null,
+        currentStepIndex: 0,
+        resumeBasicTourAfter: false,
+        isBubbleOpen: true,
+        hasJustAddedTourTransaction: true,
+      });
+    }
   },
 
   resumeBasicTour: () => {
@@ -309,6 +341,7 @@ export const useMascotStore = create<MascotState>((set, get) => ({
       resumeBasicTourAfter: false,
       isBubbleOpen: false,
       isContinuationPromptOpen: false,
+      hasJustAddedTourTransaction: false,
     });
   },
 
@@ -323,7 +356,7 @@ export const useMascotStore = create<MascotState>((set, get) => ({
 
     if (currentStepIndex < steps.length - 1) {
       mascotSound.playPop();
-      set({ currentStepIndex: currentStepIndex + 1 });
+      set({ currentStepIndex: currentStepIndex + 1, hasJustAddedTourTransaction: false });
     } else {
       // Completed current tour!
       mascotSound.playChime();
@@ -335,6 +368,7 @@ export const useMascotStore = create<MascotState>((set, get) => ({
           currentStepIndex: 0,
           isContinuationPromptOpen: true,
           isBubbleOpen: false,
+          hasJustAddedTourTransaction: false,
         });
       } else if (activeTourType === "transaction") {
         if (resumeBasicTourAfter) {
@@ -345,6 +379,7 @@ export const useMascotStore = create<MascotState>((set, get) => ({
             activeTourType: null,
             currentStepIndex: 0,
             isBubbleOpen: true,
+            hasJustAddedTourTransaction: false,
           });
         }
       } else {
@@ -359,6 +394,7 @@ export const useMascotStore = create<MascotState>((set, get) => ({
           currentStepIndex: 0,
           isBubbleOpen: true,
           isContinuationPromptOpen: false,
+          hasJustAddedTourTransaction: false,
         });
       }
     }
@@ -368,7 +404,7 @@ export const useMascotStore = create<MascotState>((set, get) => ({
     const { currentStepIndex } = get();
     if (currentStepIndex > 0) {
       mascotSound.playPop();
-      set({ currentStepIndex: currentStepIndex - 1 });
+      set({ currentStepIndex: currentStepIndex - 1, hasJustAddedTourTransaction: false });
     }
   },
 
@@ -391,6 +427,7 @@ export const useMascotStore = create<MascotState>((set, get) => ({
       activeTourType: null,
       currentStepIndex: 0,
       resumeBasicTourAfter: false,
+      hasJustAddedTourTransaction: false,
     });
   },
 
@@ -403,7 +440,7 @@ export const useMascotStore = create<MascotState>((set, get) => ({
         ? TRANSACTION_TOUR_STEPS
         : BASIC_TOUR_STEPS;
     mascotSound.playPop();
-    set({ currentStepIndex: Math.max(0, Math.min(index, steps.length - 1)) });
+    set({ currentStepIndex: Math.max(0, Math.min(index, steps.length - 1)), hasJustAddedTourTransaction: false });
   },
 
   toggleBubble: () => {

@@ -6,8 +6,10 @@ import {
   transactions,
   accounts,
   categories,
+  ledgers,
+  ledgerMembers,
 } from "@finiq/shared";
-import { eq, and, desc, sql, gte, lte, like, inArray, isNull } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, like, inArray, isNull, or } from "drizzle-orm";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 
 export const transactionRoutes = Router();
@@ -138,10 +140,74 @@ const createTxSchema = z.object({
   excludeFromBudget: z.boolean().default(false),
 });
 
+// Helper anti-IDOR
+async function verifyUserAccount(accountId: string, userId: string) {
+  const acc = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(and(eq(accounts.id, accountId), eq(accounts.userId, userId)))
+    .limit(1);
+  return acc.length > 0;
+}
+
+async function verifyUserLedger(ledgerId: string, userId: string) {
+  const owned = await db
+    .select({ id: ledgers.id })
+    .from(ledgers)
+    .where(and(eq(ledgers.id, ledgerId), eq(ledgers.userId, userId)))
+    .limit(1);
+  if (owned.length > 0) return true;
+
+  const member = await db
+    .select({ id: ledgerMembers.id })
+    .from(ledgerMembers)
+    .where(and(eq(ledgerMembers.ledgerId, ledgerId), eq(ledgerMembers.userId, userId)))
+    .limit(1);
+  return member.length > 0;
+}
+
 // POST /transactions
 transactionRoutes.post("/", requireAuth, async (req, res: Response) => {
   const { userId } = req as AuthRequest;
   const input = createTxSchema.parse(req.body);
+
+  // 1. Verify ledger ownership / membership (Anti-IDOR)
+  const hasLedgerAccess = await verifyUserLedger(input.ledgerId, userId);
+  if (!hasLedgerAccess) {
+    return res.status(403).json({
+      success: false,
+      error: "Forbidden",
+      message: "Anda tidak memiliki akses ke buku kas ini.",
+    });
+  }
+
+  // 2. Verify account ownership (Anti-IDOR)
+  const hasAccountAccess = await verifyUserAccount(input.accountId, userId);
+  if (!hasAccountAccess) {
+    return res.status(404).json({
+      success: false,
+      error: "NotFound",
+      message: "Rekening tidak ditemukan atau Anda tidak memiliki akses.",
+    });
+  }
+
+  if (input.txType === "transfer") {
+    if (!input.toAccountId) {
+      return res.status(400).json({
+        success: false,
+        error: "BadRequest",
+        message: "Rekening tujuan transfer wajib dipilih.",
+      });
+    }
+    const hasToAccountAccess = await verifyUserAccount(input.toAccountId, userId);
+    if (!hasToAccountAccess) {
+      return res.status(404).json({
+        success: false,
+        error: "NotFound",
+        message: "Rekening tujuan tidak ditemukan.",
+      });
+    }
+  }
 
   const date = input.happenedAt ? new Date(input.happenedAt) : new Date();
   const id = crypto.randomUUID();
@@ -166,45 +232,48 @@ transactionRoutes.post("/", requireAuth, async (req, res: Response) => {
     }
   }
 
-  await db.insert(transactions).values({
-    id,
-    userId,
-    ledgerId: input.ledgerId,
-    txType: input.txType,
-    amount: input.amount,
-    currency: input.currency,
-    nativeAmount: input.amount,
-    happenedAt: date,
-    note: input.note,
-    accountId: input.accountId,
-    toAccountId: input.txType === "transfer" ? (input.toAccountId || null) : null,
-    categoryId: finalCategoryId,
-    tagsJson: input.tags,
-    excludeFromStats: input.excludeFromStats,
-    excludeFromBudget: input.excludeFromBudget,
-  });
+  // 3. Atomic Database Transaction (ACID)
+  await db.transaction(async (tx) => {
+    await tx.insert(transactions).values({
+      id,
+      userId,
+      ledgerId: input.ledgerId,
+      txType: input.txType,
+      amount: input.amount,
+      currency: input.currency,
+      nativeAmount: input.amount,
+      happenedAt: date,
+      note: input.note,
+      accountId: input.accountId,
+      toAccountId: input.txType === "transfer" ? (input.toAccountId || null) : null,
+      categoryId: finalCategoryId,
+      tagsJson: input.tags,
+      excludeFromStats: input.excludeFromStats,
+      excludeFromBudget: input.excludeFromBudget,
+    });
 
-  // Update account balance
-  if (input.txType === "expense") {
-    await db
-      .update(accounts)
-      .set({ balance: sql`${accounts.balance} - ${input.amount}` })
-      .where(eq(accounts.id, input.accountId));
-  } else if (input.txType === "income") {
-    await db
-      .update(accounts)
-      .set({ balance: sql`${accounts.balance} + ${input.amount}` })
-      .where(eq(accounts.id, input.accountId));
-  } else if (input.txType === "transfer" && input.toAccountId) {
-    await db
-      .update(accounts)
-      .set({ balance: sql`${accounts.balance} - ${input.amount}` })
-      .where(eq(accounts.id, input.accountId));
-    await db
-      .update(accounts)
-      .set({ balance: sql`${accounts.balance} + ${input.amount}` })
-      .where(eq(accounts.id, input.toAccountId));
-  }
+    // Update account balance atomically
+    if (input.txType === "expense") {
+      await tx
+        .update(accounts)
+        .set({ balance: sql`${accounts.balance} - ${input.amount}` })
+        .where(eq(accounts.id, input.accountId));
+    } else if (input.txType === "income") {
+      await tx
+        .update(accounts)
+        .set({ balance: sql`${accounts.balance} + ${input.amount}` })
+        .where(eq(accounts.id, input.accountId));
+    } else if (input.txType === "transfer" && input.toAccountId) {
+      await tx
+        .update(accounts)
+        .set({ balance: sql`${accounts.balance} - ${input.amount}` })
+        .where(eq(accounts.id, input.accountId));
+      await tx
+        .update(accounts)
+        .set({ balance: sql`${accounts.balance} + ${input.amount}` })
+        .where(eq(accounts.id, input.toAccountId));
+    }
+  });
 
   const newTx = await db
     .select()
@@ -255,48 +324,32 @@ transactionRoutes.patch("/:id", requireAuth, async (req, res: Response) => {
 
   const existingTx = existing[0];
 
-  // Revert previous account balance effects
-  if (existingTx.txType === "expense" && existingTx.accountId) {
-    await db
-      .update(accounts)
-      .set({ balance: sql`${accounts.balance} + ${existingTx.amount}` })
-      .where(eq(accounts.id, existingTx.accountId));
-  } else if (existingTx.txType === "income" && existingTx.accountId) {
-    await db
-      .update(accounts)
-      .set({ balance: sql`${accounts.balance} - ${existingTx.amount}` })
-      .where(eq(accounts.id, existingTx.accountId));
-  } else if (existingTx.txType === "transfer" && existingTx.accountId && existingTx.toAccountId) {
-    await db
-      .update(accounts)
-      .set({ balance: sql`${accounts.balance} + ${existingTx.amount}` })
-      .where(eq(accounts.id, existingTx.accountId));
-    await db
-      .update(accounts)
-      .set({ balance: sql`${accounts.balance} - ${existingTx.amount}` })
-      .where(eq(accounts.id, existingTx.toAccountId));
+  // Verify account access (Anti-IDOR)
+  const hasAccountAccess = await verifyUserAccount(input.accountId, userId);
+  if (!hasAccountAccess) {
+    return res.status(404).json({
+      success: false,
+      error: "NotFound",
+      message: "Rekening tidak ditemukan atau Anda tidak memiliki akses.",
+    });
   }
 
-  // Apply new account balance effects
-  if (input.txType === "expense") {
-    await db
-      .update(accounts)
-      .set({ balance: sql`${accounts.balance} - ${input.amount}` })
-      .where(eq(accounts.id, input.accountId));
-  } else if (input.txType === "income") {
-    await db
-      .update(accounts)
-      .set({ balance: sql`${accounts.balance} + ${input.amount}` })
-      .where(eq(accounts.id, input.accountId));
-  } else if (input.txType === "transfer" && input.toAccountId) {
-    await db
-      .update(accounts)
-      .set({ balance: sql`${accounts.balance} - ${input.amount}` })
-      .where(eq(accounts.id, input.accountId));
-    await db
-      .update(accounts)
-      .set({ balance: sql`${accounts.balance} + ${input.amount}` })
-      .where(eq(accounts.id, input.toAccountId));
+  if (input.txType === "transfer") {
+    if (!input.toAccountId) {
+      return res.status(400).json({
+        success: false,
+        error: "BadRequest",
+        message: "Rekening tujuan transfer wajib dipilih.",
+      });
+    }
+    const hasToAccess = await verifyUserAccount(input.toAccountId, userId);
+    if (!hasToAccess) {
+      return res.status(404).json({
+        success: false,
+        error: "NotFound",
+        message: "Rekening tujuan transfer tidak ditemukan.",
+      });
+    }
   }
 
   const date = input.happenedAt ? new Date(input.happenedAt) : new Date();
@@ -321,24 +374,72 @@ transactionRoutes.patch("/:id", requireAuth, async (req, res: Response) => {
     }
   }
 
-  await db
-    .update(transactions)
-    .set({
-      ledgerId: input.ledgerId || existingTx.ledgerId,
-      txType: input.txType,
-      amount: input.amount,
-      currency: input.currency,
-      nativeAmount: input.amount,
-      happenedAt: date,
-      note: input.note || null,
-      accountId: input.accountId,
-      toAccountId: input.txType === "transfer" ? (input.toAccountId || null) : null,
-      categoryId: finalCategoryId,
-      tagsJson: input.tags,
-      excludeFromStats: input.excludeFromStats,
-      excludeFromBudget: input.excludeFromBudget,
-    })
-    .where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
+  // Atomic Database Transaction: Revert old effects + Apply new effects + Update record
+  await db.transaction(async (tx) => {
+    // 1. Revert previous account balance effects
+    if (existingTx.txType === "expense" && existingTx.accountId) {
+      await tx
+        .update(accounts)
+        .set({ balance: sql`${accounts.balance} + ${existingTx.amount}` })
+        .where(eq(accounts.id, existingTx.accountId));
+    } else if (existingTx.txType === "income" && existingTx.accountId) {
+      await tx
+        .update(accounts)
+        .set({ balance: sql`${accounts.balance} - ${existingTx.amount}` })
+        .where(eq(accounts.id, existingTx.accountId));
+    } else if (existingTx.txType === "transfer" && existingTx.accountId && existingTx.toAccountId) {
+      await tx
+        .update(accounts)
+        .set({ balance: sql`${accounts.balance} + ${existingTx.amount}` })
+        .where(eq(accounts.id, existingTx.accountId));
+      await tx
+        .update(accounts)
+        .set({ balance: sql`${accounts.balance} - ${existingTx.amount}` })
+        .where(eq(accounts.id, existingTx.toAccountId));
+    }
+
+    // 2. Apply new account balance effects
+    if (input.txType === "expense") {
+      await tx
+        .update(accounts)
+        .set({ balance: sql`${accounts.balance} - ${input.amount}` })
+        .where(eq(accounts.id, input.accountId));
+    } else if (input.txType === "income") {
+      await tx
+        .update(accounts)
+        .set({ balance: sql`${accounts.balance} + ${input.amount}` })
+        .where(eq(accounts.id, input.accountId));
+    } else if (input.txType === "transfer" && input.toAccountId) {
+      await tx
+        .update(accounts)
+        .set({ balance: sql`${accounts.balance} - ${input.amount}` })
+        .where(eq(accounts.id, input.accountId));
+      await tx
+        .update(accounts)
+        .set({ balance: sql`${accounts.balance} + ${input.amount}` })
+        .where(eq(accounts.id, input.toAccountId));
+    }
+
+    // 3. Update transaction record
+    await tx
+      .update(transactions)
+      .set({
+        ledgerId: input.ledgerId || existingTx.ledgerId,
+        txType: input.txType,
+        amount: input.amount,
+        currency: input.currency,
+        nativeAmount: input.amount,
+        happenedAt: date,
+        note: input.note || null,
+        accountId: input.accountId,
+        toAccountId: input.txType === "transfer" ? (input.toAccountId || null) : null,
+        categoryId: finalCategoryId,
+        tagsJson: input.tags,
+        excludeFromStats: input.excludeFromStats,
+        excludeFromBudget: input.excludeFromBudget,
+      })
+      .where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
+  });
 
   return res.json({
     success: true,
@@ -365,35 +466,37 @@ transactionRoutes.delete("/:id", requireAuth, async (req, res: Response) => {
     });
   }
 
-  const tx = existing[0];
+  const txData = existing[0];
 
-  // Rollback balance
-  if (tx.txType === "expense" && tx.accountId) {
-    await db
-      .update(accounts)
-      .set({ balance: sql`${accounts.balance} + ${tx.amount}` })
-      .where(eq(accounts.id, tx.accountId));
-  } else if (tx.txType === "income" && tx.accountId) {
-    await db
-      .update(accounts)
-      .set({ balance: sql`${accounts.balance} - ${tx.amount}` })
-      .where(eq(accounts.id, tx.accountId));
-  } else if (tx.txType === "transfer" && tx.accountId && tx.toAccountId) {
-    await db
-      .update(accounts)
-      .set({ balance: sql`${accounts.balance} + ${tx.amount}` })
-      .where(eq(accounts.id, tx.accountId));
-    await db
-      .update(accounts)
-      .set({ balance: sql`${accounts.balance} - ${tx.amount}` })
-      .where(eq(accounts.id, tx.toAccountId));
-  }
+  // Atomic Database Transaction: Rollback balance + delete record
+  await db.transaction(async (tx) => {
+    if (txData.txType === "expense" && txData.accountId) {
+      await tx
+        .update(accounts)
+        .set({ balance: sql`${accounts.balance} + ${txData.amount}` })
+        .where(eq(accounts.id, txData.accountId));
+    } else if (txData.txType === "income" && txData.accountId) {
+      await tx
+        .update(accounts)
+        .set({ balance: sql`${accounts.balance} - ${txData.amount}` })
+        .where(eq(accounts.id, txData.accountId));
+    } else if (txData.txType === "transfer" && txData.accountId && txData.toAccountId) {
+      await tx
+        .update(accounts)
+        .set({ balance: sql`${accounts.balance} + ${txData.amount}` })
+        .where(eq(accounts.id, txData.accountId));
+      await tx
+        .update(accounts)
+        .set({ balance: sql`${accounts.balance} - ${txData.amount}` })
+        .where(eq(accounts.id, txData.toAccountId));
+    }
 
-  await db.delete(transactions).where(eq(transactions.id, id));
+    await tx.delete(transactions).where(eq(transactions.id, id));
+  });
 
   return res.json({
     success: true,
-    message: "Transaksi berhasil dihapus.",
+    message: "Transaksi berhasil dihapus dan saldo telah dipulihkan.",
   });
 });
 
@@ -406,12 +509,49 @@ transactionRoutes.post("/batch-delete", requireAuth, async (req, res: Response) 
     return res.json({ success: true, count: 0 });
   }
 
-  await db
-    .delete(transactions)
+  // Fetch all transactions to be deleted to properly revert their balance effects
+  const toDelete = await db
+    .select()
+    .from(transactions)
     .where(and(eq(transactions.userId, userId), inArray(transactions.id, ids)));
+
+  if (toDelete.length === 0) {
+    return res.json({ success: true, count: 0 });
+  }
+
+  // Atomic Database Transaction: Rollback balances for all transactions, then delete them
+  await db.transaction(async (tx) => {
+    for (const t of toDelete) {
+      if (t.txType === "expense" && t.accountId) {
+        await tx
+          .update(accounts)
+          .set({ balance: sql`${accounts.balance} + ${t.amount}` })
+          .where(eq(accounts.id, t.accountId));
+      } else if (t.txType === "income" && t.accountId) {
+        await tx
+          .update(accounts)
+          .set({ balance: sql`${accounts.balance} - ${t.amount}` })
+          .where(eq(accounts.id, t.accountId));
+      } else if (t.txType === "transfer" && t.accountId && t.toAccountId) {
+        await tx
+          .update(accounts)
+          .set({ balance: sql`${accounts.balance} + ${t.amount}` })
+          .where(eq(accounts.id, t.accountId));
+        await tx
+          .update(accounts)
+          .set({ balance: sql`${accounts.balance} - ${t.amount}` })
+          .where(eq(accounts.id, t.toAccountId));
+      }
+    }
+
+    await tx
+      .delete(transactions)
+      .where(and(eq(transactions.userId, userId), inArray(transactions.id, ids)));
+  });
 
   return res.json({
     success: true,
-    count: ids.length,
+    count: toDelete.length,
+    message: `${toDelete.length} transaksi berhasil dihapus dan seluruh saldo rekening dipulihkan.`,
   });
 });

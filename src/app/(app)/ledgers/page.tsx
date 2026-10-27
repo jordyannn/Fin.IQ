@@ -22,6 +22,7 @@ export default function LedgersPage() {
   const createLedgerMutation = trpc.ledgers.create.useMutation({
     onSuccess: () => {
       utils.ledgers.invalidate();
+      utils.ledgers.list.refetch();
       setNewLedgerName("");
     },
   });

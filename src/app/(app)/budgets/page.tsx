@@ -195,7 +195,12 @@ export default function BudgetsPage() {
       {/* Modal Atur Budget */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-          <div className="relative w-full max-w-md rounded-md bg-card border border-border/80 shadow-2xl p-5 text-card-foreground">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Tentukan Anggaran Kategori"
+            className="relative w-full max-w-md rounded-md bg-card border border-border/80 shadow-2xl p-5 text-card-foreground"
+          >
             <h2 className="text-sm font-bold text-foreground mb-1">Tentukan Anggaran Kategori</h2>
             <p className="text-xs text-muted-foreground mb-3.5">
               Tentukan batas maksimum pengeluaran untuk periode {currentMonth}.

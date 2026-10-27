@@ -1,16 +1,20 @@
 {
-  "name": "Fin.IQ — Cloud Financial Management",
+  "name": "Fin.IQ — Manajemen Keuangan Personal",
   "short_name": "Fin.IQ",
-  "description": "Aplikasi manajemen keuangan personal modern dengan multi-device sync.",
+  "description": "Aplikasi manajemen keuangan personal modern dengan multi-device sync, pelacak pengeluaran, anggaran, dan integrasi AI.",
   "start_url": "/overview",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#ffffff",
-  "theme_color": "#3b82f6",
+  "theme_color": "#059669",
+  "categories": ["finance", "productivity", "utilities"],
   "icons": [
     {
       "src": "/icon.svg",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }

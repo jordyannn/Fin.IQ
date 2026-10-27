@@ -53,6 +53,9 @@ jobs:
       - name: Verify AI Service Typecheck
         run: cd packages/ai-service && npx tsc --noEmit
 
+      - name: Run Quality Assurance & Security Tests
+        run: npm test
+
       - name: Verify Next.js Frontend Build
         run: npm run build
         env:
@@ -121,53 +124,65 @@ jobs:
           cache-from: type=gha,scope=ai-service
           cache-to: type=gha,mode=max,scope=ai-service
 
-      # Pull images di runner
-      - name: Pull images di runner
+      # Pull & tag images di runner
+      - name: Pull & tag images di runner
         run: |
+          set -euo pipefail
           docker pull ghcr.io/jordyannn/finiq-frontend:${{ github.sha }}
           docker pull ghcr.io/jordyannn/finiq-core-api:${{ github.sha }}
           docker pull ghcr.io/jordyannn/finiq-ai-service:${{ github.sha }}
 
-      # Kirim image ke server & import ke containerd k3s
+          # Tag latest juga agar containerd lokal memiliki kedua tag
+          docker tag ghcr.io/jordyannn/finiq-frontend:${{ github.sha }} ghcr.io/jordyannn/finiq-frontend:latest
+          docker tag ghcr.io/jordyannn/finiq-core-api:${{ github.sha }} ghcr.io/jordyannn/finiq-core-api:latest
+          docker tag ghcr.io/jordyannn/finiq-ai-service:${{ github.sha }} ghcr.io/jordyannn/finiq-ai-service:latest
+
+      # Kirim image ke server & import ke containerd k3s (dengan kompresi gzip & retry)
       - name: Kirim image ke server & import ke containerd
         env:
           SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
-          docker save \
-            ghcr.io/jordyannn/finiq-frontend:${{ github.sha }} \
-            ghcr.io/jordyannn/finiq-core-api:${{ github.sha }} \
-            ghcr.io/jordyannn/finiq-ai-service:${{ github.sha }} | \
-            ssh -i ~/.ssh/deploy_key \
-                -o StrictHostKeyChecking=no \
-                -p "${{ secrets.SERVER_PORT || 22 }}" \
-                "${{ secrets.SERVER_USERNAME || 'ubuntu' }}@${{ secrets.SERVER_HOST }}" \
-                "sudo k3s ctr -n k8s.io images import -"
 
-      # Pastikan image benar-benar ada di node SEBELUM rollout.
-      # Tanpa ini, kegagalan import diam-diam membuat pod ImagePullBackOff
-      # sementara job tetap dilaporkan sukses.
-      - name: Verifikasi image ter-import di node
-        env:
-          SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
-        run: |
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
-          ssh -i ~/.ssh/deploy_key \
-              -o StrictHostKeyChecking=no \
-              -p "${{ secrets.SERVER_PORT || 22 }}" \
-              "${{ secrets.SERVER_USERNAME || 'ubuntu' }}@${{ secrets.SERVER_HOST }}" \
-              "for img in finiq-frontend finiq-core-api finiq-ai-service; do
-                 if ! sudo k3s ctr -n k8s.io images ls | grep -q \"ghcr.io/jordyannn/\$img:${{ github.sha }}\"; then
-                   echo \"IMAGE_MISSING: ghcr.io/jordyannn/\$img:${{ github.sha }}\"
-                   exit 1
-                 fi
-               done
-               echo 'Semua image ter-import di node.'"
+          SSH_CMD="ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=10 \
+            -p '${{ secrets.SERVER_PORT || 22 }}' \
+            '${{ secrets.SERVER_USERNAME || 'ubuntu' }}@${{ secrets.SERVER_HOST }}'"
 
-      # Apply manifest & rollout
-      - name: Apply manifest & rollout
+          echo "Menyimpan dan mengompresi images ke stream SSH..."
+          SUCCESS=0
+          for attempt in 1 2; do
+            echo "--- Percobaan $attempt mentransfer image ke server ---"
+            if docker save \
+              ghcr.io/jordyannn/finiq-frontend:${{ github.sha }} \
+              ghcr.io/jordyannn/finiq-frontend:latest \
+              ghcr.io/jordyannn/finiq-core-api:${{ github.sha }} \
+              ghcr.io/jordyannn/finiq-core-api:latest \
+              ghcr.io/jordyannn/finiq-ai-service:${{ github.sha }} \
+              ghcr.io/jordyannn/finiq-ai-service:latest | \
+              gzip -1 | \
+              $SSH_CMD "gzip -dc | sudo k3s ctr -n k8s.io images import -"; then
+                SUCCESS=1
+                echo "✓ Berhasil mentransfer dan meng-import images pada percobaan $attempt"
+                break
+            else
+              echo "⚠️ Percobaan $attempt gagal, mencoba kembali dalam 10 detik..."
+              sleep 10
+            fi
+          done
+
+          if [ "$SUCCESS" -ne 1 ]; then
+            echo "❌ ERROR: Gagal mentransfer dan meng-import image ke server setelah 2 percobaan!"
+            exit 1
+          fi
+
+      # Verifikasi image di containerd, template manifest, apply & rollout
+      - name: Verifikasi containerd, apply manifest & rollout
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -175,7 +190,36 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
           script: |
-            set -e
+            set -euo pipefail
+
+            echo "=== 1. Verifikasi Ketersediaan Image di containerd k3s ==="
+            REQUIRED_IMAGES=(
+              "ghcr.io/jordyannn/finiq-frontend:${{ github.sha }}"
+              "ghcr.io/jordyannn/finiq-core-api:${{ github.sha }}"
+              "ghcr.io/jordyannn/finiq-ai-service:${{ github.sha }}"
+            )
+
+            for img in "${REQUIRED_IMAGES[@]}"; do
+              echo "Memeriksa image: $img..."
+              verified=0
+              for i in $(seq 1 10); do
+                if sudo k3s ctr -n k8s.io images list -q | grep -Fq "$img"; then
+                  echo "✓ Terverifikasi: $img"
+                  verified=1
+                  break
+                fi
+                echo "Menunggu containerd selesai indexing $img (percobaan $i/10)..."
+                sleep 3
+              done
+
+              if [ "$verified" -eq 0 ]; then
+                echo "❌ FATAL: Image $img TIDAK ditemukan di containerd k3s!"
+                echo "Membatalkan deployment untuk mencegah ImagePullBackOff."
+                exit 1
+              fi
+            done
+
+            echo "=== 2. Persiapan Manifest Repository ==="
             cd /var/www/fin-iq
             export GIT_SSH_COMMAND="ssh -i /home/ubuntu/.ssh/github_push -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
 
@@ -191,24 +235,31 @@ jobs:
             # di status Error/ContainerStatusUnknown dan menyesatkan diagnosa)
             kubectl -n finiq get rs | awk 'NR>1 && $2==0 && $3==0 {print $1}' | xargs -r kubectl -n finiq delete rs
 
-            # Apply all microservices manifests (Redis, Core API, AI Service, Frontend)
+            echo "=== 3. Templating Manifest ke Tag SHA (${{ github.sha }}) ==="
+            # Template tag SHA langsung ke manifest agar kubectl apply hanya memicu 1 kali rollout (tanpa race condition set image)
+            sed -i "s|ghcr.io/jordyannn/finiq-frontend:latest|ghcr.io/jordyannn/finiq-frontend:${{ github.sha }}|g" k8s/frontend/deployment.yaml
+            sed -i "s|ghcr.io/jordyannn/finiq-core-api:latest|ghcr.io/jordyannn/finiq-core-api:${{ github.sha }}|g" k8s/core-api/deployment.yaml
+            sed -i "s|ghcr.io/jordyannn/finiq-ai-service:latest|ghcr.io/jordyannn/finiq-ai-service:${{ github.sha }}|g" k8s/ai-service/deployment.yaml
+
+            echo "=== 4. Apply Manifests (Atomic Rolling Update) ==="
             kubectl apply -R -f k8s/
 
-            # Rollout image updates
-            kubectl -n finiq set image deployment/frontend \
-              frontend=ghcr.io/jordyannn/finiq-frontend:${{ github.sha }}
-
-            kubectl -n finiq set image deployment/core-api \
-              core-api=ghcr.io/jordyannn/finiq-core-api:${{ github.sha }}
-
-            kubectl -n finiq set image deployment/ai-service \
-              ai-service=ghcr.io/jordyannn/finiq-ai-service:${{ github.sha }}
-
-            # Wait for rollout completion
+            echo "=== 5. Memantau Rollout Status ==="
             kubectl -n finiq rollout status deployment/redis --timeout=120s || true
-            kubectl -n finiq rollout status deployment/frontend --timeout=300s
-            kubectl -n finiq rollout status deployment/core-api --timeout=300s
-            kubectl -n finiq rollout status deployment/ai-service --timeout=300s
+
+            for dep in frontend core-api ai-service; do
+              echo "Menunggu rollout status deployment/$dep..."
+              if ! kubectl -n finiq rollout status deployment/$dep --timeout=300s; then
+                echo "❌ ERROR: Rollout deployment/$dep gagal atau timeout!"
+                echo "=== Pods status ==="
+                kubectl -n finiq get pods -l component=$dep -o wide
+                echo "=== Deployment details ==="
+                kubectl -n finiq describe deployment $dep
+                echo "=== Container logs ==="
+                kubectl -n finiq logs -l component=$dep --tail=50 || true
+                exit 1
+              fi
+            done
 
             echo "=== Fin.IQ Microservices Status ==="
             kubectl -n finiq get pods -o wide

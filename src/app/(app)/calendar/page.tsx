@@ -4,12 +4,14 @@ import React, { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { formatCurrency } from "@/lib/utils";
 import { GeometricIcon } from "@/components/ui/GeometricIcon";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, Calendar as CalendarIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { MonthYearPicker } from "@/components/ui/MonthYearPicker";
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -49,9 +51,14 @@ export default function CalendarPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-md bg-[#A7F3D0]/40 flex items-center justify-center text-[#064E3B] shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsMonthPickerOpen((prev) => !prev)}
+              className="h-8 w-8 rounded-md bg-[#A7F3D0]/40 hover:bg-[#A7F3D0]/70 flex items-center justify-center text-[#064E3B] shrink-0 transition-colors cursor-pointer"
+              title="Buka Pemilih Bulan & Kalender Langsung"
+            >
               <GeometricIcon name="calendar" className="h-4 w-4" />
-            </div>
+            </button>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Kalender Transaksi</h1>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
@@ -59,14 +66,36 @@ export default function CalendarPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/60 p-1 rounded-md border border-border/60">
-          <Button variant="ghost" size="icon" onClick={prevMonth} className="h-7 w-7 rounded-sm">
+        <div className="relative flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/60 p-1 rounded-md border border-border/60">
+          <Button variant="ghost" size="icon" onClick={prevMonth} className="h-7 w-7 rounded-sm" title="Bulan sebelumnya">
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
-          <span className="text-xs font-bold min-w-32 text-center text-foreground">{monthName}</span>
-          <Button variant="ghost" size="icon" onClick={nextMonth} className="h-7 w-7 rounded-sm">
+
+          {/* Direct Month Selector Trigger Button */}
+          <button
+            type="button"
+            onClick={() => setIsMonthPickerOpen((prev) => !prev)}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold capitalize rounded-sm hover:bg-background/80 hover:text-primary transition-all text-foreground min-w-32 justify-center cursor-pointer group"
+            title="Klik untuk memilih bulan & tahun langsung"
+          >
+            <CalendarIcon className="h-3.5 w-3.5 text-primary group-hover:scale-105 transition-transform" />
+            <span>{monthName}</span>
+            <ChevronDown className="h-3 w-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+          </button>
+
+          <Button variant="ghost" size="icon" onClick={nextMonth} className="h-7 w-7 rounded-sm" title="Bulan berikutnya">
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
+
+          {/* MonthYearPicker Popover */}
+          <MonthYearPicker
+            currentDate={currentDate}
+            onSelectMonth={(newDate) => setCurrentDate(newDate)}
+            isOpen={isMonthPickerOpen}
+            onClose={() => setIsMonthPickerOpen(false)}
+            align="right"
+            showFullCalendarLink={false}
+          />
         </div>
       </div>
 

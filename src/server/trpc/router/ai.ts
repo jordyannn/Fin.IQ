@@ -18,6 +18,7 @@ import {
   smartParseIndonesianTransaction,
   cleanSpeechToNote,
   detectAccount,
+  parseMultipleItemsAndAmounts,
 } from "@/lib/nlp-parser";
 import { fuzzyMatchAccount, fuzzyMatchCategory } from "./import";
 import { formatInputIDR, formatDate, cleanNumericAmount } from "@/lib/utils";
@@ -145,16 +146,29 @@ Ekstrak transaksi dan kembalikan HANYA JSON valid dengan struktur:
   "categoryHint": string,
   "isNewCategory": boolean,
   "suggestedParentCategory": string,
-  "happenedAtIso": string or null
+  "happenedAtIso": string or null,
+  "isMultipleItems": boolean,
+  "items": [
+    {
+      "name": string,
+      "amount": number
+    }
+  ]
 }
 
 ATURAN DETAIL:
 1. "amount": Angka bulat integer Rupiah (misal 50.000 -> 50000, 2.5jt -> 2500000, goban -> 50000, goceng -> 5000). Jika tidak ada angka, isi 0.
+   SANGAT PENTING - TRANSAKSI MULTI-ITEM / BEBERAPA TRANSAKSI DALAM 1 UCAPAN:
+   Jika pengguna menyebutkan 2 ATAU LEBIH item/transaksi (misal: "beli kopi dan nasi goreng 3 ribu dan 5 ribu", "kopi 3rb nasi goreng 5rb", "bensin 50rb dan makan siang 35rb"):
+   - "amount" WAJIB MERUPAKAN HASIL PENJUMLAHAN DARI SEMUA NOMINAL TERSEBUT! (contoh: 3.000 + 5.000 = 8000).
+   - "note" WAJIB MENULISKAN SEMUA 2 ATAU LEBIH ITEM TERSEBUT BESERTA NOMINALNYA (contoh: "Kopi (Rp 3.000), Nasi goreng (Rp 5.000)").
+   - "isMultipleItems": true
+   - "items": Masukkan rincian setiap item dan harganya, misal: [ { "name": "Kopi", "amount": 3000 }, { "name": "Nasi goreng", "amount": 5000 } ].
 2. "txType":
    - "expense": pengeluaran/belanja/makan/beli barang/tagihan/bensin.
    - "income": pemasukan/gaji/angpao/hadiah/cuan/bonus/kiriman.
    - "transfer": transfer saldo/geser uang antar rekening/top up e-wallet dari bank.
-3. "note": Ringkasan rapi dalam BAHASA INDONESIA sesuai kata yang diucapkan pengguna tanpa kata instruksi pembuka/nominal/akun/waktu. DILARANG MENERJEMAHKAN KE BAHASA INGGRIS!
+3. "note": Ringkasan rapi dalam BAHASA INDONESIA sesuai kata yang diucapkan pengguna tanpa kata instruksi pembuka/waktu/akun. DILARANG MENERJEMAHKAN KE BAHASA INGGRIS!
 4. "accountHint": Nama akun sumber yang paling sesuai dari daftar pengguna: [${accountNamesStr}]. Catatan: jika pengguna menyebut "blue" atau "blu" atau "bca digital", cocokkan dengan akun Blu atau BCA.
 5. "toAccountHint": Jika transfer, nama akun tujuan dari daftar [${accountNamesStr}]. Jika bukan transfer, isi string kosong "".
 6. "categoryHint" & "isNewCategory":
@@ -188,7 +202,35 @@ ATURAN DETAIL:
         const cleanJsonStr = rawText.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
         const parsed = JSON.parse(cleanJsonStr);
 
-        const amount = cleanNumericAmount(parsed.amount);
+        let amount = cleanNumericAmount(parsed.amount);
+        let items: Array<{ name: string; amount: number; formattedAmount: string; qty?: number }> = [];
+
+        // Evaluasi apakah Gemini mengekstrak multi-item
+        if (Array.isArray(parsed.items) && parsed.items.length >= 2) {
+          items = parsed.items.map((it: any) => {
+            const itAmt = cleanNumericAmount(it.amount || it.price);
+            return {
+              name: (it.name || "Item").trim(),
+              amount: itAmt,
+              formattedAmount: formatInputIDR(String(itAmt)),
+              qty: it.qty || 1,
+            };
+          });
+          const itemsSum = items.reduce((s, it) => s + it.amount, 0);
+          if (itemsSum > 0) {
+            amount = itemsSum;
+          }
+        }
+
+        // Cek juga deteksi multi-item dari NLP lokal untuk teks transkripsi (sangat presisi untuk "beli kopi dan nasi goreng 3 ribu dan 5 ribu")
+        if (items.length < 2 && rawSpeech) {
+          const localMulti = parseMultipleItemsAndAmounts(rawSpeech);
+          if (localMulti && localMulti.items.length >= 2) {
+            items = localMulti.items;
+            amount = localMulti.totalAmount;
+          }
+        }
+
         const txType: "expense" | "income" | "transfer" =
           parsed.txType === "income" || parsed.txType === "transfer" ? parsed.txType : "expense";
 
@@ -296,10 +338,12 @@ ATURAN DETAIL:
         }
 
         let note = parsed.note?.trim() || "";
-        if (!note || note.toLowerCase() === rawSpeech.toLowerCase()) {
+        if (items.length >= 2) {
+          // Susun deskripsi multi-item rapi dengan mencantumkan 2 atau lebih item beserta nominalnya
+          note = items.map((it) => `${it.name} (Rp ${it.formattedAmount})`).join(", ");
+        } else if (!note || note.toLowerCase() === rawSpeech.toLowerCase()) {
           note = cleanSpeechToNote(rawSpeech);
         } else {
-          // Bersihkan juga jika Gemini masih menyertakan sisa nominal, akun, atau preposisi
           note = cleanSpeechToNote(note);
         }
 
@@ -320,6 +364,8 @@ ATURAN DETAIL:
           cleanNote: note,
           note,
           rawText: rawSpeech,
+          items: items.length > 0 ? items : undefined,
+          isMultipleItems: items.length >= 2,
           usedGemini: true,
         };
       } catch (geminiErr: any) {
@@ -433,7 +479,7 @@ ATURAN EKSTRAKSI PENTING:
    - "merchantName": Nama penerima uang atau nama toko QRIS (misal: "Budi Santoso", "Kopi Kenangan").
    - "note": Deskripsi rapi dan informatif, misal: "Transfer ke Budi Santoso (BCA)" atau "QRIS Kopi Kenangan".
 
-3. DAFTAR MUTASI / RIWAYAT TRANSAKSI BANYAK BARIS DI M-BANKING:
+3. DAFTAR MUTASI / RIWAYAT TRANSAKSI BANYAK BARIS DI M-BANKING / FOTO:
    - Jika gambar menampilkan screenshot daftar mutasi rekening dengan 2 atau lebih baris transaksi:
      * "documentType": "bank_statement"
      * "isMultipleTransactions": true
@@ -441,11 +487,12 @@ ATURAN EKSTRAKSI PENTING:
        - txType: "expense" (jika DB / Debit / uang keluar / minus -) atau "income" (jika CR / Kredit / uang masuk / plus +).
        - amount: nominal baris tersebut.
        - note: nama merchant / pengirim / keterangan mutasi.
-     * Isi "amount" utama dengan nominal transaksi baris paling atas/terbaru.
-     * Isi "note" utama dengan: "Mutasi [Bank]: [Keterangan baris 1]".
+     * "amount" utama: JUMLAHKAN SELURUH NOMINAL BARIS MUTASI TERSEBUT (Total uang keluar/masuk).
+     * "note" utama: Tuliskan SEMUA 2 atau lebih transaksi tersebut beserta nominalnya, misal: "Mutasi BCA: Kopi Kenangan (Rp 25.000), Indomaret (Rp 35.000)".
 
 4. GRAND TOTAL AMOUNT (RUPIAH):
-   - Untuk struk belanja: Ambil GRAND TOTAL akhir setelah diskon/pajak (angka integer bulat positif dalam Rupiah).
+   - Untuk struk belanja / faktur: "amount" WAJIB merupakan GRAND TOTAL PENJUMLAHAN seluruh item belanja (setelah diskon/pajak jika ada).
+   - "note": TULISKAN 2 ATAU LEBIH ITEM TERSEBUT DI CATATAN SECARA JELAS dengan rincian harga, misal: "Indomaret: Indomie Goreng (Rp 3.500), Aqua 600ml (Rp 4.000), Roti Tawar (Rp 12.000)" atau jika tanpa nama toko: "Indomie Goreng (Rp 3.500), Aqua 600ml (Rp 4.000), Roti Tawar (Rp 12.000)".
    - JANGAN mengambil nominal Tunai/Cash yang diserahkan ke kasir atau Kembalian!
    - Tanda titik (.) di Indonesia adalah pemisah ribuan (Rp 50.000 = 50000). Jangan membaca titik sebagai desimal!
 
@@ -506,19 +553,29 @@ ATURAN EKSTRAKSI PENTING:
 
       let amount = cleanNumericAmount(parsed.amount);
 
-      // Coba hitung dari total belanja items jika amount root kosong/0
+      // Hitung dari total belanja items jika ada
       const items = Array.isArray(parsed.items) ? parsed.items : [];
-      if (amount <= 0 && items.length > 0) {
-        amount = items.reduce((sum: number, it: any) => {
-          const itemPrice = cleanNumericAmount(it.price);
-          const itemQty = Math.max(1, Math.round(Number(it.qty) || 1));
-          return sum + itemPrice * itemQty;
-        }, 0);
+      const itemsSum = items.reduce((sum: number, it: any) => {
+        const itemPrice = cleanNumericAmount(it.price);
+        const itemQty = Math.max(1, Math.round(Number(it.qty) || 1));
+        return sum + itemPrice * itemQty;
+      }, 0);
+
+      // Jika amount <= 0 atau jika ada 2+ item dan selisih kecil dengan itemsSum, pastikan amount adalah total penjumlahan item
+      if (amount <= 0 && itemsSum > 0) {
+        amount = itemsSum;
+      } else if (items.length >= 2 && itemsSum > 0 && Math.abs(amount - itemsSum) <= 500) {
+        amount = itemsSum;
       }
 
-      // Coba ambil dari transaksi mutasi pertama jika amount masih 0
+      // Hitung total mutasi multi-transaksi jika ada
       const rawTxList = Array.isArray(parsed.transactions) ? parsed.transactions : [];
-      if (amount <= 0 && rawTxList.length > 0) {
+      if (rawTxList.length >= 2) {
+        const totalTxSum = rawTxList.reduce((sum: number, t: any) => sum + cleanNumericAmount(t.amount), 0);
+        if (totalTxSum > 0) {
+          amount = totalTxSum;
+        }
+      } else if (amount <= 0 && rawTxList.length > 0) {
         amount = cleanNumericAmount(rawTxList[0].amount);
       }
 
@@ -560,15 +617,32 @@ ATURAN EKSTRAKSI PENTING:
       const merchant = (parsed.merchantName || "").trim();
       const rawNote = (parsed.note || "").trim();
 
+      // Susun finalNote: Jika ada 2 atau lebih item, WAJIB tuliskan rincian item-item tersebut di deskripsi
       let finalNote = "";
-      if (merchant && items.length > 0) {
-        // Rangkum merchant dan seluruh produk utama yang dibeli
-        const itemNames = items
-          .slice(0, 6)
-          .map((it: any) => `${it.qty && it.qty > 1 ? it.qty + "x " : ""}${it.name}`)
+      if (rawTxList.length >= 2) {
+        const txNotes = rawTxList
+          .map((t: any) => {
+            const a = cleanNumericAmount(t.amount);
+            const aStr = a > 0 ? ` (Rp ${formatInputIDR(String(a))})` : "";
+            return `${t.note || "Transaksi"}${aStr}`;
+          })
           .join(", ");
-        const moreCount = items.length > 6 ? ` (+${items.length - 6} item)` : "";
-        finalNote = `${merchant}: ${itemNames}${moreCount}`;
+        finalNote = merchant ? `Mutasi ${merchant}: ${txNotes}` : `Mutasi: ${txNotes}`;
+      } else if (items.length >= 2) {
+        const formattedItems = items.map((it: any) => {
+          const itemPrice = cleanNumericAmount(it.price);
+          const priceStr = itemPrice > 0 ? ` (Rp ${formatInputIDR(String(itemPrice))})` : "";
+          const qtyStr = it.qty && it.qty > 1 ? `${it.qty}x ` : "";
+          return `${qtyStr}${it.name || "Item"}${priceStr}`;
+        });
+        const itemsListStr = formattedItems.join(", ");
+        finalNote = merchant ? `${merchant}: ${itemsListStr}` : itemsListStr;
+      } else if (items.length === 1) {
+        const it = items[0];
+        const itemPrice = cleanNumericAmount(it.price);
+        const priceStr = itemPrice > 0 ? ` (Rp ${formatInputIDR(String(itemPrice))})` : "";
+        const itemStr = `${it.qty && it.qty > 1 ? `${it.qty}x ` : ""}${it.name || "Item"}${priceStr}`;
+        finalNote = merchant ? `${merchant}: ${itemStr}` : itemStr;
       } else if (rawNote) {
         finalNote = rawNote;
       } else if (merchant) {
@@ -607,6 +681,17 @@ ATURAN EKSTRAKSI PENTING:
           };
         });
 
+      const formattedReturnedItems = items.map((it: any) => {
+        const itemPrice = cleanNumericAmount(it.price);
+        return {
+          name: (it.name || "Item").trim(),
+          price: itemPrice,
+          amount: itemPrice,
+          formattedAmount: formatInputIDR(String(itemPrice)),
+          qty: it.qty || 1,
+        };
+      });
+
       return {
         amount,
         formattedAmount: formatInputIDR(String(amount)),
@@ -619,14 +704,15 @@ ATURAN EKSTRAKSI PENTING:
         recommendedCategory,
         accountHint: matchedAccName,
         matchedAccountId: matchedAccount?.id || userAccounts[0]?.id,
-        items,
+        items: formattedReturnedItems,
         itemsSummary,
-        itemsCount: items.length,
+        itemsCount: formattedReturnedItems.length,
         tax: Number(parsed.tax) || 0,
         serviceCharge: Number(parsed.serviceCharge) || 0,
         discount: Number(parsed.discount) || 0,
         documentType: (parsed.documentType || (parsedTransactions.length > 1 ? "bank_statement" : items.length > 0 ? "receipt" : "transfer_proof")) as "receipt" | "transfer_proof" | "bank_statement" | "bill",
-        isMultipleTransactions: Boolean(parsed.isMultipleTransactions && parsedTransactions.length > 1),
+        isMultipleTransactions: Boolean((parsed.isMultipleTransactions && parsedTransactions.length > 1) || formattedReturnedItems.length >= 2),
+        isMultipleItems: formattedReturnedItems.length >= 2 || parsedTransactions.length >= 2,
         transactions: parsedTransactions,
       };
     }),

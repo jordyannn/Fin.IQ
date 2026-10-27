@@ -2,6 +2,13 @@ import { formatInputIDR } from "./utils";
 import { DATASET_TAXONOMY } from "./taxonomy-dictionary";
 import { DATASET_SLANG_AMOUNTS, normalizeSpokenIndonesian } from "./fin-iq-dataset-reference";
 
+export interface ParsedItem {
+  name: string;
+  amount: number;
+  formattedAmount: string;
+  qty?: number;
+}
+
 export interface ParsedTransactionResult {
   txType: "expense" | "income" | "transfer";
   amount: number;
@@ -24,6 +31,8 @@ export interface ParsedTransactionResult {
   cleanNote: string;
   note: string; // alias for cleanNote
   rawText: string;
+  items?: ParsedItem[];
+  isMultipleItems?: boolean;
 }
 
 interface AccountItem {
@@ -1786,6 +1795,281 @@ export function cleanSpeechToNote(text: string): string {
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
+interface AmountMatch {
+  index: number;
+  length: number;
+  value: number;
+  raw: string;
+}
+
+const INDO_NUMBER_WORDS_MAP: Record<string, number> = {
+  nol: 0, kosong: 0, satu: 1, se: 1, dua: 2, tiga: 3, empat: 4, lima: 5,
+  enam: 6, tujuh: 7, delapan: 8, sembilan: 9, sepuluh: 10, sebelas: 11,
+};
+
+function parseIndonesianCurrencyWords(str: string): number | null {
+  const words = str.toLowerCase().trim().split(/[\s\-]+/);
+  if (words.length === 0) return null;
+  let total = 0;
+  let currentGroup = 0;
+  let currentUnit = 0;
+  let hasValidWord = false;
+
+  for (const w of words) {
+    if (w === "seratus") {
+      currentGroup += 100;
+      currentUnit = 0;
+      hasValidWord = true;
+    } else if (w === "seribu") {
+      total += (currentGroup > 0 ? currentGroup : 1) * 1_000;
+      currentGroup = 0;
+      currentUnit = 0;
+      hasValidWord = true;
+    } else if (w === "sejuta") {
+      total += (currentGroup > 0 ? currentGroup : 1) * 1_000_000;
+      currentGroup = 0;
+      currentUnit = 0;
+      hasValidWord = true;
+    } else if (w === "sepuluh") {
+      currentGroup += 10;
+      currentUnit = 0;
+      hasValidWord = true;
+    } else if (w === "sebelas") {
+      currentGroup += 11;
+      currentUnit = 0;
+      hasValidWord = true;
+    } else if (w === "belas") {
+      currentGroup += 10 + (currentUnit > 0 ? currentUnit : 0);
+      currentUnit = 0;
+      hasValidWord = true;
+    } else if (w === "puluh") {
+      currentGroup += (currentUnit > 0 ? currentUnit : 1) * 10;
+      currentUnit = 0;
+      hasValidWord = true;
+    } else if (w === "ratus") {
+      currentGroup += (currentUnit > 0 ? currentUnit : 1) * 100;
+      currentUnit = 0;
+      hasValidWord = true;
+    } else if (w === "ribu") {
+      const val = currentGroup + currentUnit;
+      total += (val > 0 ? val : 1) * 1_000;
+      currentGroup = 0;
+      currentUnit = 0;
+      hasValidWord = true;
+    } else if (w === "juta") {
+      const val = currentGroup + currentUnit;
+      total += (val > 0 ? val : 1) * 1_000_000;
+      currentGroup = 0;
+      currentUnit = 0;
+      hasValidWord = true;
+    } else if (INDO_NUMBER_WORDS_MAP[w] !== undefined) {
+      currentUnit = INDO_NUMBER_WORDS_MAP[w];
+      hasValidWord = true;
+    } else {
+      return null;
+    }
+  }
+
+  total += currentGroup + currentUnit;
+  return hasValidWord && total > 0 ? total : null;
+}
+
+/**
+ * Temukan seluruh nominal uang yang ada di dalam teks beserta posisinya
+ */
+export function findAllAmountsInText(text: string): AmountMatch[] {
+  if (!text) return [];
+  const lower = text.toLowerCase();
+  const matches: AmountMatch[] = [];
+
+  // 1. Slang nominal (goceng, ceban, goban, dll.)
+  for (const [slang, val] of Object.entries(DATASET_SLANG_AMOUNTS)) {
+    const reg = new RegExp(`\\b${slang}\\b`, "gi");
+    let m: RegExpExecArray | null;
+    while ((m = reg.exec(lower)) !== null) {
+      matches.push({
+        index: m.index,
+        length: m[0].length,
+        value: val,
+        raw: m[0],
+      });
+    }
+  }
+
+  // 2. Format Dotted / Comma / Juta / Ribu / k:
+  // e.g. "Rp 30.000", "30.000", "2.5jt", "2,5 juta", "30rb", "30 ribu", "30k", "Rp 5000", "3000"
+  const numRegex = /\b(?:(?:rp|idr|nominal|sebesar|seharga)?\.?\s*)(\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:[\.,]\d+)?\s*(?:jt|juta|million|rb|ribu|k)|\d{3,9})\b/gi;
+  let numM: RegExpExecArray | null;
+  while ((numM = numRegex.exec(lower)) !== null) {
+    const rawMatch = numM[0];
+    const numPart = numM[1];
+
+    let val = 0;
+    if (/jt|juta|million/i.test(rawMatch)) {
+      const v = parseFloat(numPart.replace(/[^0-9.,]/g, "").replace(",", "."));
+      val = Math.round(v * 1_000_000);
+    } else if (/rb|ribu|k/i.test(rawMatch)) {
+      const v = parseFloat(numPart.replace(/[^0-9.,]/g, "").replace(",", "."));
+      val = Math.round(v * 1_000);
+    } else if (/\./.test(numPart)) {
+      val = parseFloat(numPart.replace(/\./g, "").replace(",", "."));
+    } else {
+      val = parseInt(numPart, 10);
+    }
+
+    if (!isNaN(val) && val > 0) {
+      matches.push({
+        index: numM.index,
+        length: rawMatch.length,
+        value: val,
+        raw: rawMatch,
+      });
+    }
+  }
+
+  // 3. Kata angka Bahasa Indonesia: "tiga puluh ribu", "tiga ribu", "lima ribu"
+  const wordNumRegex = /\b(?:(?:seharga|sebesar|nominal)?\s*)((?:(?:satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh|sebelas|seratus|seribu|sejuta)\s*(?:belas|puluh|ratus|ribu|juta)*\s*)+)\b/gi;
+  let wordM: RegExpExecArray | null;
+  while ((wordM = wordNumRegex.exec(lower)) !== null) {
+    const rawMatch = wordM[0];
+    const phrase = wordM[1].trim();
+    const val = parseIndonesianCurrencyWords(phrase);
+    if (val && val >= 100) {
+      matches.push({
+        index: wordM.index,
+        length: rawMatch.length,
+        value: val,
+        raw: rawMatch,
+      });
+    }
+  }
+
+  // Filter overlapping matches, sort by index
+  matches.sort((a, b) => a.index - b.index || b.length - a.length);
+
+  const nonOverlapping: AmountMatch[] = [];
+  let lastEnd = -1;
+  for (const m of matches) {
+    if (m.index >= lastEnd) {
+      nonOverlapping.push(m);
+      lastEnd = m.index + m.length;
+    }
+  }
+
+  return nonOverlapping;
+}
+
+export function cleanItemName(name: string): string {
+  let cleaned = name.trim();
+  // Hapus deklarasi akun & metode pembayaran di item
+  cleaned = cleaned.replace(
+    /\b(?:ke|dari|dengan|pake|pakai|menggunakan|lewat|melalui|via|bayar\s+pake|bayar\s+pakai|bayar\s+lewat|bayar\s+via)\s+(?:akun\s+|rekening\s+|kartu\s+|bank\s+)?(?:blu\s+bca|blue\s+bca|bca\s+digital|bank\s+\w+|blue|blu|cash|tunai|kas\s+tunai|kas|dana|gopay|ovo|shopee|shopeepay|spay|bca|mandiri|bri|bni|jago|seabank|cimb(?:\s+niaga)?|permata|danamon|bsi|btn|jenius|linkaja|rekening(?:\s+\w+)?)\b/gi,
+    ""
+  );
+  // Hapus kata kerja umum di awal: beli, makan, pesan, bayar, buat, jajan, dsb.
+  cleaned = cleaned.replace(/^(?:beli|membeli|makan|minum|jajan|pesan|order|bayar|ongkos|biaya|untuk|buat|sama|dan|juga|lalu)\s+/i, "");
+  // Hapus kata penghubung / preposisi sisa di akhir
+  cleaned = cleaned.replace(/\s+(?:seharga|sebesar|nominal|harga|rp|sebanyak|masing-masing|masing\s+masing|per\s+item|tiap\s+item)$/i, "");
+  cleaned = cleaned.replace(/^(?:dan|sama|\+|serta)\s+/i, "");
+  cleaned = cleaned.replace(/\s+(?:dan|sama|\+|serta)$/i, "");
+  cleaned = cleaned.replace(/^[,\.\-—:]+/, "").replace(/[,\.\-—:]+$/, "").trim();
+  if (!cleaned) return "Item";
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+/**
+ * Ekstrak multi-item transaksi dalam satu ucapan / teks (misal: "beli kopi dan nasi goreng 3 ribu dan 5 ribu")
+ * Otomatis menjumlahkan total nominal dan menyusun deskripsi rincian seluruh item.
+ */
+export function parseMultipleItemsAndAmounts(text: string): {
+  items: ParsedItem[];
+  totalAmount: number;
+  combinedNote: string;
+} | null {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+  const amounts = findAllAmountsInText(text);
+
+  // KASUS A: Kata kunci "masing-masing" atau "tiap item"
+  // Contoh: "beli kopi dan nasi goreng masing masing 5 ribu"
+  if (/(?:masing\s*[- ]\s*masing|tiap\s+item|per\s+item|satuan(?:nya)?)\s+/i.test(lower) && amounts.length === 1) {
+    const singleAmount = amounts[0].value;
+    const beforeMasing = text.slice(0, amounts[0].index).replace(/(?:masing\s*[- ]\s*masing|tiap\s+item|per\s+item|satuan(?:nya)?).*$/i, "");
+    const rawItems = beforeMasing.split(/(?:,|\bdan\b|\bsama\b|\bserta\b|\+)/i).map(s => cleanItemName(s)).filter(s => s.length > 1 && s !== "Item");
+    if (rawItems.length >= 2) {
+      const items: ParsedItem[] = rawItems.map(name => ({
+        name,
+        amount: singleAmount,
+        formattedAmount: formatInputIDR(String(singleAmount)),
+      }));
+      const totalAmount = singleAmount * items.length;
+      const combinedNote = items.map(it => `${it.name} (Rp ${it.formattedAmount})`).join(", ");
+      return { items, totalAmount, combinedNote };
+    }
+  }
+
+  // Jika nominal ditemukan kurang dari 2, bukan multi-item dengan nominal berbeda
+  if (amounts.length < 2) {
+    return null;
+  }
+
+  // KASUS B: Nominal berkumpul di akhir (Pola: "beli kopi dan nasi goreng 3 ribu dan 5 ribu" atau 3+ item)
+  let isAmountsGrouped = true;
+  for (let i = 0; i < amounts.length - 1; i++) {
+    const gap = text.substring(amounts[i].index + amounts[i].length, amounts[i + 1].index).trim();
+    if (!/^(?:,|\bdan\b|\bsama\b|\bserta\b|\+|\&|\s)+$/i.test(gap)) {
+      isAmountsGrouped = false;
+      break;
+    }
+  }
+
+  if (isAmountsGrouped) {
+    // Teks sebelum nominal pertama berisi semua nama item: "beli kopi, roti, dan air"
+    const itemsPart = text.substring(0, amounts[0].index).trim();
+    const rawItemNames = itemsPart
+      .split(/(?:,|\bdan\b|\bsama\b|\bserta\b|\+)/i)
+      .map(s => cleanItemName(s))
+      .filter(s => s.length > 1 && s !== "Item");
+
+    if (rawItemNames.length === amounts.length) {
+      const items: ParsedItem[] = rawItemNames.map((name, idx) => ({
+        name,
+        amount: amounts[idx].value,
+        formattedAmount: formatInputIDR(String(amounts[idx].value)),
+      }));
+      const totalAmount = items.reduce((sum, it) => sum + it.amount, 0);
+      const combinedNote = items.map(it => `${it.name} (Rp ${it.formattedAmount})`).join(", ");
+      return { items, totalAmount, combinedNote };
+    }
+  }
+
+  // KASUS C: Nominal berdampingan dengan masing-masing item (Pola: "beli kopi 3 ribu dan nasi goreng 5 ribu")
+  const items: ParsedItem[] = [];
+  let prevEnd = 0;
+
+  for (let i = 0; i < amounts.length; i++) {
+    const curAmount = amounts[i];
+    const segment = text.substring(prevEnd, curAmount.index);
+    const itemName = cleanItemName(segment);
+    if (itemName && itemName !== "Item") {
+      items.push({
+        name: itemName,
+        amount: curAmount.value,
+        formattedAmount: formatInputIDR(String(curAmount.value)),
+      });
+    }
+    prevEnd = curAmount.index + curAmount.length;
+  }
+
+  if (items.length >= 2) {
+    const totalAmount = items.reduce((sum, it) => sum + it.amount, 0);
+    const combinedNote = items.map(it => `${it.name} (Rp ${it.formattedAmount})`).join(", ");
+    return { items, totalAmount, combinedNote };
+  }
+
+  return null;
+}
+
 /**
  * Parser Utama Natural Language Transaksi Indonesia
  */
@@ -1794,12 +2078,23 @@ export function smartParseIndonesianTransaction(
   options?: ParserOptions
 ): ParsedTransactionResult {
   const normalized = normalizeSpokenIndonesian(text);
-  const amount = extractAmountFromText(normalized) || extractAmountFromText(text);
+
+  // 1. Cek apakah ada multi-item transaksi dalam satu input
+  // (misal: "beli kopi dan nasi goreng 3 ribu dan 5 ribu")
+  const multiResult = parseMultipleItemsAndAmounts(text) || parseMultipleItemsAndAmounts(normalized);
+
+  const amount = multiResult
+    ? multiResult.totalAmount
+    : (extractAmountFromText(normalized) || extractAmountFromText(text));
+
   const txType = detectTxType(normalized);
   const { categoryHint, matchedCategoryId, recommendedCategory, isDatasetMatch } = detectCategory(normalized, txType, options?.categories);
   const { accountHint, matchedAccountId, toAccountHint, matchedToAccountId } = detectAccount(normalized, options?.accounts);
   const { happenedAt, happenedAtFormatted } = extractDateTimeFromText(normalized, options?.referenceDate);
-  const cleanedNote = cleanSpeechToNote(text);
+
+  const cleanedNote = multiResult
+    ? multiResult.combinedNote
+    : cleanSpeechToNote(text);
 
   return {
     txType,
@@ -1812,12 +2107,14 @@ export function smartParseIndonesianTransaction(
     categoryHint,
     matchedCategoryId,
     recommendedCategory,
-    isDatasetMatch: txType === "transfer" ? true : isDatasetMatch,
+    isDatasetMatch: txType === "transfer" || Boolean(multiResult) ? true : isDatasetMatch,
     happenedAt,
     happenedAtFormatted,
     cleanNote: cleanedNote,
     note: cleanedNote,
     rawText: text,
+    items: multiResult?.items,
+    isMultipleItems: Boolean(multiResult && multiResult.items.length >= 2),
   };
 }
 
@@ -1830,5 +2127,5 @@ export function isConfidentDatasetMatch(result: ParsedTransactionResult): boolea
   if (result.txType === "transfer") {
     return result.amount > 0;
   }
-  return Boolean(result.isDatasetMatch && result.amount > 0);
+  return Boolean((result.isDatasetMatch || result.isMultipleItems) && result.amount > 0);
 }

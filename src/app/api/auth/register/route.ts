@@ -70,26 +70,16 @@ export async function POST(req: Request) {
       monthStartDay: 1,
     });
 
-    // Create initial standard accounts (Kas Tunai, Blu, DANA, GoPay, BCA)
-    const starterAccounts = [
-      { name: "Kas Tunai", group: "Cash", balance: 500000, note: "Dompet uang tunai utama" },
-      { name: "Blu", group: "Bank card", balance: 4500000, note: "Rekening blu by BCA Digital" },
-      { name: "DANA", group: "Alipay", balance: 350000, note: "E-wallet DANA" },
-      { name: "GoPay", group: "Alipay", balance: 250000, note: "E-wallet GoPay" },
-      { name: "BCA", group: "Bank card", balance: 12500000, note: "Rekening Bank Central Asia" },
-    ];
-
-    for (const sa of starterAccounts) {
-      await db.insert(accounts).values({
-        userId: newUserId,
-        name: sa.name,
-        group: sa.group,
-        currency: String(primaryCurrency),
-        initialBalance: sa.balance,
-        balance: sa.balance,
-        note: sa.note,
-      });
-    }
+    // Create initial single cash account (kosongan dengan saldo 0)
+    await db.insert(accounts).values({
+      userId: newUserId,
+      name: "Kas",
+      group: "Cash",
+      currency: String(primaryCurrency),
+      initialBalance: 0,
+      balance: 0,
+      note: "Dompet kas utama",
+    });
 
     // Seed starter categories
     const starterCategories = [

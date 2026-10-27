@@ -1,4 +1,4 @@
-import { db, userProfiles } from "@finiq/shared";
+import { db, userProfiles, decryptSecret } from "@finiq/shared";
 import { eq } from "drizzle-orm";
 import { GoogleGenAI } from "@google/genai";
 
@@ -14,10 +14,8 @@ export async function getEffectiveGeminiKey(userId: string): Promise<string> {
     .limit(1);
 
   const profile = profileRecords[0];
-  const key =
-    profile?.geminiApiKey?.trim() ||
-    process.env.GEMINI_API_KEY?.trim() ||
-    "AQ.Ab8RN6IGdjST8WXK9I-8LIULXF8TAcbXlz-NeN2H6d1v__yN8A";
+  const decryptedPersonalKey = profile?.geminiApiKey ? decryptSecret(profile.geminiApiKey).trim() : "";
+  const key = decryptedPersonalKey || process.env.GEMINI_API_KEY?.trim() || "";
 
   if (!key) {
     throw new Error(

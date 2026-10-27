@@ -883,10 +883,24 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               <div className="flex items-center gap-1.5">
                 <select
                   value={bulkCategory}
-                  onChange={(e) => setBulkCategory(e.target.value)}
+                  onChange={(e) => {
+                    if (e.target.value === "__NEW_CATEGORY__") {
+                      const newCat = prompt("Masukkan nama kategori baru untuk massal:");
+                      if (newCat && newCat.trim()) {
+                        setBulkCategory(newCat.trim());
+                      }
+                    } else {
+                      setBulkCategory(e.target.value);
+                    }
+                  }}
                   className="h-7.5 rounded-md border border-border bg-card pl-2 pr-7 text-xs w-36 text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
                   <option value="">-- Pilih Kategori --</option>
+                  {bulkCategory &&
+                    !categories.some((c) => c.name.toLowerCase() === bulkCategory.toLowerCase()) &&
+                    !STANDARD_CATEGORIES.some((s) => s.toLowerCase() === bulkCategory.toLowerCase()) && (
+                      <option value={bulkCategory}>+ {bulkCategory} (Baru)</option>
+                    )}
                   {categories.map((c) => (
                     <option key={c.id} value={c.name}>
                       {c.name}
@@ -898,6 +912,9 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                         {cat}
                       </option>
                     ))}
+                  </optgroup>
+                  <optgroup label="Kustom">
+                    <option value="__NEW_CATEGORY__">+ Buat Kategori Baru...</option>
                   </optgroup>
                 </select>
                 <Button
@@ -916,15 +933,29 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               <div className="flex items-center gap-1.5">
                 <select
                   value={bulkAccount}
-                  onChange={(e) => setBulkAccount(e.target.value)}
+                  onChange={(e) => {
+                    if (e.target.value === "__NEW_ACCOUNT__") {
+                      const newAcc = prompt("Masukkan nama akun baru untuk massal:");
+                      if (newAcc && newAcc.trim()) {
+                        setBulkAccount(newAcc.trim());
+                      }
+                    } else {
+                      setBulkAccount(e.target.value);
+                    }
+                  }}
                   className="h-7.5 rounded-md border border-border bg-card pl-2 pr-7 text-xs w-36 text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
                   <option value="">-- Pilih Akun --</option>
+                  {bulkAccount &&
+                    !accounts.some((a) => a.name.toLowerCase() === bulkAccount.toLowerCase()) && (
+                      <option value={bulkAccount}>+ {bulkAccount} (Baru)</option>
+                    )}
                   {accounts.map((a) => (
                     <option key={a.id} value={a.name}>
                       {a.name}
                     </option>
                   ))}
+                  <option value="__NEW_ACCOUNT__">+ Buat Akun Baru...</option>
                 </select>
                 <Button
                   type="button"
@@ -1276,12 +1307,22 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                           <div className="flex flex-col gap-0.5 w-full">
                             <select
                               value={tx.categoryName}
-                              onChange={(e) =>
-                                handleCellUpdate(tx.id, {
-                                  categoryName: e.target.value,
-                                  isNlpDetected: false,
-                                })
-                              }
+                              onChange={(e) => {
+                                if (e.target.value === "__NEW_CATEGORY__") {
+                                  const newCat = prompt("Masukkan nama kategori baru:");
+                                  if (newCat && newCat.trim()) {
+                                    handleCellUpdate(tx.id, {
+                                      categoryName: newCat.trim(),
+                                      isNlpDetected: false,
+                                    });
+                                  }
+                                } else {
+                                  handleCellUpdate(tx.id, {
+                                    categoryName: e.target.value,
+                                    isNlpDetected: false,
+                                  });
+                                }
+                              }}
                               className="h-7.5 rounded-md border border-input bg-background px-1.5 text-xs font-medium focus:outline-none w-full shadow-2xs cursor-pointer hover:border-primary/60 transition-colors truncate"
                             >
                               <option value="">-- Pilih Kategori --</option>
@@ -1300,7 +1341,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                     {tx.categoryName}{" "}
                                     {tx.isNlpDetected
                                       ? "✨ (Prediksi NLP)"
-                                      : "(Dokumen)"}
+                                      : "(Kategori Baru)"}
                                   </option>
                                 )}
                               {categories && categories.length > 0 && (
@@ -1319,6 +1360,9 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                   </option>
                                 ))}
                               </optgroup>
+                              <optgroup label="Kustom">
+                                <option value="__NEW_CATEGORY__">+ Buat Kategori Baru...</option>
+                              </optgroup>
                             </select>
 
                             {tx.isNlpDetected && (
@@ -1336,11 +1380,20 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                         <td className="px-2 py-1.5">
                           <select
                             value={tx.accountName}
-                            onChange={(e) =>
-                              handleCellUpdate(tx.id, {
-                                accountName: e.target.value,
-                              })
-                            }
+                            onChange={(e) => {
+                              if (e.target.value === "__NEW_ACCOUNT__") {
+                                const newAcc = prompt("Masukkan nama akun baru:");
+                                if (newAcc && newAcc.trim()) {
+                                  handleCellUpdate(tx.id, {
+                                    accountName: newAcc.trim(),
+                                  });
+                                }
+                              } else {
+                                handleCellUpdate(tx.id, {
+                                  accountName: e.target.value,
+                                });
+                              }
+                            }}
                             className="h-7.5 rounded-md border border-input bg-background px-1.5 text-xs w-full focus:outline-none font-medium shadow-2xs truncate"
                           >
                             {accounts.map((acc) => (
@@ -1348,16 +1401,17 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                 {acc.name} {acc.group ? `(${acc.group})` : ""}
                               </option>
                             ))}
-                            {!accounts.some(
-                              (a) =>
-                                a.name.toLowerCase() ===
-                                tx.accountName.toLowerCase()
-                            )}
-                            {tx.accountName && (
-                              <option value={tx.accountName}>
-                                + {tx.accountName} (buat baru)
-                              </option>
-                            )}
+                            {tx.accountName &&
+                              !accounts.some(
+                                (a) =>
+                                  a.name.toLowerCase() ===
+                                  tx.accountName.toLowerCase()
+                              ) && (
+                                <option value={tx.accountName}>
+                                  + {tx.accountName} (Akun Baru)
+                                </option>
+                              )}
+                            <option value="__NEW_ACCOUNT__">+ Buat Akun Baru...</option>
                           </select>
                         </td>
                       )}
@@ -1368,11 +1422,20 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                           {tx.txType === "transfer" ? (
                             <select
                               value={tx.toAccountName || ""}
-                              onChange={(e) =>
-                                handleCellUpdate(tx.id, {
-                                  toAccountName: e.target.value || null,
-                                })
-                              }
+                              onChange={(e) => {
+                                if (e.target.value === "__NEW_ACCOUNT__") {
+                                  const newAcc = prompt("Masukkan nama akun tujuan baru:");
+                                  if (newAcc && newAcc.trim()) {
+                                    handleCellUpdate(tx.id, {
+                                      toAccountName: newAcc.trim(),
+                                    });
+                                  }
+                                } else {
+                                  handleCellUpdate(tx.id, {
+                                    toAccountName: e.target.value || null,
+                                  });
+                                }
+                              }}
                               className="h-7.5 rounded-md border border-input bg-background px-1.5 text-xs w-full focus:outline-none font-medium shadow-2xs truncate"
                             >
                               <option value="">-- Akun Tujuan --</option>
@@ -1381,6 +1444,17 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                   {acc.name}
                                 </option>
                               ))}
+                              {tx.toAccountName &&
+                                !accounts.some(
+                                  (a) =>
+                                    a.name.toLowerCase() ===
+                                    tx.toAccountName!.toLowerCase()
+                                ) && (
+                                  <option value={tx.toAccountName}>
+                                    + {tx.toAccountName} (Akun Baru)
+                                  </option>
+                                )}
+                              <option value="__NEW_ACCOUNT__">+ Buat Akun Baru...</option>
                             </select>
                           ) : (
                             <span className="text-[11px] text-muted-foreground italic px-2">
@@ -1618,9 +1692,23 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   </label>
                   <select
                     value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value === "__NEW_CATEGORY__") {
+                        const newCat = prompt("Masukkan nama kategori baru:");
+                        if (newCat && newCat.trim()) {
+                          setNewCategoryName(newCat.trim());
+                        }
+                      } else {
+                        setNewCategoryName(e.target.value);
+                      }
+                    }}
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-2xs text-xs focus:outline-none font-medium"
                   >
+                    {newCategoryName &&
+                      !categories.some((c) => c.name.toLowerCase() === newCategoryName.toLowerCase()) &&
+                      !STANDARD_CATEGORIES.some((s) => s.toLowerCase() === newCategoryName.toLowerCase()) && (
+                        <option value={newCategoryName}>+ {newCategoryName} (Baru)</option>
+                      )}
                     <optgroup label="Kategori Saya">
                       {categories.map((c) => (
                         <option key={c.id} value={c.name}>
@@ -1635,6 +1723,9 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                         </option>
                       ))}
                     </optgroup>
+                    <optgroup label="Kustom">
+                      <option value="__NEW_CATEGORY__">+ Buat Kategori Baru...</option>
+                    </optgroup>
                   </select>
                 </div>
 
@@ -1644,14 +1735,28 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   </label>
                   <select
                     value={newAccountName}
-                    onChange={(e) => setNewAccountName(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value === "__NEW_ACCOUNT__") {
+                        const newAcc = prompt("Masukkan nama akun baru:");
+                        if (newAcc && newAcc.trim()) {
+                          setNewAccountName(newAcc.trim());
+                        }
+                      } else {
+                        setNewAccountName(e.target.value);
+                      }
+                    }}
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-2xs text-xs focus:outline-none font-medium"
                   >
+                    {newAccountName &&
+                      !accounts.some((a) => a.name.toLowerCase() === newAccountName.toLowerCase()) && (
+                        <option value={newAccountName}>+ {newAccountName} (Baru)</option>
+                      )}
                     {accounts.map((a) => (
                       <option key={a.id} value={a.name}>
                         {a.name} ({a.group || "Akun"})
                       </option>
                     ))}
+                    <option value="__NEW_ACCOUNT__">+ Buat Akun Baru...</option>
                   </select>
                 </div>
               </div>
@@ -1665,15 +1770,29 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   <select
                     required
                     value={newToAccountName}
-                    onChange={(e) => setNewToAccountName(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value === "__NEW_ACCOUNT__") {
+                        const newAcc = prompt("Masukkan nama akun tujuan baru:");
+                        if (newAcc && newAcc.trim()) {
+                          setNewToAccountName(newAcc.trim());
+                        }
+                      } else {
+                        setNewToAccountName(e.target.value);
+                      }
+                    }}
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-2xs text-xs focus:outline-none font-medium"
                   >
                     <option value="">-- Pilih Akun Tujuan --</option>
+                    {newToAccountName &&
+                      !accounts.some((a) => a.name.toLowerCase() === newToAccountName.toLowerCase()) && (
+                        <option value={newToAccountName}>+ {newToAccountName} (Baru)</option>
+                      )}
                     {accounts.map((a) => (
                       <option key={a.id} value={a.name}>
                         {a.name} ({a.group || "Akun"})
                       </option>
                     ))}
+                    <option value="__NEW_ACCOUNT__">+ Buat Akun Baru...</option>
                   </select>
                 </div>
               )}
@@ -1849,9 +1968,23 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   </label>
                   <select
                     value={editCategoryName}
-                    onChange={(e) => setEditCategoryName(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value === "__NEW_CATEGORY__") {
+                        const newCat = prompt("Masukkan nama kategori baru:");
+                        if (newCat && newCat.trim()) {
+                          setEditCategoryName(newCat.trim());
+                        }
+                      } else {
+                        setEditCategoryName(e.target.value);
+                      }
+                    }}
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-2xs text-xs focus:outline-none font-medium"
                   >
+                    {editCategoryName &&
+                      !categories.some((c) => c.name.toLowerCase() === editCategoryName.toLowerCase()) &&
+                      !STANDARD_CATEGORIES.some((s) => s.toLowerCase() === editCategoryName.toLowerCase()) && (
+                        <option value={editCategoryName}>+ {editCategoryName} (Baru)</option>
+                      )}
                     <optgroup label="Kategori Saya">
                       {categories.map((c) => (
                         <option key={c.id} value={c.name}>
@@ -1866,6 +1999,9 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                         </option>
                       ))}
                     </optgroup>
+                    <optgroup label="Kustom">
+                      <option value="__NEW_CATEGORY__">+ Buat Kategori Baru...</option>
+                    </optgroup>
                   </select>
                 </div>
 
@@ -1875,14 +2011,28 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   </label>
                   <select
                     value={editAccountName}
-                    onChange={(e) => setEditAccountName(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value === "__NEW_ACCOUNT__") {
+                        const newAcc = prompt("Masukkan nama akun baru:");
+                        if (newAcc && newAcc.trim()) {
+                          setEditAccountName(newAcc.trim());
+                        }
+                      } else {
+                        setEditAccountName(e.target.value);
+                      }
+                    }}
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-2xs text-xs focus:outline-none font-medium"
                   >
+                    {editAccountName &&
+                      !accounts.some((a) => a.name.toLowerCase() === editAccountName.toLowerCase()) && (
+                        <option value={editAccountName}>+ {editAccountName} (Baru)</option>
+                      )}
                     {accounts.map((a) => (
                       <option key={a.id} value={a.name}>
                         {a.name} ({a.group || "Akun"})
                       </option>
                     ))}
+                    <option value="__NEW_ACCOUNT__">+ Buat Akun Baru...</option>
                   </select>
                 </div>
               </div>
@@ -1895,15 +2045,29 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   </label>
                   <select
                     value={editToAccountName}
-                    onChange={(e) => setEditToAccountName(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value === "__NEW_ACCOUNT__") {
+                        const newAcc = prompt("Masukkan nama akun tujuan baru:");
+                        if (newAcc && newAcc.trim()) {
+                          setEditToAccountName(newAcc.trim());
+                        }
+                      } else {
+                        setEditToAccountName(e.target.value);
+                      }
+                    }}
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-2xs text-xs focus:outline-none font-medium"
                   >
                     <option value="">-- Pilih Akun Tujuan --</option>
+                    {editToAccountName &&
+                      !accounts.some((a) => a.name.toLowerCase() === editToAccountName.toLowerCase()) && (
+                        <option value={editToAccountName}>+ {editToAccountName} (Baru)</option>
+                      )}
                     {accounts.map((a) => (
                       <option key={a.id} value={a.name}>
                         {a.name} ({a.group || "Akun"})
                       </option>
                     ))}
+                    <option value="__NEW_ACCOUNT__">+ Buat Akun Baru...</option>
                   </select>
                 </div>
               )}

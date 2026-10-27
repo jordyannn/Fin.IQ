@@ -70,6 +70,25 @@ export function EditTransactionModal({
     name: string;
     kind: "expense" | "income";
   } | null>(null);
+  const [detectedItems, setDetectedItems] = useState<
+    Array<{ name: string; amount: number; formattedAmount: string; qty?: number }>
+  >([]);
+
+  const handleRemoveDetectedItem = (indexToRemove: number) => {
+    const updated = detectedItems.filter((_, idx) => idx !== indexToRemove);
+    setDetectedItems(updated);
+    if (updated.length > 0) {
+      const newTotal = updated.reduce((sum, it) => sum + it.amount, 0);
+      setAmount(formatInputIDR(String(newTotal)));
+      const newNote = updated
+        .map((it) => `${it.qty && it.qty > 1 ? `${it.qty}x ` : ""}${it.name} (Rp ${it.formattedAmount})`)
+        .join(", ");
+      setNote(newNote);
+    } else {
+      setAmount("");
+      setNote("");
+    }
+  };
 
   const confirm = useConfirm();
   const alert = useAlert();
@@ -138,6 +157,7 @@ export function EditTransactionModal({
       setNote(transaction.note || "");
       setErrorMessage(null);
       setNlpRecommendedCategory(null);
+      setDetectedItems([]);
 
       try {
         const d = new Date(transaction.happenedAt);
@@ -221,6 +241,22 @@ export function EditTransactionModal({
 
     if (data.happenedAtFormatted) {
       setHappenedAt(data.happenedAtFormatted);
+    }
+
+    if (data.items && Array.isArray(data.items) && data.items.length >= 2) {
+      setDetectedItems(
+        data.items.map((it: any) => {
+          const amt = it.amount || it.price || 0;
+          return {
+            name: (it.name || "Item").trim(),
+            amount: amt,
+            formattedAmount: it.formattedAmount || formatInputIDR(String(amt)),
+            qty: it.qty,
+          };
+        })
+      );
+    } else if (!data.items || (Array.isArray(data.items) && data.items.length < 2)) {
+      setDetectedItems([]);
     }
 
     if (data.cleanNote) {
@@ -313,15 +349,20 @@ export function EditTransactionModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200">
       <form
         onSubmit={handleSubmit}
-        className="relative w-full max-w-lg max-h-[92vh] flex flex-col rounded-2xl bg-card border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in zoom-in-95 duration-150"
+        className="relative w-full max-w-lg max-h-[90vh] sm:max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl bg-card border-t sm:border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in slide-in-from-bottom-5 sm:zoom-in-95 duration-200"
       >
+        {/* Mobile Drag Indicator Bar */}
+        <div className="sm:hidden pt-2.5 pb-1 flex justify-center shrink-0 bg-card select-none">
+          <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
+        </div>
+
         {/* Header - Fixed & Pinned at Top */}
         <div className="flex items-center justify-between border-b border-border/70 px-5 sm:px-6 py-3.5 shrink-0 bg-card z-10">
           <div>
-            <h2 className="text-base font-bold text-foreground tracking-tight">Edit Transaksi</h2>
+            <h2 className="text-base font-bold text-foreground tracking-tight">Ubah Transaksi</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
               Perbarui rincian, akun, atau nominal transaksi ini
             </p>
@@ -329,7 +370,7 @@ export function EditTransactionModal({
           <button
             type="button"
             onClick={onClose}
-            className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer active:scale-95"
+            className="h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer active:scale-95 touch-manipulation"
           >
             <X className="h-4 w-4" />
           </button>
@@ -448,6 +489,44 @@ export function EditTransactionModal({
                 required
               />
             </div>
+
+            {/* Multi-Item Breakdown Card jika ada 2 atau lebih item dijumlahkan */}
+            {detectedItems.length >= 2 && (
+              <div className="mt-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 p-3 space-y-2 animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span className="text-xs font-bold text-foreground">
+                      {detectedItems.length} Item Terdeteksi (Dijumlahkan Otomatis)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 border border-emerald-500/25 px-2 py-0.5 rounded-full font-mono shrink-0">
+                    Total: Rp {amount}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {detectedItems.map((item, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-card border border-border/80 shadow-2xs text-foreground group"
+                    >
+                      <span className="font-semibold">{item.qty && item.qty > 1 ? `${item.qty}x ` : ""}{item.name}:</span>
+                      <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                        Rp {item.formattedAmount}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveDetectedItem(idx)}
+                        className="text-muted-foreground hover:text-rose-500 ml-0.5 p-0.5 rounded hover:bg-muted cursor-pointer active:scale-95 transition-colors"
+                        title={`Hapus ${item.name} dari penjumlahan`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Waktu Transaksi */}
@@ -651,7 +730,7 @@ export function EditTransactionModal({
       </div>
 
       {/* Fixed Pinned Footer Actions */}
-      <div className="border-t border-border/70 px-5 sm:px-6 py-3 shrink-0 bg-card/95 backdrop-blur-sm flex items-center justify-end gap-2.5 z-10">
+      <div className="border-t border-border/70 px-5 sm:px-6 py-3 pb-[max(0.75rem,calc(env(safe-area-inset-bottom,0px)+0.5rem))] shrink-0 bg-card/95 backdrop-blur-sm flex items-center justify-end gap-2.5 z-10">
         <Button
           type="button"
           variant="outline"

@@ -11,6 +11,8 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   display: "swap",
 });
 
+import { PwaRegister } from "@/components/pwa/PwaRegister";
+
 export const metadata: Metadata = {
   title: "Fin.IQ: Manajemen Keuangan Personal",
   description:
@@ -18,6 +20,12 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   icons: {
     icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Fin.IQ",
   },
 };
 
@@ -25,8 +33,8 @@ export const viewport: Viewport = {
   themeColor: "#059669",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  userScalable: true,
 };
 
 export default function RootLayout({
@@ -104,6 +112,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-background font-sans antialiased selection:bg-emerald-500/20 selection:text-emerald-900 dark:selection:text-emerald-200" suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+          <PwaRegister />
           <TRPCProvider>{children}</TRPCProvider>
         </ThemeProvider>
       </body>

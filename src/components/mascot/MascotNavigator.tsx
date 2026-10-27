@@ -49,6 +49,7 @@ export function MascotNavigator() {
     activeTourType,
     currentStepIndex,
     resumeBasicTourAfter,
+    hasJustAddedTourTransaction,
     isBubbleOpen,
     isWelcomePromptOpen,
     isContinuationPromptOpen,
@@ -227,6 +228,13 @@ export function MascotNavigator() {
     }
   }, [isQuickAddOpen, isTourActive, activeTourType, resumeBasicTourAfter, resumeBasicTour, endTour]);
 
+  // If user opens QuickAdd modal while on step 2 of basic tour, automatically start transaction tour
+  useEffect(() => {
+    if (isQuickAddOpen && isTourActive && activeTourType === "basic" && currentStepIndex === 1) {
+      startTransactionTour(true);
+    }
+  }, [isQuickAddOpen, isTourActive, activeTourType, currentStepIndex, startTransactionTour]);
+
   // Check first-time visit on mount
   useEffect(() => {
     setMounted(true);
@@ -274,13 +282,19 @@ export function MascotNavigator() {
     currentStep.id === "ai-studio" || currentStep.id === "sidebar-nav";
   const needsMobileSidebarClick = isMobileScreen && isSidebarStep && !isSidebarOpen;
 
-  const effectiveTitle = needsMobileSidebarClick
+  const effectiveTitle = hasJustAddedTourTransaction && activeTourType === "basic" && currentStepIndex === 2
+    ? "3. Filter Periode (Transaksi Berhasil!)"
+    : needsMobileSidebarClick
     ? "Buka Bilah Menu Sidebar"
     : currentStep.title;
-  const effectiveDescription = needsMobileSidebarClick
+  const effectiveDescription = hasJustAddedTourTransaction && activeTourType === "basic" && currentStepIndex === 2
+    ? "🎉 Hebat! Transaksi pertamamu sudah berhasil dicatat dan saldo kas langsung terupdate. Sekarang, kamu bisa gunakan Filter Periode untuk melihat transaksi per hari, bulan, atau tahun."
+    : needsMobileSidebarClick
     ? "Fitur ini berada di bilah menu navigasi. Klik tombol Menu / Sidebar untuk membuka dan menampilkan menu navigasi terlebih dahulu."
     : currentStep.description;
-  const effectiveQuote = needsMobileSidebarClick
+  const effectiveQuote = hasJustAddedTourTransaction && activeTourType === "basic" && currentStepIndex === 2
+    ? "Mantap! Transaksi pertamamu sudah masuk ke kas."
+    : needsMobileSidebarClick
     ? "Klik tombol Menu untuk buka sidebar!"
     : currentStep.speechQuote;
 
@@ -291,6 +305,13 @@ export function MascotNavigator() {
     prevStep();
   };
 
+  const handleNextStep = () => {
+    if (isMobileScreen && isSidebarOpen && currentStepIndex === activeSteps.length - 1) {
+      setSidebarOpen(false);
+    }
+    nextStep();
+  };
+
   const handleEndTour = () => {
     if (isMobileScreen && isSidebarOpen) {
       setSidebarOpen(false);
@@ -298,7 +319,61 @@ export function MascotNavigator() {
     endTour();
   };
 
-  // Track target element during tour with smart scrolling so card never covers content
+  // 1. Initial scroll to target when step changes
+  useEffect(() => {
+    if (!isTourActive) return;
+
+    let selector = `[${currentStep.targetAttr}]`;
+    if (needsMobileSidebarClick) {
+      selector = "[data-tour='topbar-sidebar-toggle'], [data-tour='bottom-menu-toggle']";
+    }
+
+    const timer = setTimeout(() => {
+      const el = document.querySelector(selector);
+      if (el) {
+        if (activeTourType === "transaction") {
+          el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+        } else if (isMobileScreen) {
+          if (!isSidebarStep) {
+            const elTop = el.getBoundingClientRect().top + window.scrollY;
+            window.scrollTo({
+              top: Math.max(0, elTop - 76),
+              behavior: "smooth",
+            });
+          }
+        } else {
+          // Desktop smart scrolling: ensure sufficient space for guidance card without obscuring target
+          const rect = el.getBoundingClientRect();
+          if (currentStep.position === "top") {
+            if (rect.top < 220 || rect.bottom > window.innerHeight - 30) {
+              const elTop = el.getBoundingClientRect().top + window.scrollY;
+              window.scrollTo({
+                top: Math.max(0, elTop - (window.innerHeight - rect.height - 40)),
+                behavior: "smooth",
+              });
+            }
+          } else if (currentStep.position !== "right") {
+            // default position: bottom
+            if (rect.top < 80 || rect.bottom > window.innerHeight - 220) {
+              const elTop = el.getBoundingClientRect().top + window.scrollY;
+              window.scrollTo({
+                top: Math.max(0, elTop - 90),
+                behavior: "smooth",
+              });
+            }
+          }
+        }
+      } else if (currentStep.targetAttr.includes("overview") && pathname !== "/overview") {
+        startTransition(() => {
+          router.push("/overview");
+        });
+      }
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [isTourActive, currentStepIndex, activeTourType, currentStep, isMobileScreen, isSidebarStep, needsMobileSidebarClick, pathname, router]);
+
+  // 2. Track target bounding rect for spotlight without re-triggering window scrolling
   useEffect(() => {
     if (!isTourActive) {
       setTargetRect(null);
@@ -312,73 +387,112 @@ export function MascotNavigator() {
       }
       const el = document.querySelector(selector);
       if (el) {
-        if (activeTourType === "transaction") {
-          el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
-        }
-        const rect = el.getBoundingClientRect();
-        setTargetRect(rect);
-
-        // Smart scrolling: ensure sufficient space for guidance card without obscuring the target
-        if (currentStep.position === "right") {
-          // Sidebar elements don't need vertical page scrolling
-        } else if (currentStep.position === "top") {
-          if (rect.top < 220 || rect.bottom > window.innerHeight - 30) {
-            const elTop = el.getBoundingClientRect().top + window.scrollY;
-            window.scrollTo({
-              top: Math.max(0, elTop - (window.innerHeight - rect.height - 40)),
-              behavior: "smooth",
-            });
-          }
-        } else {
-          // default position: bottom
-          if (rect.top < 80 || rect.bottom > window.innerHeight - 220) {
-            const elTop = el.getBoundingClientRect().top + window.scrollY;
-            window.scrollTo({
-              top: Math.max(0, elTop - 90),
-              behavior: "smooth",
-            });
-          }
-        }
+        setTargetRect(el.getBoundingClientRect());
       } else {
-        // If element is an overview element but user is on another page, navigate to overview
-        if (currentStep.targetAttr.includes("overview")) {
-          if (pathname !== "/overview") {
-            startTransition(() => {
-              router.push("/overview");
-            });
-          }
-        }
         setTargetRect(null);
       }
     };
 
     updateRect();
-    const handleResize = () => updateRect();
-    window.addEventListener("resize", handleResize);
-    window.addEventListener("scroll", handleResize, true);
-
-    const timer = setTimeout(updateRect, 300);
+    window.addEventListener("resize", updateRect);
+    window.addEventListener("scroll", updateRect, true);
+    const timer = setTimeout(updateRect, 350);
 
     return () => {
-      window.removeEventListener("resize", handleResize);
-      window.removeEventListener("scroll", handleResize, true);
+      window.removeEventListener("resize", updateRect);
+      window.removeEventListener("scroll", updateRect, true);
       clearTimeout(timer);
     };
-  }, [isTourActive, currentStepIndex, currentStep, pathname, router, isSidebarOpen, needsMobileSidebarClick]);
+  }, [isTourActive, currentStepIndex, currentStep, needsMobileSidebarClick]);
 
   // Helper to calculate card position so it NEVER covers the target element
   const getCardPositionStyle = (): React.CSSProperties => {
+    const winW = typeof window !== "undefined" ? window.innerWidth : 1200;
+    const winH = typeof window !== "undefined" ? window.innerHeight : 800;
+
     if (!targetRect) {
       return {
         top: "50%",
         left: "50%",
         transform: "translate(-50%, -50%)",
-        width: "min(370px, calc(100vw - 32px))",
+        width: "min(360px, calc(100vw - 24px))",
       };
     }
 
-    const winW = typeof window !== "undefined" ? window.innerWidth : 1200;
-    const winH = typeof window !== "undefined" ? window.innerHeight : 800;
+    // A. Mobile responsive layout (Android / iOS / Handheld screens)
+    if (isMobileScreen || winW < 1024) {
+      const cardWidthMobile = Math.min(360, winW - 24);
+
+      // A1. Inside QuickAddModal dialog
+      if (activeTourType === "transaction" || isQuickAddOpen) {
+        const isTargetInUpperHalf = targetRect.top < winH / 2;
+        if (isTargetInUpperHalf) {
+          return {
+            bottom: "16px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: `${cardWidthMobile}px`,
+            maxHeight: "calc(46vh)",
+          };
+        } else {
+          return {
+            top: "16px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: `${cardWidthMobile}px`,
+            maxHeight: "calc(46vh)",
+          };
+        }
+      }
+
+      // A2. Inside mobile sidebar drawer
+      if (isSidebarOpen) {
+        return {
+          bottom: "16px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: `${cardWidthMobile}px`,
+          maxHeight: "calc(40vh)",
+        };
+      }
+
+      // A3. Pointing to Menu button to open sidebar
+      if (needsMobileSidebarClick) {
+        return {
+          top: "76px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: `${cardWidthMobile}px`,
+          maxHeight: "calc(42vh)",
+        };
+      }
+
+      // A4. Regular page steps on mobile (safe from TopBar at top and MobileBottomNav at bottom)
+      const targetCenterY = targetRect.top + targetRect.height / 2;
+      const isTargetInUpperHalf = targetCenterY < winH / 2;
+
+      if (isTargetInUpperHalf) {
+        // Target is in top half -> pin card at bottom, safely 12px above MobileBottomNav (64px + 12px = 76px)
+        return {
+          bottom: "76px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: `${cardWidthMobile}px`,
+          maxHeight: "calc(42vh)",
+        };
+      } else {
+        // Target is in bottom half -> pin card at top, safely 12px below TopBar (64px + 12px = 76px)
+        return {
+          top: "76px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: `${cardWidthMobile}px`,
+          maxHeight: "calc(42vh)",
+        };
+      }
+    }
+
+    // B. Desktop layout
     const cardW = Math.min(360, winW - 32);
     const cardH = isCardMinimized
       ? 74
@@ -387,12 +501,11 @@ export function MascotNavigator() {
       : 200;
     const positionPref = currentStep.position || "bottom";
 
-    // Special smart positioning when inside QuickAddModal
+    // Desktop inside QuickAddModal
     if (activeTourType === "transaction" || isQuickAddOpen) {
       const modalEl = document.querySelector("[data-tour-modal='quick-add']");
       const modalRect = modalEl?.getBoundingClientRect();
 
-      // On desktop / wide screens, place guidance card side-by-side to the right of modal
       if (modalRect && winW >= 960) {
         const preferredLeft = modalRect.right + 14;
         if (preferredLeft + cardW <= winW - 14) {
@@ -417,40 +530,10 @@ export function MascotNavigator() {
           };
         }
       }
-
-      // On mobile or smaller screens: pin to bottom or top of viewport so it doesn't obscure the target
-      const isTargetInUpperHalf = targetRect.top < winH / 2;
-      const cardWidthMobile = Math.min(380, winW - 24);
-      if (isTargetInUpperHalf) {
-        return {
-          bottom: "16px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: `${cardWidthMobile}px`,
-          maxHeight: `calc(50vh - 24px)`,
-        };
-      } else {
-        return {
-          top: "16px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: `${cardWidthMobile}px`,
-          maxHeight: `calc(50vh - 24px)`,
-        };
-      }
     }
 
-    // If step is on sidebar (right positioning), place card completely to the right of the sidebar on desktop, or pin to bottom on mobile
-    if (positionPref === "right" || (winW < 1024 && isSidebarStep)) {
-      if (winW < 1024) {
-        return {
-          bottom: "16px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: `${cardW}px`,
-          maxHeight: "calc(45vh)",
-        };
-      }
+    // Desktop Sidebar step
+    if (positionPref === "right") {
       const left = Math.min(winW - cardW - 16, targetRect.right + 16);
       const top = Math.max(
         16,
@@ -560,6 +643,7 @@ export function MascotNavigator() {
                   onClick={() => {
                     markWelcomeAsSeen();
                     startBasicTour();
+                    router.push("/overview");
                   }}
                   className="relative w-full flex-1 py-2.5 px-4 rounded-md font-bold text-sm bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 animate-button-ripple"
                 >
@@ -629,6 +713,7 @@ export function MascotNavigator() {
                 <button
                   onClick={() => {
                     startTechnicalTour();
+                    router.push("/overview");
                   }}
                   className="relative w-full flex-1 py-2.5 px-4 rounded-md font-bold text-sm bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 animate-button-ripple"
                 >
@@ -651,21 +736,21 @@ export function MascotNavigator() {
           2. SPOTLIGHT TOUR WALKTHROUGH OVERLAY (Tur 1, Tur 2 & Tur Transaksi)
       ========================================================================= */}
       {isTourActive && (
-        <div data-mascot-tour="true" className={`fixed inset-0 print:hidden ${isQuickAddOpen || activeTourType === "transaction" ? "z-[220]" : "z-[150]"} pointer-events-none`}>
+        <div data-mascot-tour="true" className={`fixed inset-0 print:hidden ${isQuickAddOpen || activeTourType === "transaction" ? "z-[220]" : isSidebarOpen ? "z-[170]" : "z-[150]"} pointer-events-none`}>
           {/* Dark Overlay with Target Element Cutout */}
           {targetRect ? (
             <>
               {/* 4 Blocker Divs that darken background and prevent outside clicks */}
               <div
-                className={`fixed top-0 left-0 right-0 ${activeTourType === "transaction" ? "bg-black/45" : "bg-black/75"} pointer-events-auto transition-all duration-300`}
+                className={`fixed top-0 left-0 right-0 ${activeTourType === "transaction" || isSidebarOpen ? "bg-black/45 pointer-events-none" : "bg-black/75 pointer-events-auto"} transition-all duration-300`}
                 style={{ height: `${Math.max(0, targetRect.top - 8)}px` }}
               />
               <div
-                className={`fixed left-0 right-0 bottom-0 ${activeTourType === "transaction" ? "bg-black/45" : "bg-black/75"} pointer-events-auto transition-all duration-300`}
+                className={`fixed left-0 right-0 bottom-0 ${activeTourType === "transaction" || isSidebarOpen ? "bg-black/45 pointer-events-none" : "bg-black/75 pointer-events-auto"} transition-all duration-300`}
                 style={{ top: `${targetRect.bottom + 8}px` }}
               />
               <div
-                className={`fixed left-0 ${activeTourType === "transaction" ? "bg-black/45" : "bg-black/75"} pointer-events-auto transition-all duration-300`}
+                className={`fixed left-0 ${activeTourType === "transaction" || isSidebarOpen ? "bg-black/45 pointer-events-none" : "bg-black/75 pointer-events-auto"} transition-all duration-300`}
                 style={{
                   top: `${Math.max(0, targetRect.top - 8)}px`,
                   height: `${targetRect.height + 16}px`,
@@ -673,7 +758,7 @@ export function MascotNavigator() {
                 }}
               />
               <div
-                className={`fixed right-0 ${activeTourType === "transaction" ? "bg-black/45" : "bg-black/75"} pointer-events-auto transition-all duration-300`}
+                className={`fixed right-0 ${activeTourType === "transaction" || isSidebarOpen ? "bg-black/45 pointer-events-none" : "bg-black/75 pointer-events-auto"} transition-all duration-300`}
                 style={{
                   top: `${Math.max(0, targetRect.top - 8)}px`,
                   height: `${targetRect.height + 16}px`,
@@ -683,7 +768,7 @@ export function MascotNavigator() {
 
               {/* Spotlight Frame with Gentle Radar Border & Calm Ripple Waves */}
               <div
-                className={`fixed transition-all duration-300 ease-out pointer-events-none rounded-md ${isQuickAddOpen || activeTourType === "transaction" ? "z-[225]" : "z-[155]"} animate-tour-radar`}
+                className={`fixed transition-all duration-300 ease-out pointer-events-none rounded-md ${isQuickAddOpen || activeTourType === "transaction" ? "z-[225]" : isSidebarOpen ? "z-[175]" : "z-[155]"} animate-tour-radar`}
                 style={{
                   top: `${Math.max(0, targetRect.top - 8)}px`,
                   left: `${Math.max(0, targetRect.left - 8)}px`,
@@ -726,12 +811,12 @@ export function MascotNavigator() {
               </div>
             </>
           ) : (
-            <div className={`fixed inset-0 ${activeTourType === "transaction" ? "bg-black/50" : "bg-black/75"} backdrop-blur-sm pointer-events-auto`} />
+            <div className={`fixed inset-0 ${activeTourType === "transaction" || isSidebarOpen ? "bg-black/50 pointer-events-none" : "bg-black/75 pointer-events-auto"} backdrop-blur-sm`} />
           )}
 
           {/* Floating Guidance Card - Positioned smartly to never cover target content */}
           <div
-            className={`fixed ${isQuickAddOpen || activeTourType === "transaction" ? "z-[230]" : "z-[160]"} transition-all duration-300 pointer-events-auto`}
+            className={`fixed ${isQuickAddOpen || activeTourType === "transaction" ? "z-[230]" : isSidebarOpen ? "z-[180]" : "z-[160]"} transition-all duration-300 pointer-events-auto`}
             style={getCardPositionStyle()}
           >
             <div className="relative overflow-hidden rounded-md border border-primary/30 bg-card p-4 sm:p-5 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-200 max-h-[calc(100vh-32px)] flex flex-col justify-between">
@@ -769,14 +854,15 @@ export function MascotNavigator() {
                       mascotSound.playPop();
                       setIsCardMinimized((prev) => !prev);
                     }}
-                    className="p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
+                    className="h-8 w-8 min-h-[32px] min-w-[32px] sm:h-7 sm:w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
                     title={isCardMinimized ? "Perbesar Panduan" : "Perkecil Panduan"}
                   >
                     {isCardMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
                   </button>
                   <button
+                    type="button"
                     onClick={handleEndTour}
-                    className="p-1.5 rounded-md text-muted-foreground hover:bg-muted"
+                    className="h-8 w-8 min-h-[32px] min-w-[32px] sm:h-7 sm:w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
                     title="Lewati Tur"
                   >
                     <X className="h-4 w-4" />
@@ -800,7 +886,20 @@ export function MascotNavigator() {
                         <ChevronLeft className="h-3.5 w-3.5" />
                       </button>
                     )}
-                    {needsMobileSidebarClick ? (
+                    {activeTourType === "transaction" && currentStepIndex === activeSteps.length - 1 ? (
+                      <button
+                        onClick={() => {
+                          const formEl = document.querySelector<HTMLFormElement>("[data-tour-modal='quick-add']");
+                          if (formEl) {
+                            formEl.requestSubmit();
+                          }
+                        }}
+                        className="py-1 px-2.5 rounded-md text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1 cursor-pointer shadow-xs"
+                      >
+                        <CheckCircle2 className="h-3 w-3" />
+                        Simpan
+                      </button>
+                    ) : needsMobileSidebarClick ? (
                       <button
                         onClick={() => {
                           mascotSound.playPop();
@@ -813,7 +912,8 @@ export function MascotNavigator() {
                       </button>
                     ) : (
                       <button
-                        onClick={nextStep}
+                        type="button"
+                        onClick={handleNextStep}
                         className="py-1 px-2.5 rounded-md text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1 cursor-pointer shadow-xs"
                       >
                         {currentStepIndex === activeSteps.length - 1 ? "Selesai" : "Lanjut"}
@@ -826,6 +926,20 @@ export function MascotNavigator() {
                 <>
                   {/* Body: Explanation & Mascot Speech Bubble */}
                   <div className="mt-3 space-y-2 overflow-y-auto pr-0.5">
+                    {hasJustAddedTourTransaction && activeTourType === "basic" && currentStepIndex === 2 && (
+                      <div className="p-2.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 flex items-start gap-2.5 animate-in zoom-in-95 duration-200">
+                        <span className="text-base shrink-0">🎉</span>
+                        <div className="space-y-0.5">
+                          <p className="font-bold text-xs text-emerald-700 dark:text-emerald-400">
+                            Transaksi Berhasil Ditambahkan!
+                          </p>
+                          <p className="text-[11px] text-muted-foreground leading-tight">
+                            Nominal dan pos belanja telah dibukukan ke ringkasan kas.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed font-normal">
                       {effectiveDescription}
                     </p>
@@ -861,6 +975,19 @@ export function MascotNavigator() {
                       </div>
                     )}
 
+                    {/* Helper on transaction tour submit step */}
+                    {activeTourType === "transaction" && currentStepIndex === activeSteps.length - 1 && (
+                      <div className="mt-2.5 p-2.5 rounded-md bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/30 space-y-1.5 animate-in fade-in duration-200">
+                        <p className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                          Ayo Coba Simpan Transaksi Pertama!
+                        </p>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">
+                          Lengkapi nominal dan input di formulir transaksi, lalu tekan tombol <b>Simpan Transaksi</b> di bawah form. Fin.IQ akan langsung membawamu ke langkah tur berikutnya setelah transaksi berhasil dicatat.
+                        </p>
+                      </div>
+                    )}
+
                     {/* Interactive prompt on quick-add step */}
                     {currentStep.targetAttr.includes("quick-add") && (
                       <div className="mt-2.5 p-2.5 rounded-md bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/25 space-y-1.5 animate-in fade-in duration-200">
@@ -885,7 +1012,7 @@ export function MascotNavigator() {
                           </button>
                           <button
                             type="button"
-                            onClick={nextStep}
+                            onClick={handleNextStep}
                             className="h-7 px-2.5 rounded-md text-xs font-semibold border border-input bg-background hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                           >
                             Belum, Lanjut Tur
@@ -897,19 +1024,24 @@ export function MascotNavigator() {
 
                   {/* Footer: Progress Dots & Buttons */}
                   <div className="mt-4 flex items-center justify-between gap-3 pt-3 border-t border-border/70 shrink-0">
-                    {/* Step dots */}
-                    <div className="flex items-center gap-1.5">
+                    {/* Step dots with generous mobile touch hitboxes */}
+                    <div className="flex items-center gap-0.5">
                       {activeSteps.map((_, i) => (
                         <button
                           key={i}
+                          type="button"
                           onClick={() => setStepIndex(i)}
-                          className={`h-2 rounded-xs transition-all ${
-                            i === currentStepIndex
-                              ? "w-6 bg-primary"
-                              : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50"
-                          }`}
+                          className="py-1.5 px-1 flex items-center justify-center cursor-pointer group"
                           aria-label={`Ke Langkah ${i + 1}`}
-                        />
+                        >
+                          <span
+                            className={`h-2 rounded-xs transition-all block ${
+                              i === currentStepIndex
+                                ? "w-6 bg-primary"
+                                : "w-2 bg-muted-foreground/30 group-hover:bg-muted-foreground/50"
+                            }`}
+                          />
+                        </button>
                       ))}
                     </div>
 
@@ -917,40 +1049,65 @@ export function MascotNavigator() {
                     <div className="flex items-center gap-2">
                       {currentStepIndex > 0 && (
                         <button
+                          type="button"
                           onClick={handlePrevStep}
-                          className="p-2 rounded-md border border-input text-foreground hover:bg-muted transition-colors text-xs font-semibold flex items-center gap-1"
+                          className="p-2 rounded-md border border-input text-foreground hover:bg-muted transition-colors text-xs font-semibold flex items-center gap-1 cursor-pointer"
                         >
                           <ChevronLeft className="h-3.5 w-3.5" />
                           Kembali
                         </button>
                       )}
 
-                      {activeTourType === "transaction" && resumeBasicTourAfter && currentStepIndex === activeSteps.length - 1 && (
+                      {/* On Transaction tour last step, give explicit action button to submit or skip */}
+                      {activeTourType === "transaction" && currentStepIndex === activeSteps.length - 1 ? (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (resumeBasicTourAfter) {
+                                resumeBasicTour();
+                              } else {
+                                endTour();
+                              }
+                            }}
+                            className="py-2 px-2.5 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                            title="Lanjut tur tanpa menyimpan transaksi"
+                          >
+                            Lewati Tanpa Simpan
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const formEl = document.querySelector<HTMLFormElement>(
+                                "[data-tour-modal='quick-add']"
+                              );
+                              if (formEl) {
+                                formEl.requestSubmit();
+                              }
+                            }}
+                            className="relative py-2 px-3.5 rounded-md font-bold text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 animate-button-ripple cursor-pointer"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Simpan Transaksi 💾
+                          </button>
+                        </div>
+                      ) : needsMobileSidebarClick ? (
                         <button
                           type="button"
-                          onClick={() => handleEndTour()}
-                          className="py-2 px-2.5 rounded-md text-xs font-semibold border border-input bg-card text-foreground hover:bg-muted transition-colors"
-                          title="Selesaikan tutorial dan coba isi form transaksi sendiri"
-                        >
-                          Coba Simpan Sendiri
-                        </button>
-                      )}
-
-                      {needsMobileSidebarClick ? (
-                        <button
                           onClick={() => {
                             mascotSound.playPop();
                             setSidebarOpen(true);
                           }}
-                          className="relative py-2 px-3.5 rounded-md font-bold text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 animate-button-ripple"
+                          className="relative py-2 px-3.5 rounded-md font-bold text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 animate-button-ripple cursor-pointer"
                         >
                           <Menu className="h-3.5 w-3.5" />
                           Buka Sidebar Dulu
                         </button>
                       ) : (
                         <button
-                          onClick={nextStep}
-                          className="relative py-2 px-3.5 rounded-md font-bold text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 animate-button-ripple"
+                          type="button"
+                          onClick={handleNextStep}
+                          className="relative py-2 px-3.5 rounded-md font-bold text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 animate-button-ripple cursor-pointer"
                         >
                           {currentStepIndex === activeSteps.length - 1 ? (
                             activeTourType === "transaction" && resumeBasicTourAfter ? (
@@ -984,15 +1141,17 @@ export function MascotNavigator() {
       {/* =========================================================================
           3. FLOATING INTERACTIVE BUBBLE (FAB) & MINI MENU (ADAPTIF & NON-INTRUSIF)
       ========================================================================= */}
-      {!isTourActive && !isQuickAddOpen && (
+      {!isTourActive && !isQuickAddOpen && !isSidebarOpen && (
         <div
           className={`fixed transition-all duration-300 ease-out print:hidden ${
+            pathname === "/ai" ? "hidden lg:flex" : "flex"
+          } ${
             isAnyModalActive
-              ? "bottom-3 sm:bottom-4 right-3 sm:right-4 z-[210]"
+              ? "bottom-3 sm:bottom-4 right-3 sm:right-4 z-[45]"
               : pathname === "/ai"
-              ? "bottom-28 lg:bottom-6 right-3.5 lg:right-6 z-[90]"
+              ? "bottom-6 right-6 z-[90]"
               : "bottom-20 lg:bottom-6 right-3.5 lg:right-6 z-[90]"
-          } flex flex-col items-end pointer-events-none`}
+          } flex-col items-end pointer-events-none`}
         >
           {/* Subtle Teaser Hint Tooltip (only when no modal is open & not in quiet mode) */}
           {!isAnyModalActive && !isUserMinimized && showTooltipHint && !isBubbleOpen && (
@@ -1078,6 +1237,7 @@ export function MascotNavigator() {
                 <button
                   onClick={() => {
                     startBasicTour();
+                    router.push("/overview");
                     setBubbleOpen(false);
                   }}
                   className="w-full flex items-center justify-between p-2.5 rounded-md border border-input bg-card hover:bg-muted/80 text-foreground font-bold text-xs transition-transform active:scale-98 cursor-pointer"
@@ -1107,6 +1267,7 @@ export function MascotNavigator() {
                 <button
                   onClick={() => {
                     startTechnicalTour();
+                    router.push("/overview");
                     setBubbleOpen(false);
                   }}
                   className="w-full flex items-center justify-between p-2.5 rounded-md bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 shadow-sm transition-transform active:scale-98 cursor-pointer"

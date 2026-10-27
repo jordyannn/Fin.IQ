@@ -119,8 +119,8 @@ export function fuzzyMatchCategory(
   });
   if (sub) return sub.name;
 
-  // 4. Fallback to existing user category
-  return userCategories[0]?.name || "Umum";
+  // 4. Return raw name if no existing category matches, so new categories are preserved
+  return rawName.trim();
 }
 
 export const importRouter = router({
@@ -648,50 +648,84 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
         const happenedAtDate = isNaN(rawDateObj.getTime()) ? new Date() : rawDateObj;
 
         // Category resolution
-        const rawCat = item.categoryName ? item.categoryName.trim() : "Umum";
+        const rawCat = item.categoryName ? item.categoryName.trim() : "";
         const cleanCatName =
           rawCat
             .replace(/\s*[\(（][\u4e00-\u9fa5\s]+[\)）]/g, "")
             .replace(/[\u4e00-\u9fa5]+/g, "")
-            .trim() || "Umum";
+            .trim();
 
-        let matchedCat = categoryMap.get(cleanCatName.toLowerCase()) || categoryMap.get(cleanCatName);
-        if (!matchedCat) {
-          const resolvedName = fuzzyMatchCategory(cleanCatName, userCategories);
-          matchedCat = categoryMap.get(resolvedName.toLowerCase());
+        let matchedCat = null;
+        if (cleanCatName) {
+          // 1. Direct or cached match
+          matchedCat = categoryMap.get(cleanCatName.toLowerCase()) || categoryMap.get(cleanCatName);
+
+          // 2. Fuzzy match against existing categories (only if cleanCatName is not deliberately new)
+          if (!matchedCat) {
+            const resolvedName = fuzzyMatchCategory(cleanCatName, userCategories);
+            if (resolvedName && resolvedName.toLowerCase() !== cleanCatName.toLowerCase()) {
+              matchedCat = categoryMap.get(resolvedName.toLowerCase()) || categoryMap.get(resolvedName);
+            }
+          }
         }
-        if (!matchedCat && userCategories.length > 0) {
-          // Fallback ke kategori user yang sesuai jenis transaksi
-          const fallbackCat = userCategories.find(
-            (c) => c.kind === (item.txType === "income" ? "income" : "expense")
-          ) || userCategories[0];
-          matchedCat = fallbackCat;
-        }
-        if (!matchedCat) {
+
+        // 3. If not matched, check if it's a new custom category (not empty or generic 'umum')
+        const isGenericCat = !cleanCatName || /^(umum|uncategorized|lainnya|lain-lain|-)$/i.test(cleanCatName);
+        if (!matchedCat && !isGenericCat) {
           const newCatId = crypto.randomUUID();
           const newCat = {
             id: newCatId,
             userId: ctx.userId,
             name: cleanCatName,
-            kind: item.txType === "income" ? "income" : "expense",
-            icon: "Receipt",
+            kind: item.txType === "income" ? ("income" as const) : ("expense" as const),
+            icon: item.txType === "income" ? "TrendingUp" : "Receipt",
           };
           await ctx.db.insert(categories).values(newCat);
           matchedCat = newCat;
           categoryMap.set(cleanCatName.toLowerCase(), newCat);
+          categoryMap.set(cleanCatName, newCat);
           categoryMap.set(newCatId, newCat);
-          categoriesCreated.push(cleanCatName);
+          userCategories.push(newCat as any);
+          if (!categoriesCreated.includes(cleanCatName)) {
+            categoriesCreated.push(cleanCatName);
+          }
+        } else if (!matchedCat) {
+          // Fallback to default user category only if generic or empty
+          const fallbackCat = userCategories.find(
+            (c) => c.kind === (item.txType === "income" ? "income" : "expense")
+          ) || userCategories[0];
+          matchedCat = fallbackCat;
         }
 
         // Account resolution
-        const accName = item.accountName ? item.accountName.trim() : defaultAccount?.name || "cash";
-        let matchedAccount =
-          accountMap.get(accName.toLowerCase()) ||
-          accountMap.get(accName) ||
-          defaultAccount;
+        const accName = item.accountName ? item.accountName.trim() : "";
+        let matchedAccount = null;
 
-        if (!matchedAccount) {
-          const groupName = accName.toLowerCase().includes("bank") ? "Bank card" : "Cash";
+        if (accName) {
+          // 1. Direct or cached match
+          matchedAccount =
+            accountMap.get(accName.toLowerCase()) ||
+            accountMap.get(accName);
+
+          // 2. Fuzzy alias match only if mapped to an existing user account
+          if (!matchedAccount) {
+            const fuzzyName = fuzzyMatchAccount(accName, userAccounts);
+            if (fuzzyName && fuzzyName.toLowerCase() !== accName.toLowerCase()) {
+              matchedAccount = accountMap.get(fuzzyName.toLowerCase()) || accountMap.get(fuzzyName);
+            }
+          }
+        }
+
+        // 3. If account not found in user's accounts, and a valid account name was provided:
+        // CREATE THE NEW ACCOUNT!
+        const isGenericAcc = !accName || /^(kas tunai|cash|tunai|dompet|-)$/i.test(accName);
+        if (!matchedAccount && !isGenericAcc) {
+          const groupName = /(bank|bca|mandiri|bni|bri|cimb|jago|seabank|bsi|permata|danamon|btn|panin|mega)/i.test(accName)
+            ? "Bank card"
+            : /(gopay|ovo|dana|shopee|spay|linkaja|wallet|dompet)/i.test(accName)
+            ? "E-Wallet"
+            : "Cash";
+
           const newAccId = crypto.randomUUID();
           const newAcc = {
             id: newAccId,
@@ -705,8 +739,14 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
           await ctx.db.insert(accounts).values(newAcc);
           matchedAccount = newAcc;
           accountMap.set(accName.toLowerCase(), newAcc);
+          accountMap.set(accName, newAcc);
           accountMap.set(newAccId, newAcc);
-          accountsCreated.push(accName);
+          userAccounts.push(newAcc as any);
+          if (!accountsCreated.includes(accName)) {
+            accountsCreated.push(accName);
+          }
+        } else if (!matchedAccount) {
+          matchedAccount = defaultAccount;
         }
 
         // To Account for transfer
@@ -715,12 +755,25 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
           const toName = item.toAccountName.trim();
           matchedToAccount = accountMap.get(toName.toLowerCase()) || accountMap.get(toName);
           if (!matchedToAccount) {
+            const fuzzyTo = fuzzyMatchAccount(toName, userAccounts);
+            if (fuzzyTo && fuzzyTo.toLowerCase() !== toName.toLowerCase()) {
+              matchedToAccount = accountMap.get(fuzzyTo.toLowerCase()) || accountMap.get(fuzzyTo);
+            }
+          }
+
+          if (!matchedToAccount && toName) {
+            const groupName = /(bank|bca|mandiri|bni|bri|cimb|jago|seabank|bsi|permata|danamon|btn|panin|mega)/i.test(toName)
+              ? "Bank card"
+              : /(gopay|ovo|dana|shopee|spay|linkaja|wallet|dompet)/i.test(toName)
+              ? "E-Wallet"
+              : "Cash";
+
             const newToAccId = crypto.randomUUID();
             const newToAcc = {
               id: newToAccId,
               userId: ctx.userId,
               name: toName,
-              group: "Bank card",
+              group: groupName,
               currency: "IDR",
               initialBalance: 0,
               balance: 0,
@@ -728,8 +781,12 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
             await ctx.db.insert(accounts).values(newToAcc);
             matchedToAccount = newToAcc;
             accountMap.set(toName.toLowerCase(), newToAcc);
+            accountMap.set(toName, newToAcc);
             accountMap.set(newToAccId, newToAcc);
-            accountsCreated.push(toName);
+            userAccounts.push(newToAcc as any);
+            if (!accountsCreated.includes(toName)) {
+              accountsCreated.push(toName);
+            }
           }
         }
 

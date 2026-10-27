@@ -89,3 +89,46 @@ export function verifySessionToken(token: string): SessionPayload | null {
 
   return null;
 }
+
+/**
+ * AES-256-GCM symmetric encryption for sensitive user data (e.g. BYOK Gemini API Key)
+ */
+function getEncryptionKey(): Buffer {
+  const secret = process.env.ENCRYPTION_KEY || process.env.JWT_SECRET || DEFAULT_SECRET;
+  return crypto.createHash("sha256").update(secret).digest(); // always 32 bytes
+}
+
+export function encryptSecret(plainText: string): string {
+  if (!plainText) return "";
+  const key = getEncryptionKey();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  let encrypted = cipher.update(plainText, "utf8", "hex");
+  encrypted += cipher.final("hex");
+  const authTag = cipher.getAuthTag().toString("hex");
+  return `enc:v1:${iv.toString("hex")}:${authTag}:${encrypted}`;
+}
+
+export function decryptSecret(cipherText: string): string {
+  if (!cipherText) return "";
+  if (!cipherText.startsWith("enc:v1:")) {
+    // Legacy plaintext fallback
+    return cipherText;
+  }
+  try {
+    const parts = cipherText.split(":");
+    if (parts.length !== 5) return cipherText;
+    const [, , ivHex, tagHex, dataHex] = parts;
+    const key = getEncryptionKey();
+    const iv = Buffer.from(ivHex, "hex");
+    const authTag = Buffer.from(tagHex, "hex");
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(dataHex, "hex", "utf8");
+    decrypted += decipher.final("utf8");
+    return decrypted;
+  } catch (err) {
+    console.error("[Decrypt Error] Gagal mendekripsi secret:", err);
+    return "";
+  }
+}

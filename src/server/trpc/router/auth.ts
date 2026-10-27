@@ -132,12 +132,12 @@ export const authRouter = router({
       // Create initial cash account
       await ctx.db.insert(accounts).values({
         userId: newUserId,
-        name: "Kas Tunai",
+        name: "Kas",
         group: "Cash",
         currency: input.primaryCurrency,
         initialBalance: 0,
         balance: 0,
-        note: "Dompet uang tunai utama",
+        note: "Dompet kas utama",
       });
 
       // Seed starter categories

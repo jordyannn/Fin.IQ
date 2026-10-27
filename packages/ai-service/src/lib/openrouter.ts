@@ -231,7 +231,7 @@ export function checkFinancialGuardrail(query: string): {
   const offTopicPatterns = [
     /\b(buatkan kode|tuliskan script|write python code|bikin program|source code|function binary|react component|html css)\b/i,
     /\b(resep masakan|cara memasak|bahan membuat kue|bumbu rendang)\b/i,
-    /\b(tuliskan puisi|buat cerpen|buatkan lirik lagu|bikin pantun)\b/i,
+    /\b(puisi|cerpen|lirik lagu|pantun)\b/i,
     /\b(siapa presiden|hasil pemilu|partai politik|debat capres)\b/i,
     /\b(jadwal liga champion|klasemen bola|skor pertandingan)\b/i,
     /\b(ramalan zodiak|horoskop|shio tahun ini)\b/i,

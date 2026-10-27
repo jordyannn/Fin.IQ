@@ -29,7 +29,7 @@ import {
 import { useMascotStore } from "@/store/mascot.store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn, formatInputIDR, parseInputIDR } from "@/lib/utils";
+import { cn, formatInputIDR, parseInputIDR, cleanNumericAmount } from "@/lib/utils";
 import { VoiceMicButton } from "@/components/ui/VoiceMicButton";
 import { compressImageToBase64 } from "@/lib/image-compressor";
 import {
@@ -46,7 +46,7 @@ import { AccountSelect } from "./AccountSelect";
 
 export function QuickAddModal() {
   const { isQuickAddOpen, closeQuickAdd, quickAddAutoScan, setQuickAddAutoScan } = useUIStore();
-  const { startTransactionTour } = useMascotStore();
+  const { startTransactionTour, isTourActive, activeTourType, completeTransactionTourSuccess } = useMascotStore();
   const utils = trpc.useUtils();
   const alert = useAlert();
   const { t, locale } = useTranslation();
@@ -65,6 +65,25 @@ export function QuickAddModal() {
   const [note, setNote] = useState("");
   const [nlpInputText, setNlpInputText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [detectedItems, setDetectedItems] = useState<
+    Array<{ name: string; amount: number; formattedAmount: string; qty?: number }>
+  >([]);
+
+  const handleRemoveDetectedItem = (indexToRemove: number) => {
+    const updated = detectedItems.filter((_, idx) => idx !== indexToRemove);
+    setDetectedItems(updated);
+    if (updated.length > 0) {
+      const newTotal = updated.reduce((sum, it) => sum + it.amount, 0);
+      setAmount(formatInputIDR(String(newTotal)));
+      const newNote = updated
+        .map((it) => `${it.qty && it.qty > 1 ? `${it.qty}x ` : ""}${it.name} (Rp ${it.formattedAmount})`)
+        .join(", ");
+      setNote(newNote);
+    } else {
+      setAmount("");
+      setNote("");
+    }
+  };
 
   // Mutation untuk membuat kategori rekomendasi NLP
   const createCategoryMutation = trpc.categories.create.useMutation({
@@ -122,10 +141,24 @@ export function QuickAddModal() {
     transactions?: Array<any>;
   } | null>(null);
 
-  // Queries
-  const { data: accountsData } = trpc.accounts.list.useQuery();
-  const { data: categoriesList } = trpc.categories.list.useQuery();
+  const { data: accountsData, isLoading: isLoadingAccounts } = trpc.accounts.list.useQuery();
+  const { data: categoriesList, isLoading: isLoadingCategories } = trpc.categories.list.useQuery();
   const { data: ledgersList } = trpc.ledgers.list.useQuery();
+
+  // Inisialisasi otomatis akun default ketika data akun dimuat
+  useEffect(() => {
+    if (!accountId && accountsData?.accounts && accountsData.accounts.length > 0) {
+      setAccountId(accountsData.accounts[0].id);
+    }
+  }, [accountsData, accountId]);
+
+  // Inisialisasi otomatis kategori default ketika daftar kategori dimuat
+  useEffect(() => {
+    if (!categoryId && categoriesList && categoriesList.length > 0) {
+      const defaultCat = categoriesList.find((c) => c.kind === txType);
+      if (defaultCat) setCategoryId(defaultCat.id);
+    }
+  }, [categoriesList, categoryId, txType]);
 
   // Sinkronisasi kategori ketika jenis transaksi berganti
   const handleTxTypeChange = (newType: "expense" | "income" | "transfer") => {
@@ -221,6 +254,22 @@ export function QuickAddModal() {
 
     if (data.happenedAtFormatted) {
       setHappenedAt(data.happenedAtFormatted);
+    }
+
+    if (data.items && Array.isArray(data.items) && data.items.length >= 2) {
+      setDetectedItems(
+        data.items.map((it: any) => {
+          const amt = cleanNumericAmount(it.amount || it.price);
+          return {
+            name: (it.name || "Item").trim(),
+            amount: amt,
+            formattedAmount: it.formattedAmount || formatInputIDR(String(amt)),
+            qty: it.qty,
+          };
+        })
+      );
+    } else if (!data.items || (Array.isArray(data.items) && data.items.length < 2)) {
+      setDetectedItems([]);
     }
 
     if (data.cleanNote) {
@@ -350,6 +399,30 @@ export function QuickAddModal() {
         }
       }
 
+      if (data.items && data.items.length >= 2) {
+        setDetectedItems(
+          data.items.map((it: any) => {
+            const itAmt = cleanNumericAmount(it.amount || it.price);
+            return {
+              name: (it.name || "Item").trim(),
+              amount: itAmt,
+              formattedAmount: it.formattedAmount || formatInputIDR(String(itAmt)),
+              qty: it.qty,
+            };
+          })
+        );
+      } else if (data.transactions && data.transactions.length >= 2) {
+        setDetectedItems(
+          data.transactions.map((t: any) => ({
+            name: t.note || "Transaksi",
+            amount: t.amount,
+            formattedAmount: t.formattedAmount || formatInputIDR(String(t.amount)),
+          }))
+        );
+      } else {
+        setDetectedItems([]);
+      }
+
       setScannedBillMeta({
         merchantName: data.merchantName,
         itemsSummary: data.itemsSummary,
@@ -403,6 +476,7 @@ export function QuickAddModal() {
   const handleClearReceipt = () => {
     setReceiptPreviewUrl(null);
     setScannedBillMeta(null);
+    setDetectedItems([]);
     setBillScanError(null);
   };
 
@@ -427,6 +501,11 @@ export function QuickAddModal() {
       setIsSubmitting(false);
       resetForm();
       closeQuickAdd();
+
+      // Jika transaksi berhasil dibuat saat tour transaksi sedang aktif, lanjut flow tutor
+      if (isTourActive && activeTourType === "transaction") {
+        completeTransactionTourSuccess();
+      }
     },
     onError: (err) => {
       alert({
@@ -465,6 +544,7 @@ export function QuickAddModal() {
     (happenedAt && happenedAt.trim() !== "") ||
     receiptPreviewUrl ||
     scannedBillMeta ||
+    detectedItems.length > 0 ||
     toAccountId ||
     nlpRecommendedCategory ||
     txType !== "expense" ||
@@ -480,6 +560,7 @@ export function QuickAddModal() {
     setToAccountId("");
     setReceiptPreviewUrl(null);
     setScannedBillMeta(null);
+    setDetectedItems([]);
     setBillScanError(null);
     setNlpRecommendedCategory(null);
     setIsScanningBill(false);
@@ -520,6 +601,14 @@ export function QuickAddModal() {
         description: "Harap masukkan nominal transaksi yang valid.",
         variant: "warning",
       });
+      const amountEl = document.querySelector<HTMLInputElement>(
+        "[data-tour='modal-amount'] input, input[name='amount']"
+      );
+      if (amountEl) amountEl.focus();
+      return;
+    }
+
+    if (isLoadingAccounts || !accountsData) {
       return;
     }
 
@@ -586,15 +675,26 @@ export function QuickAddModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200"
-      onClick={closeQuickAdd}
+      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200"
+      onClick={() => {
+        if (isTourActive && activeTourType === "transaction") return;
+        closeQuickAdd();
+      }}
     >
       <form
+        role="dialog"
+        aria-modal="true"
+        aria-label="Catat Transaksi"
         data-tour-modal="quick-add"
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
-        className="relative w-full max-w-lg max-h-[92vh] flex flex-col rounded-2xl bg-card border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in zoom-in-95 duration-150"
+        className="relative w-full max-w-lg max-h-[90vh] sm:max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl bg-card border-t sm:border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in slide-in-from-bottom-5 sm:zoom-in-95 duration-200"
       >
+        {/* Mobile Drag Indicator Bar */}
+        <div className="sm:hidden pt-2.5 pb-1 flex justify-center shrink-0 bg-card select-none">
+          <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
+        </div>
+
         {/* Header - Fixed & Pinned at Top */}
         <div className="flex items-center justify-between border-b border-border/70 px-5 sm:px-6 py-3.5 shrink-0 bg-card z-10">
           <div className="flex items-center gap-3">
@@ -620,7 +720,7 @@ export function QuickAddModal() {
             <button
               type="button"
               onClick={() => startTransactionTour(false)}
-              className="h-8 px-2.5 sm:px-3 rounded-lg text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs"
+              className="h-9 px-2.5 sm:px-3 rounded-lg text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs touch-manipulation"
               title="Buka tutorial interaktif form transaksi"
             >
               <Compass className="h-3.5 w-3.5 text-primary" />
@@ -629,7 +729,7 @@ export function QuickAddModal() {
             <button
               type="button"
               onClick={closeQuickAdd}
-              className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer active:scale-95"
+              className="h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer active:scale-95 touch-manipulation"
               title="Tutup (Draf input tetap tersimpan)"
             >
               <X className="h-4 w-4" />
@@ -1077,6 +1177,47 @@ export function QuickAddModal() {
                 </button>
               )}
             </div>
+
+            {/* Multi-Item Breakdown Card jika ada 2 atau lebih item dijumlahkan */}
+            {detectedItems.length >= 2 && (
+              <div className="mt-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 p-3 space-y-2 animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span className="text-xs font-bold text-foreground">
+                      {detectedItems.length} Item Terdeteksi (Dijumlahkan Otomatis)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 border border-emerald-500/25 px-2 py-0.5 rounded-full font-mono shrink-0">
+                    Total: Rp {amount}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Semua item di bawah dijumlahkan ke nominal transaksi dan otomatis dicantumkan di catatan.
+                </p>
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {detectedItems.map((item, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-card border border-border/80 shadow-2xs text-foreground group"
+                    >
+                      <span className="font-semibold">{item.qty && item.qty > 1 ? `${item.qty}x ` : ""}{item.name}:</span>
+                      <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                        Rp {item.formattedAmount}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveDetectedItem(idx)}
+                        className="text-muted-foreground hover:text-rose-500 ml-0.5 p-0.5 rounded hover:bg-muted cursor-pointer active:scale-95 transition-colors"
+                        title={`Hapus ${item.name} dari penjumlahan`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Tanggal & Waktu Transaksi (Opsional - Default NOW) */}
@@ -1327,7 +1468,7 @@ export function QuickAddModal() {
       </div>
 
         {/* Fixed Pinned Footer Actions */}
-        <div data-tour="modal-submit-action" className="border-t border-border/70 px-5 sm:px-6 py-3.5 shrink-0 bg-card/95 backdrop-blur-sm flex items-center justify-between gap-3 z-10">
+        <div data-tour="modal-submit-action" className="border-t border-border/70 px-5 sm:px-6 py-3.5 pb-[max(0.875rem,calc(env(safe-area-inset-bottom,0px)+0.5rem))] shrink-0 bg-card/95 backdrop-blur-sm flex items-center justify-between gap-3 z-10">
           <div className="flex items-center gap-2">
             <Button
               type="button"
@@ -1357,7 +1498,7 @@ export function QuickAddModal() {
           </div>
           <Button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isLoadingAccounts}
             className="flex-1 max-w-[240px] bg-primary hover:bg-primary/90 text-white font-bold rounded-lg h-9 text-xs shadow-xs cursor-pointer transition-all active:scale-[0.98]"
           >
             {isSubmitting ? t.quickAdd.saving : t.quickAdd.saveButton}

@@ -74,8 +74,13 @@ export function AccountOverviewModal({
   }, [accountsList]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-card w-full max-w-3xl rounded-3xl border border-border shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="bg-card w-full max-w-3xl rounded-t-3xl sm:rounded-3xl border-t sm:border border-border shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Mobile Drag Indicator Bar */}
+        <div className="sm:hidden pt-2.5 pb-1 flex justify-center shrink-0 bg-muted/20 select-none">
+          <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
+        </div>
+
         {/* Header Modal */}
         <div className="p-5 sm:p-6 border-b border-border/60 flex items-center justify-between bg-muted/20 shrink-0">
           <div className="flex items-center gap-3">
@@ -99,7 +104,7 @@ export function AccountOverviewModal({
 
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all cursor-pointer active:scale-95 touch-manipulation"
             title="Tutup"
           >
             <X className="h-5 w-5" />
@@ -260,7 +265,7 @@ export function AccountOverviewModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 sm:p-5 border-t border-border/60 flex items-center justify-between bg-muted/20 shrink-0">
+        <div className="p-4 sm:p-5 pb-[max(1rem,calc(env(safe-area-inset-bottom,0px)+0.75rem))] border-t border-border/60 flex items-center justify-between bg-muted/20 shrink-0">
           <Button
             type="button"
             variant="ghost"

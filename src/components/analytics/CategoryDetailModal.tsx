@@ -61,8 +61,13 @@ export function CategoryDetailModal({
   if (!isOpen || !category) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg rounded-md bg-card border border-border shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-card-foreground">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200">
+      <div className="relative w-full max-w-lg rounded-t-2xl sm:rounded-md bg-card border-t sm:border border-border shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-card-foreground">
+        {/* Mobile Drag Indicator Bar */}
+        <div className="sm:hidden pt-2.5 pb-1 flex justify-center shrink-0 bg-muted/20 select-none">
+          <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
+        </div>
+
         {/* Header */}
         <div className="p-5 sm:p-6 border-b border-border/70 flex items-start justify-between gap-3 bg-muted/20">
           <div className="flex items-center gap-3.5 min-w-0">
@@ -109,7 +114,7 @@ export function CategoryDetailModal({
 
           <button
             onClick={onClose}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
+            className="h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all shrink-0 cursor-pointer active:scale-95 touch-manipulation"
             title="Tutup"
           >
             <X className="h-5 w-5" />
@@ -187,7 +192,7 @@ export function CategoryDetailModal({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-border/70 flex items-center justify-between bg-card">
+        <div className="p-4 pb-[max(1rem,calc(env(safe-area-inset-bottom,0px)+0.5rem))] border-t border-border/70 flex items-center justify-between bg-card">
           <span className="text-[11px] text-muted-foreground">
             {txData?.items?.length || 0} catatan ditemukan
           </span>

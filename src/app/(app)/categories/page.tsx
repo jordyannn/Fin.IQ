@@ -46,8 +46,9 @@ export default function CategoriesPage() {
   const { data: categoriesList, isLoading } = trpc.categories.list.useQuery({ kind });
 
   const createMutation = trpc.categories.create.useMutation({
-    onSuccess: () => {
-      utils.categories.invalidate();
+    onSuccess: async () => {
+      await utils.categories.invalidate();
+      await utils.categories.list.refetch({ kind });
       setNewName("");
       setSelectedParentId("");
       setIsAdding(false);
@@ -55,7 +56,10 @@ export default function CategoriesPage() {
   });
 
   const deleteMutation = trpc.categories.delete.useMutation({
-    onSuccess: () => utils.categories.invalidate(),
+    onSuccess: async () => {
+      await utils.categories.invalidate();
+      await utils.categories.list.refetch({ kind });
+    },
   });
 
   const handleCreate = (e: React.FormEvent) => {

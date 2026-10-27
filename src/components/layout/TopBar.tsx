@@ -37,7 +37,7 @@ export function TopBar() {
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border/70 bg-card/90 px-3 sm:px-8 backdrop-blur-md shadow-level-1">
       {/* Left: Breadcrumbs & Page Signpost */}
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
         {/* Mobile Sidebar Toggle Button */}
         <button
           type="button"
@@ -55,19 +55,19 @@ export function TopBar() {
           <span>/</span>
           <span className="text-foreground font-semibold">{currentLabel}</span>
         </div>
-        <div className="sm:hidden font-bold text-sm text-foreground truncate max-w-[130px]">
+        <div className="sm:hidden font-bold text-sm text-foreground truncate max-w-[110px] xs:max-w-[140px]">
           {currentLabel}
         </div>
       </div>
 
       {/* Right: Language Switcher, Geometric Search Field & Quick Action */}
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
         {/* Compact Segmented Language Switcher */}
         <LanguageSwitcher size="sm" />
 
         <button
           onClick={toggleCommandPalette}
-          className="flex items-center gap-2.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground transition-all hover:border-primary/40 hover:bg-muted/50 w-36 sm:w-60 focus:outline-none focus:ring-2 focus:ring-primary/20 active:scale-98 shadow-2xs"
+          className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-muted-foreground transition-all hover:border-primary/40 hover:bg-muted/50 w-28 xs:w-36 sm:w-60 focus:outline-none focus:ring-2 focus:ring-primary/20 active:scale-98 shadow-2xs"
           aria-label={t.topbar.searchPlaceholder}
         >
           <GeometricIcon name="search" size="xs" active />

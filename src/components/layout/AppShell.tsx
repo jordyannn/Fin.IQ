@@ -28,12 +28,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile Drawer Sidebar */}
       {isSidebarOpen && (
-        <div className={cn("fixed inset-0 flex lg:hidden", isTourActive ? "z-[165]" : "z-50")}>
+        <div className={cn("fixed inset-0 flex lg:hidden", isTourActive ? "z-[165]" : "z-[150]")}>
           <div
             className="fixed inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setSidebarOpen(false)}
           />
-          <div className="relative z-10 flex w-72 flex-col bg-card p-4 shadow-2xl animate-in slide-in-from-left duration-200">
+          <div className="relative z-10 flex w-72 h-full max-h-screen flex-col bg-card p-4 shadow-2xl animate-in slide-in-from-left duration-200">
             <div className="flex items-center justify-between pb-4 border-b">
               <div>
                 <span className="font-extrabold text-base tracking-tight text-foreground">Fin.IQ</span>

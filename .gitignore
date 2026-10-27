@@ -40,3 +40,10 @@ Thumbs.db
 .vscode/
 .idea/
 *.code-workspace
+
+# Testing output & reports
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+tests/e2e/.auth/

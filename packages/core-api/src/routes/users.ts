@@ -10,6 +10,8 @@ import {
   hashPassword,
   verifyPassword,
   invalidateAuthUser,
+  encryptSecret,
+  decryptSecret,
 } from "@finiq/shared";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 
@@ -75,6 +77,8 @@ userRoutes.get("/profile", requireAuth, async (req, res: Response) => {
 
   const transactionCount = Number(txRecords[0]?.count || 0);
 
+  const decryptedGeminiKey = profile?.geminiApiKey ? decryptSecret(profile.geminiApiKey) : null;
+
   return res.json({
     success: true,
     data: {
@@ -89,11 +93,11 @@ userRoutes.get("/profile", requireAuth, async (req, res: Response) => {
       accountCount: userAccounts.length,
       transactionCount,
       totalBalance,
-      geminiApiKeyMasked: profile?.geminiApiKey
-        ? `${profile.geminiApiKey.slice(0, 6)}••••${profile.geminiApiKey.slice(-4)}`
+      geminiApiKeyMasked: decryptedGeminiKey
+        ? `${decryptedGeminiKey.slice(0, 6)}••••${decryptedGeminiKey.slice(-4)}`
         : null,
-      hasGeminiKey: Boolean(profile?.geminiApiKey?.trim() || process.env.GEMINI_API_KEY),
-      isPersonalKey: Boolean(profile?.geminiApiKey?.trim()),
+      hasGeminiKey: Boolean(decryptedGeminiKey?.trim() || process.env.GEMINI_API_KEY),
+      isPersonalKey: Boolean(decryptedGeminiKey?.trim()),
     },
   });
 });
@@ -209,16 +213,18 @@ userRoutes.post("/gemini-key", requireAuth, async (req, res: Response) => {
     .where(eq(userProfiles.userId, userId))
     .limit(1);
 
+  const encryptedKey = encryptSecret(apiKey);
+
   if (existing.length === 0) {
     await db.insert(userProfiles).values({
       userId,
       displayName: "Pengguna Fin.IQ",
-      geminiApiKey: apiKey,
+      geminiApiKey: encryptedKey,
     });
   } else {
     await db
       .update(userProfiles)
-      .set({ geminiApiKey: apiKey, updatedAt: new Date() })
+      .set({ geminiApiKey: encryptedKey, updatedAt: new Date() })
       .where(eq(userProfiles.userId, userId));
   }
 

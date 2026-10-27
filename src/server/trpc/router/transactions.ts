@@ -154,12 +154,25 @@ export const transactionsRouter = router({
         }
       }
 
+      let targetLedgerId = input.ledgerId;
+      const ledgerExists = await ctx.db.query.ledgers.findFirst({
+        where: and(eq(ledgers.id, targetLedgerId), eq(ledgers.userId, ctx.userId)),
+      });
+      if (!ledgerExists) {
+        const userLedger = await ctx.db.query.ledgers.findFirst({
+          where: eq(ledgers.userId, ctx.userId),
+        });
+        if (userLedger) {
+          targetLedgerId = userLedger.id;
+        }
+      }
+
       await ctx.db
         .insert(transactions)
         .values({
           id,
           userId: ctx.userId,
-          ledgerId: input.ledgerId,
+          ledgerId: targetLedgerId,
           txType: input.txType,
           amount: input.amount,
           currency: input.currency,

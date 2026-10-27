@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, formatInputIDR, parseInputIDR } from "@/lib/utils";
 import {
   Wallet,
   Plus,
@@ -32,8 +32,8 @@ interface EditAccountState {
   name: string;
   group: string;
   currency: string;
-  balance: number;
-  initialBalance: number;
+  balance: string;
+  initialBalance: string;
   note: string;
   isHidden: boolean;
 }
@@ -42,7 +42,7 @@ interface AdjustBalanceState {
   id: string;
   name: string;
   currentBalance: number;
-  newBalance: number;
+  newBalance: string;
   currency: string;
 }
 
@@ -73,8 +73,9 @@ export default function AccountsPage() {
 
   // Mutations
   const createMutation = trpc.accounts.create.useMutation({
-    onSuccess: () => {
-      utils.accounts.invalidate();
+    onSuccess: async () => {
+      await utils.accounts.invalidate();
+      await utils.accounts.list.refetch({ includeHidden: true });
       utils.analytics.invalidate();
       setIsAddOpen(false);
       setNewName("");
@@ -119,7 +120,7 @@ export default function AccountsPage() {
       name: newName.trim(),
       group: newGroup,
       currency: newCurrency,
-      initialBalance: parseFloat(newInitialBalance) || 0,
+      initialBalance: parseInputIDR(newInitialBalance),
       note: newNote.trim() || undefined,
     });
   };
@@ -133,8 +134,8 @@ export default function AccountsPage() {
       name: editingAccount.name.trim(),
       group: editingAccount.group,
       currency: editingAccount.currency,
-      balance: Number(editingAccount.balance),
-      initialBalance: Number(editingAccount.initialBalance),
+      balance: parseInputIDR(editingAccount.balance),
+      initialBalance: parseInputIDR(editingAccount.initialBalance),
       note: editingAccount.note.trim() || undefined,
       isHidden: editingAccount.isHidden,
     });
@@ -146,7 +147,7 @@ export default function AccountsPage() {
 
     adjustBalanceMutation.mutate({
       accountId: adjustingAccount.id,
-      newBalance: Number(adjustingAccount.newBalance),
+      newBalance: parseInputIDR(adjustingAccount.newBalance),
       note: `Penyesuaian saldo manual (${formatDate(new Date())})`,
     });
   };
@@ -307,8 +308,8 @@ export default function AccountsPage() {
                   name: acc.name,
                   group: acc.group,
                   currency: acc.currency,
-                  balance: acc.balance,
-                  initialBalance: acc.initialBalance,
+                  balance: acc.balance ? formatInputIDR(String(acc.balance)) : "",
+                  initialBalance: acc.initialBalance ? formatInputIDR(String(acc.initialBalance)) : "",
                   note: acc.note || "",
                   isHidden: acc.isHidden,
                 })
@@ -361,7 +362,7 @@ export default function AccountsPage() {
                         id: acc.id,
                         name: acc.name,
                         currentBalance: acc.balance,
-                        newBalance: acc.balance,
+                        newBalance: acc.balance ? formatInputIDR(String(acc.balance)) : "",
                         currency: acc.currency,
                       })
                     }
@@ -379,8 +380,8 @@ export default function AccountsPage() {
                         name: acc.name,
                         group: acc.group,
                         currency: acc.currency,
-                        balance: acc.balance,
-                        initialBalance: acc.initialBalance,
+                        balance: acc.balance ? formatInputIDR(String(acc.balance)) : "",
+                        initialBalance: acc.initialBalance ? formatInputIDR(String(acc.initialBalance)) : "",
                         note: acc.note || "",
                         isHidden: acc.isHidden,
                       })
@@ -458,7 +459,7 @@ export default function AccountsPage() {
                         id: acc.id,
                         name: acc.name,
                         currentBalance: acc.balance,
-                        newBalance: acc.balance,
+                        newBalance: acc.balance ? formatInputIDR(String(acc.balance)) : "",
                         currency: acc.currency,
                       })
                     }
@@ -475,8 +476,8 @@ export default function AccountsPage() {
                         name: acc.name,
                         group: acc.group,
                         currency: acc.currency,
-                        balance: acc.balance,
-                        initialBalance: acc.initialBalance,
+                        balance: acc.balance ? formatInputIDR(String(acc.balance)) : "",
+                        initialBalance: acc.initialBalance ? formatInputIDR(String(acc.initialBalance)) : "",
                         note: acc.note || "",
                         isHidden: acc.isHidden,
                       })
@@ -504,7 +505,12 @@ export default function AccountsPage() {
       {/* ========================================================================= */}
       {isAddOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="relative w-full max-w-md rounded-md bg-card border shadow-2xl p-5 text-card-foreground">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Tambah Akun Baru"
+            className="relative w-full max-w-md rounded-md bg-card border shadow-2xl p-5 text-card-foreground"
+          >
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <div>
                 <h2 className="text-sm font-bold">Tambah Akun Baru</h2>
@@ -569,11 +575,12 @@ export default function AccountsPage() {
               <div>
                 <label className="font-semibold text-foreground">Saldo Awal</label>
                 <Input
-                  type="number"
-                  placeholder="0"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder=""
                   value={newInitialBalance}
-                  onChange={(e) => setNewInitialBalance(e.target.value)}
-                  className="mt-1 h-9"
+                  onChange={(e) => setNewInitialBalance(formatInputIDR(e.target.value))}
+                  className="mt-1 h-9 font-mono"
                 />
                 <span className="text-[10px] text-muted-foreground mt-0.5 block">
                   Nominal uang yang ada saat akun ini pertama kali mulai dicatat.
@@ -618,7 +625,12 @@ export default function AccountsPage() {
       {/* ========================================================================= */}
       {editingAccount && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="relative w-full max-w-md rounded-md bg-card border shadow-2xl p-5 text-card-foreground">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Ubah Akun Keuangan"
+            className="relative w-full max-w-md rounded-md bg-card border shadow-2xl p-5 text-card-foreground"
+          >
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <div>
                 <h2 className="text-sm font-bold">Ubah Akun Keuangan</h2>
@@ -689,16 +701,17 @@ export default function AccountsPage() {
                   Saldo Saat Ini ({editingAccount.currency})
                 </label>
                 <Input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder=""
                   value={editingAccount.balance}
                   onChange={(e) =>
                     setEditingAccount({
                       ...editingAccount,
-                      balance: parseFloat(e.target.value) || 0,
+                      balance: formatInputIDR(e.target.value),
                     })
                   }
-                  className="mt-1 h-9 font-bold text-sm"
-                  required
+                  className="mt-1 h-9 font-bold text-sm font-mono"
                 />
                 <span className="text-[10px] text-muted-foreground mt-0.5 block">
                   Ubah angka ini jika ingin menyelaraskan langsung dengan saldo riil di dompet atau bank Anda.
@@ -710,15 +723,17 @@ export default function AccountsPage() {
                   Saldo Awal ({editingAccount.currency})
                 </label>
                 <Input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder=""
                   value={editingAccount.initialBalance}
                   onChange={(e) =>
                     setEditingAccount({
                       ...editingAccount,
-                      initialBalance: parseFloat(e.target.value) || 0,
+                      initialBalance: formatInputIDR(e.target.value),
                     })
                   }
-                  className="mt-1 h-9"
+                  className="mt-1 h-9 font-mono"
                 />
               </div>
 
@@ -733,21 +748,6 @@ export default function AccountsPage() {
                   className="mt-1 h-9"
                   placeholder="Keterangan tambahan"
                 />
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="isHiddenCheckbox"
-                  checked={editingAccount.isHidden}
-                  onChange={(e) =>
-                    setEditingAccount({ ...editingAccount, isHidden: e.target.checked })
-                  }
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <label htmlFor="isHiddenCheckbox" className="text-xs text-muted-foreground cursor-pointer">
-                  Sembunyikan akun ini dari daftar transaksi harian
-                </label>
               </div>
 
               <div className="pt-2 flex gap-2">
@@ -806,34 +806,37 @@ export default function AccountsPage() {
                   Saldo Riil / Baru ({adjustingAccount.currency})
                 </label>
                 <Input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder=""
                   value={adjustingAccount.newBalance}
                   onChange={(e) =>
                     setAdjustingAccount({
                       ...adjustingAccount,
-                      newBalance: parseFloat(e.target.value) || 0,
+                      newBalance: formatInputIDR(e.target.value),
                     })
                   }
-                  className="mt-1 h-10 font-extrabold text-base text-primary"
+                  className="mt-1 h-10 font-extrabold text-base text-primary font-mono"
                   autoFocus
-                  required
                 />
-                <span className="text-[10px] text-muted-foreground mt-1 block">
-                  Selisih:{" "}
-                  <span
-                    className={
-                      adjustingAccount.newBalance - adjustingAccount.currentBalance >= 0
-                        ? "text-emerald-600 font-semibold"
-                        : "text-rose-600 font-semibold"
-                    }
-                  >
-                    {adjustingAccount.newBalance - adjustingAccount.currentBalance >= 0 ? "+" : ""}
-                    {formatCurrency(
-                      adjustingAccount.newBalance - adjustingAccount.currentBalance,
-                      adjustingAccount.currency
-                    )}
-                  </span>
-                </span>
+                {(() => {
+                  const parsedDiff = parseInputIDR(adjustingAccount.newBalance) - adjustingAccount.currentBalance;
+                  return (
+                    <span className="text-[10px] text-muted-foreground mt-1 block">
+                      Selisih:{" "}
+                      <span
+                        className={
+                          parsedDiff >= 0
+                            ? "text-emerald-600 font-semibold"
+                            : "text-rose-600 font-semibold"
+                        }
+                      >
+                        {parsedDiff >= 0 ? "+" : ""}
+                        {formatCurrency(parsedDiff, adjustingAccount.currency)}
+                      </span>
+                    </span>
+                  );
+                })()}
               </div>
 
               <div className="pt-2 flex gap-2">

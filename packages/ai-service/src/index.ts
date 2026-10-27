@@ -36,8 +36,10 @@ app.use("/ai/analyze", analyzeRoutes);
 // Error Handler
 app.use(errorHandler);
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🧠 [Fin.IQ AI Service] Running on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`🧠 [Fin.IQ AI Service] Running on port ${PORT}`);
+  });
+}
 
 export default app;
