@@ -212,6 +212,10 @@ interface MascotState {
   mascotOutfit: "casual" | "analyst";
   isTransforming: boolean;
 
+  // Roaming & AI Advisor Companion
+  isRoamingActive: boolean;
+  isAIDrawerOpen: boolean;
+
   // Actions
   startTour: (type?: "basic" | "technical" | "transaction") => void;
   startBasicTour: () => void;
@@ -235,6 +239,15 @@ interface MascotState {
   markWelcomeAsSeen: () => void;
   setMascotOutfit: (outfit: "casual" | "analyst", animate?: boolean) => void;
   toggleOutfit: (animate?: boolean) => void;
+
+  // Roaming & AI Drawer Actions
+  toggleRoaming: () => void;
+  setRoamingActive: (active: boolean) => void;
+  setAIDrawerOpen: (open: boolean) => void;
+  isSleeping: boolean;
+  setIsSleeping: (sleeping: boolean) => void;
+  isDraggingMascot: boolean;
+  setIsDraggingMascot: (dragging: boolean) => void;
 }
 
 export const useMascotStore = create<MascotState>((set, get) => ({
@@ -251,6 +264,41 @@ export const useMascotStore = create<MascotState>((set, get) => ({
 
   mascotOutfit: "casual",
   isTransforming: false,
+
+  // Roaming & AI Drawer Initial State
+  isRoamingActive: typeof window !== "undefined" ? localStorage.getItem("finiq_mascot_roaming_active") !== "false" : true,
+  isAIDrawerOpen: false,
+  isSleeping: false,
+  isDraggingMascot: false,
+
+  setIsSleeping: (sleeping: boolean) => {
+    set({ isSleeping: sleeping });
+  },
+
+  setIsDraggingMascot: (dragging: boolean) => {
+    set({ isDraggingMascot: dragging });
+  },
+
+  toggleRoaming: () => {
+    const next = !get().isRoamingActive;
+    try {
+      localStorage.setItem("finiq_mascot_roaming_active", String(next));
+    } catch {}
+    set({ isRoamingActive: next });
+    mascotSound.playPop();
+  },
+
+  setRoamingActive: (active: boolean) => {
+    try {
+      localStorage.setItem("finiq_mascot_roaming_active", String(active));
+    } catch {}
+    set({ isRoamingActive: active });
+  },
+
+  setAIDrawerOpen: (open: boolean) => {
+    if (open) mascotSound.playChime();
+    set({ isAIDrawerOpen: open });
+  },
 
   startTour: (type = "basic") => {
     if (type === "technical") {

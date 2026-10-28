@@ -168,11 +168,11 @@ export default function AccountsPage() {
   });
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5 sm:gap-6 pb-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Akun &amp; Portofolio Rekening</h1>
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">Akun &amp; Portofolio Rekening</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Rincian saldo seluruh rekening perbankan, dompet digital, dan kas fisik.
           </p>
@@ -181,7 +181,7 @@ export default function AccountsPage() {
         <div className="flex items-center gap-2">
           <Button
             onClick={() => setIsAddOpen(true)}
-            className="bg-primary hover:bg-[#047857] text-white gap-2 shadow-xs text-xs rounded-md font-bold"
+            className="bg-primary hover:bg-[#047857] text-white gap-2 shadow-xs text-xs rounded-xl font-bold h-10 px-4 active:scale-95 transition-all cursor-pointer min-h-[44px]"
           >
             <Plus className="h-4 w-4 stroke-[3px]" />
             Tambah Akun Baru
@@ -190,8 +190,8 @@ export default function AccountsPage() {
       </div>
 
       {/* Ringkasan Total Saldo */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="md:col-span-2 bg-card p-4 sm:p-5 rounded-md border border-border shadow-2xs relative overflow-hidden flex flex-col justify-between">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4">
+        <Card className="md:col-span-2 bg-card p-4 sm:p-5 rounded-2xl border border-border/80 shadow-2xs relative overflow-hidden flex flex-col justify-between">
           <div className="relative z-10 flex items-start justify-between gap-4">
             <div>
               <div className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
@@ -201,33 +201,33 @@ export default function AccountsPage() {
               <div className="text-3xl sm:text-4xl lg:text-5xl font-black text-foreground tracking-tight mt-1.5">
                 {formatCurrency(accountsData?.totalBalance || 0)}
               </div>
-              <p className="text-xs text-muted-foreground mt-1.5 font-medium flex items-center gap-2">
+              <p className="text-xs text-muted-foreground mt-1.5 font-medium flex items-center gap-2 flex-wrap">
                 <span>Tercatat pada seluruh instrumen keuangan</span>
                 <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold bg-secondary text-secondary-foreground border border-emerald-300 dark:border-emerald-800">
                   {accountsData?.accounts?.filter((a) => !a.isHidden).length || 0} Akun Aktif
                 </span>
               </p>
             </div>
-            <div className="h-10 w-10 rounded-md bg-secondary flex items-center justify-center shrink-0 border border-emerald-300 dark:border-emerald-800 shadow-2xs">
+            <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center shrink-0 border border-emerald-300 dark:border-emerald-800 shadow-2xs">
               <GeometricIcon name="accounts" size="sm" active />
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 sm:p-5 rounded-md border border-border shadow-2xs flex flex-col justify-between">
+        <Card className="p-4 sm:p-5 rounded-2xl border border-border/80 shadow-2xs flex flex-col justify-between">
           <div>
             <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
               <GeometricIcon name="integrity" size="xs" active />
               <span>Status Rekening</span>
             </div>
             <div className="grid grid-cols-2 gap-2.5 mt-2.5">
-              <div className="p-2.5 bg-muted/40 rounded-sm border border-border/60">
+              <div className="p-2.5 bg-muted/40 rounded-xl border border-border/60">
                 <div className="text-[11px] text-muted-foreground font-semibold">Akun Aktif</div>
                 <div className="text-xl font-bold mt-0.5 text-foreground">
                   {accountsData?.accounts?.filter((a) => !a.isHidden).length || 0}
                 </div>
               </div>
-              <div className="p-2.5 bg-muted/40 rounded-sm border border-border/60">
+              <div className="p-2.5 bg-muted/40 rounded-xl border border-border/60">
                 <div className="text-[11px] text-muted-foreground font-semibold">Disembunyikan</div>
                 <div className="text-xl font-bold mt-0.5 text-muted-foreground">
                   {accountsData?.accounts?.filter((a) => a.isHidden).length || 0}
@@ -243,10 +243,10 @@ export default function AccountsPage() {
 
       {/* Filter Tabs & Search */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
-        <div className="flex items-center gap-1 p-0.5 bg-muted/50 rounded-md border w-full sm:w-auto">
+        <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-xl border border-border/60 w-full sm:w-auto overflow-x-auto no-scrollbar">
           <button
             onClick={() => setFilterTab("all")}
-            className={`px-3 py-1 rounded-sm text-xs font-medium transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px] cursor-pointer touch-manipulation active:scale-95 ${
               filterTab === "all"
                 ? "bg-card text-foreground shadow-xs font-bold"
                 : "text-muted-foreground hover:text-foreground"
@@ -256,7 +256,7 @@ export default function AccountsPage() {
           </button>
           <button
             onClick={() => setFilterTab("active")}
-            className={`px-3 py-1 rounded-sm text-xs font-medium transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px] cursor-pointer touch-manipulation active:scale-95 ${
               filterTab === "active"
                 ? "bg-card text-foreground shadow-xs font-bold"
                 : "text-muted-foreground hover:text-foreground"
@@ -266,7 +266,7 @@ export default function AccountsPage() {
           </button>
           <button
             onClick={() => setFilterTab("hidden")}
-            className={`px-3 py-1 rounded-sm text-xs font-medium transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all min-h-[36px] cursor-pointer touch-manipulation active:scale-95 ${
               filterTab === "hidden"
                 ? "bg-card text-foreground shadow-xs font-bold"
                 : "text-muted-foreground hover:text-foreground"
@@ -283,10 +283,11 @@ export default function AccountsPage() {
             placeholder="Cari nama akun atau catatan..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-9 text-xs"
+            className="pl-9 h-10 text-xs rounded-xl"
           />
         </div>
       </div>
+
 
       {/* Account Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -299,7 +300,7 @@ export default function AccountsPage() {
           return (
             <Card
               key={acc.id}
-              className={`group relative overflow-hidden transition-all duration-200 hover:border-primary hover:shadow-md cursor-pointer ${
+              className={`group relative overflow-hidden rounded-2xl border border-border/80 shadow-2xs transition-all duration-200 hover:border-primary/50 hover:shadow-xs cursor-pointer active:scale-98 ${
                 acc.isHidden ? "opacity-60 bg-muted/30 border-dashed" : "bg-card"
               }`}
               onClick={() =>

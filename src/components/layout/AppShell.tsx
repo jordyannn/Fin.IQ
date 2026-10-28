@@ -9,6 +9,7 @@ import { QuickAddModal } from "@/components/transactions/QuickAddModal";
 import { CommandPalette } from "@/components/cmdk/CommandPalette";
 import { ConfirmModalDialog } from "@/components/ui/ConfirmModalDialog";
 import { MascotNavigator } from "@/components/mascot/MascotNavigator";
+import { AIAdvisorDrawer } from "@/components/ai/AIAdvisorDrawer";
 import { useUIStore } from "@/store/ui.store";
 import { useMascotStore } from "@/store/mascot.store";
 import { X } from "lucide-react";
@@ -55,10 +56,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden h-screen h-[100dvh] max-h-screen">
+      <div className="flex flex-1 flex-col overflow-hidden h-screen h-[100dvh] max-h-screen w-full">
         <TopBar />
-        <main className="flex-1 overflow-y-auto overscroll-y-contain p-3 sm:p-5 md:p-8 pb-24 lg:pb-8">
-          <div className="mx-auto max-w-7xl">{children}</div>
+        <main className="flex-1 overflow-y-auto overscroll-y-contain w-full px-3.5 pt-3 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-5 md:px-8 md:py-6">
+          <div className="mx-auto max-w-7xl w-full">{children}</div>
         </main>
       </div>
 
@@ -70,6 +71,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <CommandPalette />
       <ConfirmModalDialog />
       <MascotNavigator />
+      <AIAdvisorDrawer />
     </div>
   );
 }

@@ -29,6 +29,7 @@ import {
   Moon,
   Minus,
   Menu,
+  Footprints,
 } from "lucide-react";
 
 const RANDOM_TIPS = [
@@ -72,6 +73,10 @@ export function MascotNavigator() {
     toggleMute,
     markWelcomeAsSeen,
     toggleOutfit,
+    isRoamingActive,
+    toggleRoaming,
+    setAIDrawerOpen,
+    isSleeping,
   } = useMascotStore();
 
   const { isQuickAddOpen, openQuickAdd, isCommandPaletteOpen, isSidebarOpen, setSidebarOpen } = useUIStore();
@@ -1141,7 +1146,7 @@ export function MascotNavigator() {
       {/* =========================================================================
           3. FLOATING INTERACTIVE BUBBLE (FAB) & MINI MENU (ADAPTIF & NON-INTRUSIF)
       ========================================================================= */}
-      {!isTourActive && !isQuickAddOpen && !isSidebarOpen && (
+      {!isSleeping && !isTourActive && !isQuickAddOpen && !isSidebarOpen && (
         <div
           className={`fixed transition-all duration-300 ease-out print:hidden ${
             pathname === "/ai" ? "hidden lg:flex" : "flex"
@@ -1289,6 +1294,43 @@ export function MascotNavigator() {
                     <span>Mode: {mascotOutfit === "analyst" ? "Analis" : "Santai"}</span>
                   </span>
                   <span className="text-[10px] font-bold text-primary underline">Ganti Mode</span>
+                </button>
+
+                {/* Petualang Dashboard (Autonomous Roaming) Toggle */}
+                <button
+                  onClick={() => toggleRoaming()}
+                  className="w-full flex items-center justify-between p-2.5 rounded-md border border-input bg-card text-foreground font-semibold text-xs hover:bg-muted transition-colors cursor-pointer"
+                  title="Aktifkan atau nonaktifkan karakter Bang Peci berjalan di dashboard"
+                >
+                  <span className="flex items-center gap-2">
+                    <Footprints className="h-4 w-4 text-primary" />
+                    <span>Petualang Dashboard</span>
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      isRoamingActive
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                        : "bg-muted text-muted-foreground border-border/60"
+                    }`}
+                  >
+                    {isRoamingActive ? "Aktif" : "Mati"}
+                  </span>
+                </button>
+
+                {/* AI Financial Advisor Quick Drawer Button */}
+                <button
+                  onClick={() => {
+                    setAIDrawerOpen(true);
+                    setBubbleOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-md border border-primary/25 bg-primary/10 hover:bg-primary/20 text-foreground font-semibold text-xs transition-colors cursor-pointer"
+                  title="Buka panel AI Financial Advisor"
+                >
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span>AI Financial Advisor</span>
+                  </span>
+                  <ChevronRight className="h-3.5 w-3.5 text-primary" />
                 </button>
 
                 {/* Mode Tenang / Perkecil Widget Action */}

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Sparkles,
@@ -161,11 +162,19 @@ export default function LoginPage() {
           <div className="absolute right-0 top-0">
             <LanguageSwitcher size="sm" />
           </div>
-          <div className="flex items-center gap-2.5 mb-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#059669] text-white shadow-level-1">
-              <GeometricIcon name="overview" className="h-5 w-5" />
+          <div className="flex flex-col items-center gap-2 mb-2">
+            <div className="relative h-16 w-16 sm:h-20 sm:w-20 shrink-0 flex items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-amber-500/10 border border-emerald-500/30 shadow-level-1 hover:scale-105 transition-all p-1">
+              <Image
+                src="/mascot/mascot-logo.png"
+                alt="Fin.IQ Official Mascot Logo"
+                width={76}
+                height={76}
+                className="object-contain drop-shadow-sm"
+                priority
+                unoptimized
+              />
             </div>
-            <span className="text-2xl font-black tracking-tight text-foreground">
+            <span className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
               Fin<span className="text-[#059669]">.IQ</span>
             </span>
           </div>

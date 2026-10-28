@@ -3,16 +3,15 @@
 
 import React from "react";
 import { usePathname } from "next/navigation";
-import { Plus, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { GeometricIcon } from "@/components/ui/GeometricIcon";
-import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/store/ui.store";
 import { useTranslation } from "@/i18n";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 
 export function TopBar() {
   const pathname = usePathname();
-  const { toggleCommandPalette, openQuickAdd, toggleSidebar } = useUIStore();
+  const { toggleCommandPalette, toggleSidebar } = useUIStore();
   const { t } = useTranslation();
 
   const getRouteLabel = () => {
@@ -36,43 +35,62 @@ export function TopBar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 sm:h-16 w-full items-center justify-between border-b border-border/70 bg-card/95 px-3.5 sm:px-8 backdrop-blur-xl shadow-level-1 shrink-0 select-none">
-      {/* Left: Breadcrumbs & Page Signpost (Clean & No Mobile Menu Bar) */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-        <div className="flex items-center gap-1.5 sm:gap-2 text-xs font-medium">
-          <span className="font-extrabold text-foreground tracking-tight text-sm sm:text-base">Fin.IQ</span>
-          <span className="text-muted-foreground/50">/</span>
-          <span className="text-foreground font-bold text-xs sm:text-sm truncate max-w-[130px] xs:max-w-[170px] sm:max-w-none">
+      {/* Mobile Header: Toggle on left, Centered page title in middle, Actions on right */}
+      {/* Desktop Header: Page Title on left, Search bar + Language + Quick Add on right */}
+      
+      {/* Left: Mobile Sidebar Menu Toggle & Desktop Page Title */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Tombol Buka Sidebar Mobile */}
+        <button
+          onClick={toggleSidebar}
+          aria-label="Buka Menu Navigasi"
+          data-tour="mobile-sidebar-toggle"
+          className="flex lg:hidden h-10 w-10 sm:h-9 sm:w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:text-foreground hover:border-primary/40 active:scale-95 transition-all shadow-2xs cursor-pointer touch-manipulation"
+        >
+          <Menu className="h-4 w-4" />
+        </button>
+
+        {/* Desktop Page Title (Logo and Fin.IQ branding are in Sidebar) */}
+        <div className="hidden lg:flex items-center">
+          <h1 className="text-foreground font-black text-base lg:text-lg tracking-tight">
             {currentLabel}
-          </span>
+          </h1>
         </div>
       </div>
 
-      {/* Right: Language Switcher, Geometric Search Field & Quick Action */}
+      {/* Center: Mobile Centered Page Title */}
+      <div className="flex lg:hidden flex-1 items-center justify-center min-w-0 px-2 text-center">
+        <span className="text-xs sm:text-sm font-extrabold text-foreground truncate tracking-tight">
+          {currentLabel}
+        </span>
+      </div>
+
+      {/* Right: Search, Language Switcher, and Desktop Quick Add */}
       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-        {/* Compact Segmented Language Switcher */}
+        {/* Language Switcher */}
         <LanguageSwitcher size="sm" />
 
+        {/* Mobile Search Icon Button (Min touch target 44px) */}
         <button
           onClick={toggleCommandPalette}
-          className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-muted-foreground transition-all hover:border-primary/40 hover:bg-muted/50 w-28 xs:w-36 sm:w-60 focus:outline-none focus:ring-2 focus:ring-primary/20 active:scale-98 shadow-2xs"
+          className="flex lg:hidden h-10 w-10 sm:h-9 sm:w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:text-foreground hover:border-primary/40 active:scale-95 transition-all shadow-2xs cursor-pointer touch-manipulation"
+          aria-label={t.topbar.searchPlaceholder}
+        >
+          <GeometricIcon name="search" size="xs" active />
+        </button>
+
+        {/* Desktop Full Search Bar */}
+        <button
+          onClick={toggleCommandPalette}
+          className="hidden lg:flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-muted-foreground transition-all hover:border-primary/40 hover:bg-muted/50 w-44 lg:w-60 focus:outline-none focus:ring-2 focus:ring-primary/20 active:scale-98 shadow-2xs cursor-pointer"
           aria-label={t.topbar.searchPlaceholder}
         >
           <GeometricIcon name="search" size="xs" active />
           <span className="truncate">{t.topbar.searchPlaceholder}</span>
-          <kbd className="ml-auto hidden rounded-sm border border-border/80 bg-muted/60 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground md:inline-block">
+          <kbd className="ml-auto rounded-sm border border-border/80 bg-muted/60 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
             ⌘K
           </kbd>
         </button>
-
-        {/* Quick Add Button */}
-        <Button
-          size="sm"
-          onClick={openQuickAdd}
-          className="hidden sm:inline-flex rounded-md bg-primary hover:bg-primary/90 text-primary-foreground font-bold gap-1.5 text-xs h-8 sm:h-9 px-3 shadow-xs active:scale-95 transition-all"
-        >
-          <Plus className="h-3.5 w-3.5 stroke-[3px]" />
-          <span>{t.topbar.quickAdd}</span>
-        </Button>
       </div>
     </header>
   );

@@ -1,5 +1,5 @@
 // Fin.IQ Progressive Web App · Service Worker
-const CACHE_VERSION = 'v1.0.1';
+const CACHE_VERSION = 'v1.0.2';
 const CACHE_PREFIX = 'finiq-';
 const STATIC_CACHE = `${CACHE_PREFIX}static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `${CACHE_PREFIX}dynamic-${CACHE_VERSION}`;
@@ -39,6 +39,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  // Bypass SW cache on localhost in development to allow Next.js Fast Refresh
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+    return;
+  }
 
   // Only handle GET requests from our own origin
   if (request.method !== 'GET' || url.origin !== location.origin) {

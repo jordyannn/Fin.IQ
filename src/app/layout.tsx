@@ -19,8 +19,16 @@ export const metadata: Metadata = {
     "Aplikasi manajemen keuangan personal modern dengan multi-device sync, pelacak pengeluaran, anggaran, dan integrasi AI.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon.svg",
-    apple: "/icon.svg",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [
+      { url: "/icon-192.png", sizes: "192x192" },
+      { url: "/icon-512.png", sizes: "512x512" },
+    ],
   },
   appleWebApp: {
     capable: true,

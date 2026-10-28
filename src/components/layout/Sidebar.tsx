@@ -3,6 +3,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import {
   ChevronsUpDown,
@@ -201,7 +202,38 @@ export function Sidebar({
       )}
     >
       {/* =====================================================================
-          1. USER ACCOUNT (Satu-satunya komponen di bagian atas sidebar)
+          1. BRAND LOGO (Fin.IQ Official Mascot Brand)
+      ===================================================================== */}
+      <div className="flex items-center justify-between px-1 pb-3 mb-2.5 border-b border-border/60 shrink-0">
+        <Link
+          href="/overview"
+          onClick={() => onItemClick?.()}
+          className="flex items-center gap-2.5 group active:scale-95 transition-all"
+        >
+          <div className="relative h-10 w-10 shrink-0 flex items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-amber-500/10 dark:from-emerald-950/60 dark:to-emerald-900/30 border border-emerald-500/30 group-hover:border-emerald-500/60 shadow-2xs group-hover:scale-105 transition-all overflow-hidden p-0.5">
+            <Image
+              src="/mascot/mascot-logo.png"
+              alt="Fin.IQ Official Mascot Logo"
+              width={40}
+              height={40}
+              className="object-contain drop-shadow-2xs"
+              priority
+              unoptimized
+            />
+          </div>
+          <div className="flex flex-col">
+            <span className="font-black text-base tracking-tight text-foreground flex items-center leading-none">
+              Fin<span className="text-primary">.IQ</span>
+            </span>
+            <span className="text-[10px] text-muted-foreground font-medium mt-1 tracking-tight">
+              Personal Finance AI
+            </span>
+          </div>
+        </Link>
+      </div>
+
+      {/* =====================================================================
+          2. USER ACCOUNT
       ===================================================================== */}
       <div className="relative mb-3 shrink-0" ref={profileMenuRef}>
         <button

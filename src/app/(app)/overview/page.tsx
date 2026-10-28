@@ -48,7 +48,9 @@ import {
   type CategoryDetailTarget,
 } from "@/components/analytics/CategoryDetailModal";
 import { CsvImportTutorialModal } from "@/components/import/CsvImportTutorialModal";
-import { OverviewMascotMood } from "@/components/mascot/OverviewMascotMood";
+import { MascotRoamingStage } from "@/components/mascot/MascotRoamingStage";
+import { CatHouseBed } from "@/components/mascot/CatHouseBed";
+import { useMascotStore } from "@/store/mascot.store";
 import { MonthYearPicker, MONTHS_ID } from "@/components/ui/MonthYearPicker";
 import {
   AreaChart,
@@ -76,6 +78,7 @@ const PIE_COLORS = [
 
 export default function OverviewPage() {
   const { openQuickAdd } = useUIStore();
+  const { isSleeping, setIsSleeping } = useMascotStore();
   const utils = trpc.useUtils();
   const { t, formatCurrency, formatDate } = useTranslation();
 
@@ -428,325 +431,319 @@ export default function OverviewPage() {
     Boolean(customDateTo);
 
   return (
-    <div className="flex flex-col gap-5 sm:gap-6 max-w-6xl mx-auto pb-4">
+    <div className="flex flex-col gap-5 sm:gap-6 max-w-6xl mx-auto pb-4 relative min-h-screen">
+      {/* 2D Autonomous Roaming Mascot (Bang Peci Petualang) */}
+      <MascotRoamingStage
+        financialStatus={summary.net > 0 ? "surplus" : summary.net < 0 ? "critical" : "warning"}
+        netCashflow={summary.net}
+        income={summary.income}
+        expense={summary.expense}
+      />
       {/* =========================================================================
           1. HERO PORTOFOLIO FINTECH: SALDO USER, CASHFLOW TERPADU & KURVA
       ========================================================================= */}
-      <div className="relative overflow-hidden rounded-md border border-border/70 bg-card p-4 sm:p-5 shadow-2xs transition-all flex flex-col gap-4">
-        {/* Latar Aksen Mint Halus di Pojok Kanan Atas */}
-        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-md bg-primary/5 blur-3xl pointer-events-none" />        {/* Baris 1: Toolbar Periode & Pemilih Tanggal (Single Clean Horizontal Bar) */}
-        <div
-          data-tour="date-filter"
-          className="flex items-center justify-between gap-1.5 sm:gap-3 border-b border-border/60 pb-2.5 sm:pb-3 text-xs w-full overflow-x-auto no-scrollbar"
-        >
-          {/* Sisi Kiri: Navigasi Periode / Pemilih Bulan & Tahun */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {/* Jika mode Bulan Ini aktif */}
-            {datePreset === "this_month" && (
-              <div
-                data-tour="month-filter"
-                className="relative flex items-center gap-0.5 sm:gap-1 rounded-md border border-input bg-background/90 px-1 py-0.5 shadow-2xs"
-              >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
-                  onClick={handlePrevPeriod}
-                  title="Bulan sebelumnya"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </Button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsMonthPickerOpen((prev) => !prev)}
-                  className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 text-xs font-bold capitalize rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-foreground select-none group cursor-pointer active:scale-95"
-                  title="Klik untuk memilih bulan secara langsung dari kalender"
-                >
-                  <Calendar className="h-3.5 w-3.5 text-primary group-hover:scale-105 transition-transform shrink-0" />
-                  <span className="whitespace-nowrap font-bold">{periodLabel}</span>
-                  <ChevronDown className="h-3 w-3 opacity-60 group-hover:opacity-100 transition-opacity shrink-0" />
-                </button>
-
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
-                  onClick={handleNextPeriod}
-                  title="Bulan berikutnya"
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
-
-                {!isCurrentMonthNow && (
-                  <button
-                    onClick={handleResetPeriod}
-                    className="hidden xs:inline-block px-1.5 py-0.5 text-[10px] font-bold text-primary hover:underline rounded-sm border-l border-border/60 pl-1.5 cursor-pointer whitespace-nowrap"
-                    title="Kembali ke bulan saat ini"
-                  >
-                    Bulan Ini
-                  </button>
-                )}
-
-                <MonthYearPicker
-                  currentDate={currentMonth}
-                  onSelectMonth={(newDate) => {
-                    setCurrentMonth(newDate);
-                    setDatePreset("this_month");
-                  }}
-                  isOpen={isMonthPickerOpen}
-                  onClose={() => setIsMonthPickerOpen(false)}
-                  align="left"
-                />
-              </div>
-            )}
-
-            {/* Jika mode Tahun Ini aktif */}
-            {datePreset === "this_year" && (
-              <div className="relative flex items-center gap-0.5 sm:gap-1 rounded-md border border-input bg-background/80 px-1 py-0.5 shadow-2xs">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
-                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear() - 1, 0, 1))}
-                  title="Tahun sebelumnya"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </Button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsMonthPickerOpen((prev) => !prev)}
-                  className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 text-xs font-bold rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-foreground cursor-pointer active:scale-95 whitespace-nowrap"
-                  title="Pilih tahun atau bulan langsung"
-                >
-                  <span>Tahun {currentMonth.getFullYear()}</span>
-                  <ChevronDown className="h-3 w-3 opacity-60" />
-                </button>
-
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
-                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear() + 1, 0, 1))}
-                  title="Tahun berikutnya"
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
-
-                {currentMonth.getFullYear() !== new Date().getFullYear() && (
-                  <button
-                    onClick={() => setCurrentMonth(new Date())}
-                    className="hidden xs:inline-block px-1.5 py-0.5 text-[10px] font-bold text-primary hover:underline rounded-sm border-l border-border/60 pl-1.5 cursor-pointer whitespace-nowrap"
-                    title="Kembali ke tahun sekarang"
-                  >
-                    Tahun Ini
-                  </button>
-                )}
-
-                <MonthYearPicker
-                  currentDate={currentMonth}
-                  onSelectMonth={(newDate) => {
-                    setCurrentMonth(newDate);
-                    setDatePreset("this_month");
-                  }}
-                  isOpen={isMonthPickerOpen}
-                  onClose={() => setIsMonthPickerOpen(false)}
-                  align="left"
-                />
-              </div>
-            )}
-
-            {/* Custom Date Pickers */}
-            {datePreset === "custom" && (
-              <div className="flex items-center gap-1">
-                <Input
-                  type="date"
-                  value={customDateFrom}
-                  onChange={(e) => setCustomDateFrom(e.target.value)}
-                  className="h-8 text-xs w-28 xs:w-32 px-2 rounded-md"
-                  placeholder="Dari"
-                />
-                <span className="text-muted-foreground text-[11px]">-</span>
-                <Input
-                  type="date"
-                  value={customDateTo}
-                  onChange={(e) => setCustomDateTo(e.target.value)}
-                  className="h-8 text-xs w-28 xs:w-32 px-2 rounded-md"
-                  placeholder="Sampai"
-                />
-              </div>
-            )}
-
-            {/* Tombol Kalender Popover saat preset selain this_month & this_year */}
-            {datePreset !== "this_month" && datePreset !== "this_year" && datePreset !== "custom" && (
-              <div className="relative flex items-center">
-                <button
-                  type="button"
-                  onClick={() => setIsMonthPickerOpen((prev) => !prev)}
-                  className={`h-8 px-2.5 rounded-md border flex items-center gap-1.5 transition-all shadow-2xs text-xs font-semibold ${
-                    isMonthPickerOpen
-                      ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/20"
-                      : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 active:scale-95 cursor-pointer"
-                  }`}
-                  title="Buka Pemilih Bulan & Kalender Langsung"
-                >
-                  <Calendar className="h-3.5 w-3.5 text-primary" />
-                  <span className="hidden xs:inline">{periodLabel}</span>
-                  <ChevronDown className="h-3 w-3 opacity-60" />
-                </button>
-
-                {isMonthPickerOpen && (
-                  <MonthYearPicker
-                    currentDate={currentMonth}
-                    onSelectMonth={(newDate) => {
-                      setCurrentMonth(newDate);
-                      setDatePreset("this_month");
-                    }}
-                    isOpen={isMonthPickerOpen}
-                    onClose={() => setIsMonthPickerOpen(false)}
-                    align="left"
-                  />
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Sisi Kanan: Preset Filter Dropdown & Tombol Refresh / Reset */}
-          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
-            {/* Preset Dropdown */}
-            <select
-              value={datePreset}
-              onChange={(e) => {
-                setDatePreset(e.target.value as DateFilterPreset);
-                setIsMonthPickerOpen(false);
-              }}
-              className="h-8 max-w-[95px] xs:max-w-[115px] sm:max-w-none rounded-md border border-border bg-card pl-2 pr-7 text-xs font-bold text-foreground shadow-2xs transition-all hover:border-primary/40 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary truncate"
+      {/* =========================================================================
+          1. TOOLBAR FILTER PERIODE & PEMILIH KALENDER TERATAS
+      ========================================================================= */}
+      <div
+        data-tour="date-filter"
+        className="rounded-2xl border border-border/80 bg-card p-2.5 sm:p-3 shadow-2xs flex items-center justify-between gap-1.5 sm:gap-3 text-xs w-full overflow-x-auto no-scrollbar"
+      >
+        {/* Sisi Kiri: Navigasi Periode / Pemilih Bulan & Tahun */}
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          {/* Jika mode Bulan Ini aktif */}
+          {datePreset === "this_month" && (
+            <div
+              data-tour="month-filter"
+              className="relative flex items-center gap-0.5 sm:gap-1 rounded-md border border-input bg-background/90 px-1 py-0.5 shadow-2xs"
             >
-              <option value="this_month">Bulan Ini</option>
-              <option value="today">Hari Ini</option>
-              <option value="last_7_days">7 Hari</option>
-              <option value="last_30_days">30 Hari</option>
-              <option value="last_month">Bulan Lalu</option>
-              <option value="this_year">Tahun Ini</option>
-              <option value="all">Semua</option>
-              <option value="custom">Kustom</option>
-            </select>
-
-            {/* Tombol Perbarui */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleRefreshAll}
-              className="h-8 w-8 rounded-md border border-border/80 bg-card text-muted-foreground hover:text-foreground shrink-0 shadow-2xs active:scale-95 cursor-pointer"
-              title="Perbarui data overview"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-            </Button>
-
-            {/* Tombol Reset Filter */}
-            {isAnyFilterActive && (
               <Button
                 variant="ghost"
-                size="sm"
-                onClick={handleResetAllFilters}
-                className="h-8 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 gap-1 px-2 rounded-md font-bold shrink-0 border border-rose-500/25 shadow-2xs cursor-pointer active:scale-95"
-                title="Reset filter ke Bulan Ini"
+                size="icon"
+                className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
+                onClick={handlePrevPeriod}
+                title="Bulan sebelumnya"
               >
-                <RotateCcw className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Reset</span>
+                <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
-            )}
-          </div>
+
+              <button
+                type="button"
+                onClick={() => setIsMonthPickerOpen((prev) => !prev)}
+                className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 text-xs font-bold capitalize rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-foreground select-none group cursor-pointer active:scale-95"
+                title="Klik untuk memilih bulan secara langsung dari kalender"
+              >
+                <Calendar className="h-3.5 w-3.5 text-primary group-hover:scale-105 transition-transform shrink-0" />
+                <span className="whitespace-nowrap font-bold">{periodLabel}</span>
+                <ChevronDown className="h-3 w-3 opacity-60 group-hover:opacity-100 transition-opacity shrink-0" />
+              </button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
+                onClick={handleNextPeriod}
+                title="Bulan berikutnya"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+
+              {!isCurrentMonthNow && (
+                <button
+                  onClick={handleResetPeriod}
+                  className="hidden xs:inline-block px-1.5 py-0.5 text-[10px] font-bold text-primary hover:underline rounded-sm border-l border-border/60 pl-1.5 cursor-pointer whitespace-nowrap"
+                  title="Kembali ke bulan saat ini"
+                >
+                  Bulan Ini
+                </button>
+              )}
+
+              <MonthYearPicker
+                currentDate={currentMonth}
+                onSelectMonth={(newDate) => {
+                  setCurrentMonth(newDate);
+                  setDatePreset("this_month");
+                }}
+                isOpen={isMonthPickerOpen}
+                onClose={() => setIsMonthPickerOpen(false)}
+                align="left"
+              />
+            </div>
+          )}
+
+          {/* Jika mode Tahun Ini aktif */}
+          {datePreset === "this_year" && (
+            <div className="relative flex items-center gap-0.5 sm:gap-1 rounded-md border border-input bg-background/80 px-1 py-0.5 shadow-2xs">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
+                onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear() - 1, 0, 1))}
+                title="Tahun sebelumnya"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+
+              <button
+                type="button"
+                onClick={() => setIsMonthPickerOpen((prev) => !prev)}
+                className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 text-xs font-bold rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-foreground cursor-pointer active:scale-95 whitespace-nowrap"
+                title="Pilih tahun atau bulan langsung"
+              >
+                <span>Tahun {currentMonth.getFullYear()}</span>
+                <ChevronDown className="h-3 w-3 opacity-60" />
+              </button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
+                onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear() + 1, 0, 1))}
+                title="Tahun berikutnya"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+
+              {currentMonth.getFullYear() !== new Date().getFullYear() && (
+                <button
+                  onClick={() => setCurrentMonth(new Date())}
+                  className="hidden xs:inline-block px-1.5 py-0.5 text-[10px] font-bold text-primary hover:underline rounded-sm border-l border-border/60 pl-1.5 cursor-pointer whitespace-nowrap"
+                  title="Kembali ke tahun sekarang"
+                >
+                  Tahun Ini
+                </button>
+              )}
+
+              <MonthYearPicker
+                currentDate={currentMonth}
+                onSelectMonth={(newDate) => {
+                  setCurrentMonth(newDate);
+                  setDatePreset("this_month");
+                }}
+                isOpen={isMonthPickerOpen}
+                onClose={() => setIsMonthPickerOpen(false)}
+                align="left"
+              />
+            </div>
+          )}
+
+          {/* Custom Date Pickers */}
+          {datePreset === "custom" && (
+            <div className="flex items-center gap-1">
+              <Input
+                type="date"
+                value={customDateFrom}
+                onChange={(e) => setCustomDateFrom(e.target.value)}
+                className="h-8 text-xs w-28 xs:w-32 px-2 rounded-md"
+                placeholder="Dari"
+              />
+              <span className="text-muted-foreground text-[11px]">-</span>
+              <Input
+                type="date"
+                value={customDateTo}
+                onChange={(e) => setCustomDateTo(e.target.value)}
+                className="h-8 text-xs w-28 xs:w-32 px-2 rounded-md"
+                placeholder="Sampai"
+              />
+            </div>
+          )}
+
+          {/* Tombol Kalender Popover saat preset selain this_month & this_year */}
+          {datePreset !== "this_month" && datePreset !== "this_year" && datePreset !== "custom" && (
+            <div className="relative flex items-center">
+              <button
+                type="button"
+                onClick={() => setIsMonthPickerOpen((prev) => !prev)}
+                className={`h-8 px-2.5 rounded-md border flex items-center gap-1.5 transition-all shadow-2xs text-xs font-semibold ${
+                  isMonthPickerOpen
+                    ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/20"
+                    : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 active:scale-95 cursor-pointer"
+                }`}
+                title="Buka Pemilih Bulan & Kalender Langsung"
+              >
+                <Calendar className="h-3.5 w-3.5 text-primary" />
+                <span className="hidden xs:inline">{periodLabel}</span>
+                <ChevronDown className="h-3 w-3 opacity-60" />
+              </button>
+
+              {isMonthPickerOpen && (
+                <MonthYearPicker
+                  currentDate={currentMonth}
+                  onSelectMonth={(newDate) => {
+                    setCurrentMonth(newDate);
+                    setDatePreset("this_month");
+                  }}
+                  isOpen={isMonthPickerOpen}
+                  onClose={() => setIsMonthPickerOpen(false)}
+                  align="left"
+                />
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Baris 2: TOTAL SALDO REKENING & Tombol Catat Transaksi */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
+        {/* Sisi Kanan: Preset Filter Dropdown & Tombol Refresh / Reset */}
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
+          {/* Preset Dropdown */}
+          <select
+            value={datePreset}
+            onChange={(e) => {
+              setDatePreset(e.target.value as DateFilterPreset);
+              setIsMonthPickerOpen(false);
+            }}
+            className="h-8 max-w-[95px] xs:max-w-[115px] sm:max-w-none rounded-md border border-border bg-card pl-2 pr-7 text-xs font-bold text-foreground shadow-2xs transition-all hover:border-primary/40 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary truncate"
+          >
+            <option value="this_month">Bulan Ini</option>
+            <option value="today">Hari Ini</option>
+            <option value="last_7_days">7 Hari</option>
+            <option value="last_30_days">30 Hari</option>
+            <option value="last_month">Bulan Lalu</option>
+            <option value="this_year">Tahun Ini</option>
+            <option value="all">Semua</option>
+            <option value="custom">Kustom</option>
+          </select>
+
+          {/* Tombol Perbarui */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRefreshAll}
+            className="h-8 w-8 rounded-md border border-border/80 bg-card text-muted-foreground hover:text-foreground shrink-0 shadow-2xs active:scale-95 cursor-pointer"
+            title="Perbarui data overview"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+
+          {/* Tombol Reset Filter */}
+          {isAnyFilterActive && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleResetAllFilters}
+              className="h-8 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 gap-1 px-2 rounded-md font-bold shrink-0 border border-rose-500/25 shadow-2xs cursor-pointer active:scale-95"
+              title="Reset filter ke Bulan Ini"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Reset</span>
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* =========================================================================
+          2. KARTU TOTAL SALDO (Hero Card - Matching Wireframe Screen 1)
+      ========================================================================= */}
+      <div data-walker-target="saldo" id="walker-target-saldo" className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-border/80 bg-card p-4 sm:p-6 shadow-2xs transition-all flex flex-col gap-3">
+        {/* Subtle accent mint background glow */}
+        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-56 h-56 rounded-full bg-primary/5 blur-3xl pointer-events-none" />
+        
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex flex-col gap-1">
-            <span className="text-[11px] uppercase tracking-wider font-extrabold text-muted-foreground flex items-center gap-2">
-              <GeometricIcon name="bank" size="xs" active />
-              <span>{t.overview.netBalance.toUpperCase()}</span>
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                <GeometricIcon name="bank" size="xs" active />
+                <span>{t.overview.netBalance}</span>
+              </span>
+            </div>
             <div className="text-3xl sm:text-4xl lg:text-5xl font-black text-foreground tracking-tight">
               {isHeroLoading ? "..." : formatCurrency(totalUserBalance)}
             </div>
-            <p className="text-xs text-muted-foreground flex items-center gap-2">
-              <span>Akumulasi saldo seluruh rekening kas, bank, dan dompet digital</span>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold bg-secondary text-secondary-foreground border border-emerald-300 dark:border-emerald-800">
-                {accountsList.length} Akun Aktif
-              </span>
-            </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="hidden md:flex items-center gap-2 shrink-0">
             <Button
               data-tour="quick-add"
               onClick={openQuickAdd}
-              className="rounded-md bg-primary hover:bg-[#047857] text-white font-bold gap-2 text-xs sm:text-sm px-4 py-2 shadow-xs active:scale-95 transition-all"
+              className="rounded-xl bg-primary hover:bg-[#047857] text-white font-bold gap-2 text-xs sm:text-sm px-4 py-2.5 shadow-xs active:scale-95 transition-all cursor-pointer min-h-[44px]"
             >
               <Plus className="h-4 w-4 stroke-[3px]" />
               {t.quickAdd.title}
             </Button>
           </div>
         </div>
+      </div>
 
-        {/* Baris 3: LAYER TERPADU (CASH MASUK, CASH KELUAR, DAN SELISIH DIGABUNG) */}
-        <div data-tour="overview-hero" className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-md bg-muted/30 border border-border">
+      {/* =========================================================================
+          3. BARIS PEMASUKAN, PENGELUARAN, SELISIH & MASKOT BANG PECI
+      ========================================================================= */}
+      <div className="flex flex-col gap-3">
+        <div data-tour="overview-hero" className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {/* 1. Cash Masuk */}
-          <div className="flex flex-col justify-between p-3.5 rounded-sm bg-card border border-border/80 shadow-2xs">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <div data-walker-target="income" id="walker-target-income" className="flex flex-col justify-between p-3.5 rounded-2xl bg-card border border-border/80 shadow-2xs">
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 truncate">
                 <GeometricIcon name="trend-up" size="xs" active />
-                <span>{t.overview.totalIncome}</span>
+                <span className="truncate">{t.overview.totalIncome}</span>
               </span>
-              <span className="text-[10px] font-semibold text-muted-foreground">{periodLabel}</span>
             </div>
-            <div className="text-lg sm:text-xl font-black text-emerald-600 dark:text-emerald-400">
+            <div className="text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 truncate">
               +{formatCurrency(summary.income)}
             </div>
-            <span className="text-[10px] text-muted-foreground mt-0.5">Total penerimaan periode ini</span>
           </div>
 
           {/* 2. Cash Keluar */}
-          <div className="flex flex-col justify-between p-3.5 rounded-sm bg-card border border-border/80 shadow-2xs">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <div data-walker-target="expense" id="walker-target-expense" className="flex flex-col justify-between p-3.5 rounded-2xl bg-card border border-border/80 shadow-2xs">
+            <div className="flex items-center justify-between gap-1 mb-1.5">
+              <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 truncate">
                 <GeometricIcon name="trend-down" size="xs" active />
-                <span>{t.overview.totalExpense}</span>
+                <span className="truncate">{t.overview.totalExpense}</span>
               </span>
-              <span className="text-[10px] font-semibold text-muted-foreground">{periodLabel}</span>
             </div>
-            <div className="text-lg sm:text-xl font-black text-rose-600 dark:text-rose-400">
+            <div className="text-base sm:text-xl font-black text-rose-600 dark:text-rose-400 truncate">
               -{formatCurrency(summary.expense)}
             </div>
-            <span className="text-[10px] text-muted-foreground mt-0.5">Total pengeluaran periode ini</span>
           </div>
 
           {/* 3. Selisih (Arus Kas Bersih) */}
-          <div className="flex flex-col justify-between p-3.5 rounded-sm bg-card border border-border/80 shadow-2xs">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <div data-walker-target="cashflow" id="walker-target-cashflow" className="col-span-2 sm:col-span-1 flex flex-col justify-between p-3.5 rounded-2xl bg-card border border-border/80 shadow-2xs">
+            <div className="flex items-center justify-between gap-1.5 mb-1.5">
+              <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 truncate">
                 <GeometricIcon name="sparkles" size="xs" active />
-                <span>{t.overview.netCashFlow}</span>
+                <span className="truncate">{t.overview.netCashFlow}</span>
               </span>
-              {summary.net > 0 && (
-                <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold bg-secondary text-secondary-foreground border border-emerald-300 dark:border-emerald-800">
-                  Surplus
-                </span>
-              )}
-              {summary.net < 0 && (
-                <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
-                  Defisit
-                </span>
-              )}
-              {summary.net === 0 && (
-                <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold bg-muted text-muted-foreground">
-                  Seimbang
-                </span>
-              )}
             </div>
             <div
-              className={`text-lg sm:text-xl font-black ${
+              className={`text-base sm:text-xl font-black truncate ${
                 summary.net > 0
                   ? "text-emerald-600 dark:text-emerald-400"
                   : summary.net < 0
@@ -757,132 +754,265 @@ export default function OverviewPage() {
               {summary.net > 0 ? "+" : ""}
               {formatCurrency(summary.net)}
             </div>
-            <span className="text-[10px] text-muted-foreground mt-0.5">
-              {summary.net > 0 ? "Pemasukan melampaui pengeluaran" : summary.net < 0 ? "Pengeluaran melampaui pemasukan" : "Arus kas seimbang"}
+          </div>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          PONDOK NYAMAN & KASUR BULAT BANG PECI (Cat House & Donut Bed)
+      ========================================================================= */}
+      <CatHouseBed
+        isSleeping={isSleeping}
+        onWakeUp={() => setIsSleeping(false)}
+        onSleep={() => setIsSleeping(true)}
+      />
+
+      {/* =========================================================================
+          4. CAROUSEL DOMPET & REKENING (Your Wallet - Matching Wireframe Screen 1 & 2)
+      ========================================================================= */}
+      <div data-walker-target="accounts" id="walker-target-accounts" className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between">
+          <h3 className="font-extrabold text-sm sm:text-base text-foreground tracking-tight">
+            Dompet &amp; Rekening
+          </h3>
+          <Link
+            href="/accounts"
+            className="text-xs text-primary font-bold hover:underline flex items-center gap-1 active:scale-95"
+          >
+            <span>Kelola</span>
+            <ChevronRightIcon className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+
+        {/* Horizontal Carousel with Snapping & Safe Margins */}
+        <div className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory py-1 -mx-3.5 px-3.5 sm:mx-0 sm:px-0">
+          {accountsList.map((acc, idx) => {
+            const color = PIE_COLORS[idx % PIE_COLORS.length];
+            return (
+              <Link
+                key={acc.id}
+                href="/accounts"
+                className="flex flex-col justify-between p-3.5 rounded-2xl border border-border/80 bg-card shadow-2xs hover:border-primary/40 transition-all min-w-[150px] w-[160px] sm:w-[180px] shrink-0 snap-start active:scale-98"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="h-8 w-8 rounded-xl bg-secondary flex items-center justify-center text-secondary-foreground">
+                    <GeometricIcon name="accounts" size="xs" active />
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary text-primary">
+                    {acc.percent}%
+                  </span>
+                </div>
+                <div>
+                  <div className="font-black text-base sm:text-lg text-foreground tracking-tight">
+                    {formatCurrency(acc.balance, acc.currency)}
+                  </div>
+                  <div className="text-xs font-semibold text-muted-foreground capitalize truncate mt-0.5">
+                    {acc.name}
+                  </div>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden mt-3">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${acc.percent}%`, backgroundColor: color }}
+                  />
+                </div>
+              </Link>
+            );
+          })}
+          {accountsList.length === 0 && (
+            <div className="p-5 rounded-2xl border border-dashed border-border bg-card/50 text-xs text-muted-foreground text-center w-full">
+              Belum ada rekening terdaftar. Klik + Tambah untuk mendaftarkan akun kas atau bank Anda.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* =========================================================================
+          5. TRANSAKSI TERAKHIR (Recent Transactions - Matching Wireframe Screen 1)
+      ========================================================================= */}
+      <div className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between">
+          <h3 className="font-extrabold text-sm sm:text-base text-foreground tracking-tight">
+            Transaksi Terakhir
+          </h3>
+          <Link
+            href="/transactions"
+            className="text-xs text-primary font-bold hover:underline flex items-center gap-1 active:scale-95"
+          >
+            <span>Lihat Semua</span>
+            <ChevronRightIcon className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+
+        <Card className="p-2 sm:p-4 rounded-2xl border-border/80 shadow-2xs divide-y divide-border/60">
+          {recentDisplayList.map((tx: any) => {
+            const isExpense = tx.txType === "expense";
+            const isIncome = tx.txType === "income";
+
+            return (
+              <div
+                key={tx.id}
+                className="py-3 px-2 flex items-center justify-between gap-3 text-xs hover:bg-muted/30 rounded-xl transition-colors min-h-[52px]"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
+                      isIncome
+                        ? "bg-secondary text-secondary-foreground"
+                        : isExpense
+                        ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                        : "bg-muted text-foreground"
+                    }`}
+                  >
+                    {isIncome && <GeometricIcon name="trend-up" size="xs" active />}
+                    {isExpense && <GeometricIcon name="trend-down" size="xs" active />}
+                    {!isIncome && !isExpense && <GeometricIcon name="accounts" size="xs" active />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-foreground truncate text-xs sm:text-sm">
+                      {tx.categoryName || tx.note || "Transaksi Umum"}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 truncate mt-0.5">
+                      <span>{formatDate(tx.happenedAt)}</span>
+                      <span>•</span>
+                      <span className="capitalize">{tx.accountName || "Kas"}</span>
+                      {tx.note && tx.categoryName && (
+                        <>
+                          <span>•</span>
+                          <span className="truncate italic max-w-[120px]">{tx.note}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <div
+                    className={`font-black text-sm sm:text-base ${
+                      isIncome
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : isExpense
+                        ? "text-foreground"
+                        : "text-blue-600"
+                    }`}
+                  >
+                    {isIncome ? "+" : isExpense ? "-" : ""}
+                    {formatCurrency(tx.amount, tx.currency)}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {recentDisplayList.length === 0 && (
+            <div className="py-8 text-center text-xs text-muted-foreground">
+              Belum ada transaksi tercatat di periode <strong>{periodLabel}</strong>. Klik <strong>+ Catat Transaksi</strong> untuk memulai.
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* =========================================================================
+          6. KURVA PERGERAKAN ARUS KAS (Sparkline AreaChart)
+      ========================================================================= */}
+      <Card data-tour="overview-sparkline" className="p-4 sm:p-5 rounded-2xl border-border/80 shadow-2xs flex flex-col gap-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <span className="text-xs sm:text-sm font-bold text-foreground">
+            Kurva Pergerakan Arus Kas
+          </span>
+
+          {/* Chips Metrik Kurva */}
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <span className="text-muted-foreground">
+              Mulai: <strong className="text-foreground">Rp 0</strong>
+            </span>
+            <span
+              className={`font-bold ${
+                summary.net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+              }`}
+            >
+              Posisi Akhir: {summary.net > 0 ? "+" : ""}{formatCurrency(summary.net)}
             </span>
           </div>
         </div>
 
-        {/* Baris 4: EKSPLORASI LAYOUT KURVA ARUS KAS (Kurva Luas, Bernapas, dan Berorientasi Visual Modern) */}
-        <div data-tour="overview-sparkline" className="p-3.5 sm:p-4 rounded-md bg-muted/20 border border-border/50 flex flex-col gap-2.5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-foreground">
-                  Kurva Pergerakan Arus Kas
-                </span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-sm bg-background border border-border/60 text-muted-foreground">
-                  {summary.count} Transaksi
-                </span>
-              </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                Fluktuasi akumulatif pemasukan dan pengeluaran sepanjang {periodLabel}
-              </p>
-            </div>
-
-            {/* Chips Metrik Kurva */}
-            <div className="flex flex-wrap items-center gap-3 text-xs">
-              <span className="text-muted-foreground">
-                Mulai: <strong className="text-foreground">Rp 0</strong>
-              </span>
-              <span
-                className={`font-bold ${
-                  summary.net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-                }`}
-              >
-                Posisi Akhir: {summary.net > 0 ? "+" : ""}{formatCurrency(summary.net)}
-              </span>
-            </div>
+        {/* Area Kurva Responsive */}
+        {sparklineData.length > 0 ? (
+          <div className="h-44 sm:h-52 w-full pt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={sparklineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="balanceGradPos" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#059669" stopOpacity={0.38} />
+                    <stop offset="95%" stopColor="#059669" stopOpacity={0.0} />
+                  </linearGradient>
+                  <linearGradient id="balanceGradNeg" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ba1a1a" stopOpacity={0.38} />
+                    <stop offset="95%" stopColor="#ba1a1a" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="date"
+                  stroke="#888888"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  stroke="#888888"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => {
+                    if (Math.abs(v) >= 1000000) return `${(v / 1000000).toFixed(1)}jt`;
+                    if (Math.abs(v) >= 1000) return `${(v / 1000).toFixed(0)}rb`;
+                    return String(v);
+                  }}
+                />
+                <Tooltip
+                  formatter={(val: any) => [formatCurrency(val), "Arus Kas Bersih"]}
+                  labelFormatter={(label, payload) => payload?.[0]?.payload?.date || ""}
+                  contentStyle={{
+                    backgroundColor: "var(--card)",
+                    borderColor: "var(--border)",
+                    fontSize: "11px",
+                    fontWeight: "600",
+                    borderRadius: "4px",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="running"
+                  stroke={summary.net >= 0 ? "#059669" : "#ba1a1a"}
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill={summary.net >= 0 ? "url(#balanceGradPos)" : "url(#balanceGradNeg)"}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
-
-          {/* Area Kurva Responsive */}
-          {sparklineData.length > 0 ? (
-            <div className="h-44 sm:h-52 w-full pt-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={sparklineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="balanceGradPos" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#059669" stopOpacity={0.38} />
-                      <stop offset="95%" stopColor="#059669" stopOpacity={0.0} />
-                    </linearGradient>
-                    <linearGradient id="balanceGradNeg" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ba1a1a" stopOpacity={0.38} />
-                      <stop offset="95%" stopColor="#ba1a1a" stopOpacity={0.0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis
-                    dataKey="date"
-                    stroke="#888888"
-                    fontSize={10}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    stroke="#888888"
-                    fontSize={10}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(v) => {
-                      if (Math.abs(v) >= 1000000) return `${(v / 1000000).toFixed(1)}jt`;
-                      if (Math.abs(v) >= 1000) return `${(v / 1000).toFixed(0)}rb`;
-                      return String(v);
-                    }}
-                  />
-                  <Tooltip
-                    formatter={(val: any) => [formatCurrency(val), "Arus Kas Bersih"]}
-                    labelFormatter={(label, payload) => payload?.[0]?.payload?.date || ""}
-                    contentStyle={{
-                      backgroundColor: "var(--card)",
-                      borderColor: "var(--border)",
-                      fontSize: "11px",
-                      fontWeight: "600",
-                      borderRadius: "4px",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="running"
-                    stroke={summary.net >= 0 ? "#059669" : "#ba1a1a"}
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill={summary.net >= 0 ? "url(#balanceGradPos)" : "url(#balanceGradNeg)"}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="h-32 flex flex-col items-center justify-center text-xs text-muted-foreground border rounded-md border-dashed bg-background/50 gap-1">
-              <span>Belum ada transaksi di periode {periodLabel}</span>
-              <span className="text-[11px] text-muted-foreground/75">Klik Catat Transaksi atau Impor Transaksi untuk mengisi data</span>
-            </div>
-          )}
-        </div>
-
-        {/* Bang Peci Mascot Companion */}
-        <div className="pt-2 border-t border-border/60">
-          <OverviewMascotMood
-            netCashflow={summary.net}
-            income={summary.income}
-            expense={summary.expense}
-            periodLabel={periodLabel}
-          />
-        </div>
-      </div>
+        ) : (
+          <div className="h-32 flex flex-col items-center justify-center text-xs text-muted-foreground border rounded-xl border-dashed bg-background/50 gap-1">
+            <span>Belum ada transaksi di periode {periodLabel}</span>
+            <span className="text-[11px] text-muted-foreground/75">Klik Catat Transaksi atau Impor Transaksi untuk mengisi data</span>
+          </div>
+        )}
+      </Card>
 
       {/* =========================================================================
           1.5. CONTAINER PROMOSI & AKSES CEPAT IMPOR TRANSAKSI / E-STATEMENT
       ========================================================================= */}
       <div
         data-tour="overview-import-hub"
-        className="relative overflow-hidden rounded-md border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-card to-card dark:from-emerald-950/20 dark:via-card dark:to-card p-4 sm:p-5 shadow-2xs"
+        className="relative overflow-hidden rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-card to-card dark:from-emerald-950/20 dark:via-card dark:to-card p-4 sm:p-5 shadow-2xs"
       >
-        <div className="absolute top-0 right-0 -mr-12 -mt-12 w-48 h-48 rounded-md bg-emerald-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute top-0 right-0 -mr-12 -mt-12 w-48 h-48 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div className="flex flex-col gap-2 max-w-2xl">
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[11px] font-bold bg-secondary text-secondary-foreground border border-emerald-300 dark:border-emerald-800">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-secondary text-secondary-foreground border border-emerald-300 dark:border-emerald-800">
                 <GeometricIcon name="sparkles" size="xs" active />
                 Impor Data
               </span>
@@ -897,15 +1027,15 @@ export default function OverviewPage() {
             </p>
 
             <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
-              <span className="px-2 py-0.5 rounded-sm bg-background/80 border border-border text-foreground font-medium flex items-center gap-1.5 shadow-2xs">
+              <span className="px-2 py-0.5 rounded-md bg-background/80 border border-border text-foreground font-medium flex items-center gap-1.5 shadow-2xs">
                 <GeometricIcon name="transactions" size="xs" active />
                 Mutasi Rekening
               </span>
-              <span className="px-2 py-0.5 rounded-sm bg-background/80 border border-border text-foreground font-medium flex items-center gap-1.5 shadow-2xs">
+              <span className="px-2 py-0.5 rounded-md bg-background/80 border border-border text-foreground font-medium flex items-center gap-1.5 shadow-2xs">
                 <GeometricIcon name="ledgers" size="xs" active />
                 Excel (.xlsx) &amp; CSV
               </span>
-              <span className="px-2 py-0.5 rounded-sm bg-background/80 border border-border text-foreground font-medium flex items-center gap-1.5 shadow-2xs">
+              <span className="px-2 py-0.5 rounded-md bg-background/80 border border-border text-foreground font-medium flex items-center gap-1.5 shadow-2xs">
                 <GeometricIcon name="ai" size="xs" active />
                 Foto Struk Kasir
               </span>
@@ -914,7 +1044,7 @@ export default function OverviewPage() {
 
           <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end gap-2 shrink-0">
             <Link href="/import">
-              <Button className="rounded-md bg-primary hover:bg-[#047857] text-white font-bold text-xs sm:text-sm px-4 py-2 shadow-xs gap-2 active:scale-95 transition-all">
+              <Button className="rounded-xl bg-primary hover:bg-[#047857] text-white font-bold text-xs sm:text-sm px-4 py-2 shadow-xs gap-2 active:scale-95 transition-all">
                 <GeometricIcon name="import" size="xs" active />
                 <span>Impor Berkas</span>
                 <ArrowRight className="h-4 w-4" />
@@ -923,7 +1053,7 @@ export default function OverviewPage() {
 
             <Link
               href="/import?tab=tutorial"
-              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-background/60 border border-border"
+              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-background/60 border border-border"
             >
               <HelpCircle className="h-3.5 w-3.5" />
               <span>Format file yang didukung</span>
@@ -940,8 +1070,8 @@ export default function OverviewPage() {
         data-tour="overview-habit-stats"
         className="grid grid-cols-1 sm:grid-cols-3 gap-3"
       >
-        <Card className="p-3.5 rounded-md border-border/80 flex items-center gap-3 shadow-2xs">
-          <div className="h-9 w-9 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+        <Card className="p-4 rounded-2xl border-border/80 flex items-center gap-3 shadow-2xs">
+          <div className="h-9 w-9 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
             <GeometricIcon name="trend-down" size="xs" active />
           </div>
           <div className="min-w-0">
@@ -954,8 +1084,8 @@ export default function OverviewPage() {
           </div>
         </Card>
 
-        <Card className="p-3.5 rounded-md border-border/80 flex items-center gap-3 shadow-2xs">
-          <div className="h-9 w-9 rounded-md bg-secondary text-secondary-foreground flex items-center justify-center shrink-0">
+        <Card className="p-4 rounded-2xl border-border/80 flex items-center gap-3 shadow-2xs">
+          <div className="h-9 w-9 rounded-xl bg-secondary text-secondary-foreground flex items-center justify-center shrink-0">
             <GeometricIcon name="transactions" size="xs" active />
           </div>
           <div className="min-w-0">
@@ -968,10 +1098,10 @@ export default function OverviewPage() {
           </div>
         </Card>
 
-        <Card className="p-3.5 rounded-md border-border/80 flex items-center gap-3 shadow-2xs">
+        <Card className="p-4 rounded-2xl border-border/80 flex items-center gap-3 shadow-2xs">
           <Link
             href="/calendar"
-            className="h-9 w-9 rounded-md bg-secondary text-secondary-foreground flex items-center justify-center shrink-0 hover:bg-primary/20 hover:text-primary transition-colors cursor-pointer"
+            className="h-9 w-9 rounded-xl bg-secondary text-secondary-foreground flex items-center justify-center shrink-0 hover:bg-primary/20 hover:text-primary transition-colors cursor-pointer"
             title="Buka Kalender Transaksi Lengkap"
           >
             <GeometricIcon name="calendar" size="xs" active />
@@ -990,19 +1120,16 @@ export default function OverviewPage() {
       {/* =========================================================================
           3. ALOKASI ASET & GRAFIK AKUN KEUANGAN (Grafik Tampil Langsung di Page) & TREN ARUS KAS
       ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
+      <div data-walker-target="chart" id="walker-target-chart" className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
         {/* Kartu Alokasi & Grafik Rekening Finansial */}
-        <Card className="p-4 sm:p-5 rounded-md border-border/70 shadow-2xs flex flex-col justify-between">
+        <Card className="p-4 sm:p-5 rounded-2xl border-border/80 shadow-2xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-3.5">
               <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center text-secondary-foreground">
+                <div className="h-7 w-7 rounded-xl bg-secondary flex items-center justify-center text-secondary-foreground">
                   <GeometricIcon name="accounts" size="xs" active />
                 </div>
-                <div>
-                  <h3 className="font-extrabold text-sm text-foreground">Grafik &amp; Alokasi Akun</h3>
-                  <p className="text-[11px] text-muted-foreground">Komposisi visual &amp; rincian saldo rekening</p>
-                </div>
+                <h3 className="font-extrabold text-sm text-foreground">Grafik &amp; Alokasi Akun</h3>
               </div>
               <Link
                 href="/accounts"
@@ -1015,7 +1142,7 @@ export default function OverviewPage() {
 
             {/* Donut Chart Visualisasi Komposisi Akun Langsung di Halaman */}
             {accountChartData.length > 0 && (
-              <div className="mb-3.5 p-3 rounded-md bg-muted/20 border border-border/50">
+              <div className="mb-3.5 p-3 rounded-xl bg-muted/20 border border-border/60">
                 <div className="h-40 sm:h-44 w-full flex items-center justify-center relative">
                   <ResponsiveContainer width="100%" height="100%">
                     <RechartsPieChart>
@@ -1029,7 +1156,7 @@ export default function OverviewPage() {
                           borderColor: "var(--border)",
                           fontSize: "11px",
                           fontWeight: "600",
-                          borderRadius: "4px",
+                          borderRadius: "8px",
                         }}
                       />
                       <Pie
@@ -1051,13 +1178,6 @@ export default function OverviewPage() {
                       </Pie>
                     </RechartsPieChart>
                   </ResponsiveContainer>
-
-                  {/* Ikon di Tengah Donut Hole */}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="h-9 w-9 rounded-full bg-card/90 border border-border/60 flex items-center justify-center text-primary shadow-2xs">
-                      <GeometricIcon name="accounts" size="xs" active />
-                    </div>
-                  </div>
                 </div>
 
                 {/* Isi Saldo di Tengah Bawah Grafik */}
@@ -1084,7 +1204,7 @@ export default function OverviewPage() {
                   <Link
                     key={acc.id}
                     href="/accounts"
-                    className="group flex flex-col gap-1.5 p-2 rounded-md hover:bg-muted/50 transition-colors"
+                    className="group flex flex-col gap-1.5 p-2 rounded-xl hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2 font-bold text-foreground">
@@ -1092,7 +1212,7 @@ export default function OverviewPage() {
                           className="h-2 w-2 rounded-full shrink-0"
                           style={{ backgroundColor: color }}
                         />
-                        <div className="h-6 w-6 rounded-md bg-secondary flex items-center justify-center shrink-0">
+                        <div className="h-6 w-6 rounded-lg bg-secondary flex items-center justify-center shrink-0">
                           <GeometricIcon name="accounts" size="xs" active />
                         </div>
                         <span className="capitalize">{acc.name}</span>
@@ -1104,14 +1224,14 @@ export default function OverviewPage() {
                         <span className="font-extrabold text-foreground">
                           {formatCurrency(acc.balance, acc.currency)}
                         </span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm bg-secondary text-primary">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary text-primary">
                           {acc.percent}%
                         </span>
                         <ChevronRightIcon className="h-3.5 w-3.5 text-muted-foreground/60 group-hover:text-primary transition-colors" />
                       </div>
                     </div>
                     {/* Visual Progress Bar */}
-                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{
@@ -1134,17 +1254,14 @@ export default function OverviewPage() {
         </Card>
 
         {/* Tren Arus Kas Bulanan */}
-        <Card className="p-4 sm:p-5 rounded-md border-border/70 shadow-2xs flex flex-col justify-between">
+        <Card className="p-4 sm:p-5 rounded-2xl border-border/80 shadow-2xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-3.5">
               <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center text-secondary-foreground">
+                <div className="h-7 w-7 rounded-xl bg-secondary flex items-center justify-center text-secondary-foreground">
                   <GeometricIcon name="annual-report" size="xs" active />
                 </div>
-                <div>
-                  <h3 className="font-extrabold text-sm text-foreground">Tren Arus Kas (6 Bulan)</h3>
-                  <p className="text-[11px] text-muted-foreground">Perbandingan pemasukan &amp; pengeluaran</p>
-                </div>
+                <h3 className="font-extrabold text-sm text-foreground">Tren Arus Kas (6 Bulan)</h3>
               </div>
               <Link href="/analytics" className="text-xs text-primary hover:underline font-bold">
                 Detail
@@ -1167,7 +1284,7 @@ export default function OverviewPage() {
                       const exp = (payload.find((p) => p.dataKey === "expense")?.value as number) || 0;
                       const net = inc - exp;
                       return (
-                        <div className="rounded-md border border-border bg-card p-2.5 shadow-md text-xs flex flex-col gap-1 min-w-[150px]">
+                        <div className="rounded-xl border border-border bg-card p-2.5 shadow-md text-xs flex flex-col gap-1 min-w-[150px]">
                           <div className="font-extrabold text-foreground pb-1 border-b border-border/60">
                             {label}
                           </div>
@@ -1203,94 +1320,7 @@ export default function OverviewPage() {
         </Card>
       </div>
 
-      {/* =========================================================================
-          4. TRANSAKSI TERBARU (Mobile Feed Card)
-      ========================================================================= */}
-      <Card className="p-4 sm:p-5 rounded-md border-border/70 shadow-2xs">
-        <div className="flex items-center justify-between mb-3.5">
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center text-secondary-foreground">
-              <GeometricIcon name="transactions" size="xs" active />
-            </div>
-            <div>
-              <h3 className="font-extrabold text-sm text-foreground">Transaksi Terakhir</h3>
-              <p className="text-[11px] text-muted-foreground">Catatan keuangan paling baru</p>
-            </div>
-          </div>
-          <Link
-            href="/transactions"
-            className="text-xs text-primary hover:underline font-bold flex items-center gap-1"
-          >
-            Lihat Semua <ChevronRightIcon className="h-3.5 w-3.5" />
-          </Link>
-        </div>
 
-        <div className="divide-y divide-border/60">
-          {recentDisplayList.map((tx: any) => {
-            const isExpense = tx.txType === "expense";
-            const isIncome = tx.txType === "income";
-
-            return (
-              <div
-                key={tx.id}
-                className="py-2.5 flex items-center justify-between gap-3 text-xs hover:bg-muted/30 px-2 rounded-md transition-colors"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div
-                    className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 ${
-                      isIncome
-                        ? "bg-secondary text-secondary-foreground"
-                        : isExpense
-                        ? "bg-rose-500/10 text-rose-600"
-                        : "bg-muted text-foreground"
-                    }`}
-                  >
-                    {isIncome && <GeometricIcon name="trend-up" size="xs" active />}
-                    {isExpense && <GeometricIcon name="trend-down" size="xs" active />}
-                    {!isIncome && !isExpense && <GeometricIcon name="accounts" size="xs" active />}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-bold text-foreground truncate">
-                      {tx.categoryName || tx.note || "Transaksi Umum"}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground flex items-center gap-2">
-                      <span>{formatDate(tx.happenedAt)}</span>
-                      <span>•</span>
-                      <span className="capitalize">{tx.accountName || "Kas"}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-right shrink-0">
-                  <div
-                    className={`font-black text-sm ${
-                      isIncome
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : isExpense
-                        ? "text-foreground"
-                        : "text-blue-600"
-                    }`}
-                  >
-                    {isIncome ? "+" : isExpense ? "-" : ""}
-                    {formatCurrency(tx.amount, tx.currency)}
-                  </div>
-                  {tx.note && tx.categoryName && (
-                    <div className="text-[10px] text-muted-foreground truncate max-w-36">
-                      {tx.note}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {recentDisplayList.length === 0 && (
-            <div className="py-8 text-center text-xs text-muted-foreground">
-              Belum ada transaksi tercatat di periode <strong>{periodLabel}</strong>. Klik <strong>+ Catat Transaksi</strong> untuk memulai.
-            </div>
-          )}
-        </div>
-      </Card>
 
       {/* =========================================================================
           4.5. HEATMAP AKTIVITAS BULANAN (Data yearHeatmap)
@@ -1301,7 +1331,7 @@ export default function OverviewPage() {
           Carousel 4 Halaman (3 Bulan per Halaman) • Simple, Ringan, User-Friendly
       ========================================================================= */}
       {heatmapData && heatmapData.length > 0 && (
-        <Card data-tour="overview-heatmap" className="mt-6 sm:mt-8 p-4 sm:p-6 rounded-md border-border/70 shadow-2xs bg-card">
+        <Card data-tour="overview-heatmap" className="mt-6 sm:mt-8 p-4 sm:p-6 rounded-2xl border-border/80 shadow-2xs bg-card">
           {/* Header Section dengan Navigasi Carousel & Kuartal */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4 pb-3 border-b border-border/60">
             <div className="flex items-center gap-2.5">
@@ -1339,12 +1369,9 @@ export default function OverviewPage() {
                       <ChevronRight className="h-3 w-3" />
                     </button>
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm bg-secondary text-secondary-foreground">
-                    Hal {heatmapPage + 1} / 4
-                  </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {quarterMetadata[heatmapPage]?.title} ({quarterMetadata[heatmapPage]?.range}) • Pilih bulan langsung di bawah atau geser carousel
+                  {quarterMetadata[heatmapPage]?.title} ({quarterMetadata[heatmapPage]?.range})
                 </p>
               </div>
             </div>
@@ -1540,7 +1567,7 @@ export default function OverviewPage() {
 
                           {/* Bottom Row: Arus Kas Bersih */}
                           <div className="pt-2 border-t border-border/50 flex items-center justify-between gap-2 mt-auto">
-                            <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                            <span className="text-[10px] font-semibold text-muted-foreground">
                               Arus Kas Bersih
                             </span>
                             <span
@@ -1568,7 +1595,7 @@ export default function OverviewPage() {
           {/* Footer Carousel: Indicator Dots & Page Quick Navigation */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 pt-3 border-t border-border/60 text-xs">
             <div className="text-muted-foreground font-medium text-center sm:text-left text-[11px]">
-              Menampilkan <span className="text-foreground font-bold">Halaman {heatmapPage + 1} dari 4</span> ({quarterMetadata[heatmapPage]?.range})
+              Menampilkan <span className="text-foreground font-bold">{quarterMetadata[heatmapPage]?.title}</span> ({quarterMetadata[heatmapPage]?.range})
             </div>
 
             {/* Interactive Carousel Dots */}
@@ -1614,9 +1641,9 @@ export default function OverviewPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Top Pengeluaran */}
-          <Card data-tour="overview-expense-ranks" className="p-4 sm:p-5 rounded-md border-border/80 shadow-2xs">
+          <Card data-tour="overview-expense-ranks" className="p-4 sm:p-5 rounded-2xl border-border/80 shadow-2xs">
             <div className="flex items-center justify-between mb-3 border-b border-border/60 pb-2">
-              <span className="font-extrabold text-xs uppercase tracking-wider text-rose-600 flex items-center gap-1.5">
+              <span className="font-bold text-xs text-rose-600 flex items-center gap-1.5">
                 <GeometricIcon name="trend-down" size="xs" active /> Pengeluaran Teratas
               </span>
               <span className="text-xs font-bold text-foreground">
@@ -1639,7 +1666,7 @@ export default function OverviewPage() {
                       percent: rank.percent,
                     })
                   }
-                  className="flex flex-col gap-1 text-xs text-left p-2 rounded-md hover:bg-muted/50 transition-all cursor-pointer group"
+                  className="flex flex-col gap-1 text-xs text-left p-2 rounded-xl hover:bg-muted/50 transition-all cursor-pointer group"
                   title={`Klik untuk melihat detail transaksi kategori ${rank.name}`}
                 >
                   <div className="flex items-center justify-between">
@@ -1649,12 +1676,12 @@ export default function OverviewPage() {
                     </span>
                     <span className="font-extrabold text-foreground flex items-center">
                       {formatCurrency(rank.total)}
-                      <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-sm bg-rose-500/10 text-rose-600 dark:text-rose-400 ml-1.5">
+                      <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 ml-1.5">
                         {rank.percent}%
                       </span>
                     </span>
                   </div>
-                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                     <div
                       className="h-full rounded-full bg-rose-500 group-hover:bg-rose-600 transition-colors"
                       style={{ width: `${rank.percent}%` }}
@@ -1672,9 +1699,9 @@ export default function OverviewPage() {
           </Card>
 
           {/* Top Pemasukan */}
-          <Card className="p-4 sm:p-5 rounded-md border-border/80 shadow-2xs">
+          <Card className="p-4 sm:p-5 rounded-2xl border-border/80 shadow-2xs">
             <div className="flex items-center justify-between mb-3 border-b border-border/60 pb-2">
-              <span className="font-extrabold text-xs uppercase tracking-wider text-primary flex items-center gap-1.5">
+              <span className="font-bold text-xs text-primary flex items-center gap-1.5">
                 <GeometricIcon name="trend-up" size="xs" active /> Pemasukan Teratas
               </span>
               <span className="text-xs font-bold text-foreground">
@@ -1697,7 +1724,7 @@ export default function OverviewPage() {
                       percent: rank.percent,
                     })
                   }
-                  className="flex flex-col gap-1 text-xs text-left p-2 rounded-md hover:bg-muted/50 transition-all cursor-pointer group"
+                  className="flex flex-col gap-1 text-xs text-left p-2 rounded-xl hover:bg-muted/50 transition-all cursor-pointer group"
                   title={`Klik untuk melihat detail transaksi kategori ${rank.name}`}
                 >
                   <div className="flex items-center justify-between">
@@ -1707,12 +1734,12 @@ export default function OverviewPage() {
                     </span>
                     <span className="font-extrabold text-foreground flex items-center">
                       {formatCurrency(rank.total)}
-                      <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-sm bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ml-1.5">
+                      <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ml-1.5">
                         {rank.percent}%
                       </span>
                     </span>
                   </div>
-                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                     <div
                       className="h-full rounded-full bg-primary group-hover:bg-primary/90 transition-colors"
                       style={{ width: `${rank.percent}%` }}

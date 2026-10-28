@@ -293,7 +293,7 @@ export default function TransactionsPage() {
       </div>
 
       {/* Filter and Search Toolbar */}
-      <Card className="p-4 space-y-3.5 shadow-sm">
+      <Card className="p-4 space-y-3.5 rounded-2xl border-border/80 shadow-2xs">
         {/* Row 1: Search & Type Pills */}
         <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
           {/* Search Input */}
@@ -578,8 +578,8 @@ export default function TransactionsPage() {
           </div>
         </div>
 
-        {/* Row 3: Summary KPI / Ringkasan Arus Kas */}
-        <div className="pt-2.5 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+        {/* Row 3: Info Jumlah Transaksi & Rentang Waktu */}
+        <div className="pt-2 border-t border-border flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="font-semibold text-[11px] bg-background">
               {summary.count} Transaksi
@@ -587,33 +587,6 @@ export default function TransactionsPage() {
             <span className="text-muted-foreground text-[11px]">
               Rentang: <span className="font-medium text-foreground">{periodLabel}</span>
             </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 font-medium text-[11px] sm:text-xs">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-              <GeometricIcon name="trend-up" size="xs" active />
-              <span>Masuk:</span>
-              <span className="font-bold">+{formatCurrency(summary.income)}</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-              <GeometricIcon name="trend-down" size="xs" active />
-              <span>Keluar:</span>
-              <span className="font-bold">-{formatCurrency(summary.expense)}</span>
-            </div>
-            <div
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-sm font-bold border ${
-                summary.net >= 0
-                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                  : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
-              }`}
-            >
-              <GeometricIcon name="sparkles" size="xs" active />
-              <span>Arus Kas:</span>
-              <span>
-                {summary.net > 0 ? "+" : ""}
-                {formatCurrency(summary.net)}
-              </span>
-            </div>
           </div>
         </div>
 
@@ -662,25 +635,25 @@ export default function TransactionsPage() {
           return (
             <Card
               key={tx.id}
-              className={`p-3 rounded-md transition-all border-border/70 shadow-2xs ${
+              className={`p-3.5 rounded-2xl transition-all border-border/80 shadow-2xs ${
                 isSelected ? "border-primary bg-primary/5" : "bg-card"
               }`}
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2.5 min-w-0">
+                <div className="flex items-start gap-3 min-w-0">
                   <input
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => toggleSelectOne(tx.id)}
-                    className="rounded-xs border-input h-3.5 w-3.5 text-primary focus:ring-primary mt-1"
+                    className="rounded border-input h-4 w-4 text-primary focus:ring-primary mt-1.5 cursor-pointer"
                   />
                   <div
-                    className={`h-8 w-8 rounded-md flex items-center justify-center shrink-0 ${
+                    className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
                       isIncome
-                        ? "bg-emerald-500/15 text-emerald-600"
+                        ? "bg-secondary text-secondary-foreground"
                         : isExpense
-                        ? "bg-rose-500/15 text-rose-600"
-                        : "bg-blue-500/15 text-blue-600"
+                        ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                        : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
                     }`}
                   >
                     {isIncome && <TrendingUp className="h-4 w-4" />}
@@ -688,10 +661,10 @@ export default function TransactionsPage() {
                     {!isIncome && !isExpense && <ArrowUpDown className="h-4 w-4" />}
                   </div>
                   <div className="min-w-0">
-                    <div className="font-bold text-xs text-foreground truncate">
+                    <div className="font-bold text-xs sm:text-sm text-foreground truncate">
                       {tx.note || tx.categoryName || "Transaksi"}
                     </div>
-                    <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                    <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5 truncate">
                       <span>{tx.categoryName || "Umum"}</span>
                       <span>•</span>
                       <span className="font-semibold uppercase text-foreground/80">{tx.accountName || "-"}</span>
@@ -704,7 +677,7 @@ export default function TransactionsPage() {
 
                 <div className="text-right shrink-0 flex flex-col items-end gap-1">
                   <span
-                    className={`font-black text-xs sm:text-sm font-mono tabular-nums ${
+                    className={`font-black text-sm font-mono tabular-nums ${
                       isExpense
                         ? "text-foreground"
                         : isIncome
@@ -720,7 +693,7 @@ export default function TransactionsPage() {
                     <button
                       onClick={() => setEditingTx(tx as any)}
                       aria-label="Edit Transaksi"
-                      className="h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-[#059669] hover:bg-emerald-500/10 active:scale-95 transition-all"
+                      className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-muted active:scale-95 transition-all cursor-pointer"
                       title="Edit Transaksi"
                     >
                       <Pencil className="h-3.5 w-3.5" />
@@ -728,7 +701,7 @@ export default function TransactionsPage() {
                     <button
                       onClick={() => handleDelete(tx.id)}
                       aria-label="Hapus Transaksi"
-                      className="h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 active:scale-95 transition-all"
+                      className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 active:scale-95 transition-all cursor-pointer"
                       title="Hapus Transaksi"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -737,6 +710,7 @@ export default function TransactionsPage() {
                 </div>
               </div>
             </Card>
+
           );
         })}
 
