@@ -25,6 +25,7 @@ import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 export default function LoginPage() {
   const router = useRouter();
   const { t, locale } = useTranslation();
+  const isEn = locale === "en";
   const [activeTab, setActiveTab] = useState<"login" | "register">("login");
 
   // Form states
@@ -58,18 +59,42 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error || "Gagal masuk. Periksa kembali email dan kata sandi Anda.");
+        setErrorMessage(
+          data.error ||
+            (isEn
+              ? "Failed to log in. Please check your email and password."
+              : "Gagal masuk. Periksa kembali email dan kata sandi Anda.")
+        );
         setIsLoading(false);
         return;
       }
 
-      setSuccessMessage("Berhasil masuk! Mengarahkan ke halaman ringkasan...");
+      if (email.toLowerCase().trim() === "owner@finiq.app") {
+        try {
+          sessionStorage.setItem("finiq_demo_tour_trigger", "true");
+          sessionStorage.removeItem("finiq_demo_session_welcomed");
+          localStorage.removeItem("finiq_tour_completed");
+          localStorage.removeItem("finiq_tour_welcomed");
+          localStorage.removeItem("finiq_tech_tour_completed");
+          localStorage.removeItem("finiq_tour_choice");
+        } catch {}
+      }
+
+      setSuccessMessage(
+        isEn
+          ? "Signed in successfully! Redirecting to overview..."
+          : "Berhasil masuk! Mengarahkan ke halaman ringkasan..."
+      );
       setTimeout(() => {
         router.push("/overview");
         router.refresh();
       }, 700);
     } catch {
-      setErrorMessage("Terjadi gangguan koneksi. Silakan coba lagi.");
+      setErrorMessage(
+        isEn
+          ? "Connection error. Please try again."
+          : "Terjadi gangguan koneksi. Silakan coba lagi."
+      );
       setIsLoading(false);
     }
   };
@@ -80,12 +105,20 @@ export default function LoginPage() {
     setSuccessMessage(null);
 
     if (password !== confirmPassword) {
-      setErrorMessage("Konfirmasi kata sandi tidak cocok.");
+      setErrorMessage(
+        isEn
+          ? "Password confirmation does not match."
+          : "Konfirmasi kata sandi tidak cocok."
+      );
       return;
     }
 
     if (password.length < 6) {
-      setErrorMessage("Kata sandi minimal harus 6 karakter.");
+      setErrorMessage(
+        isEn
+          ? "Password must be at least 6 characters."
+          : "Kata sandi minimal harus 6 karakter."
+      );
       return;
     }
 
@@ -106,18 +139,31 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        setErrorMessage(data.error || "Pendaftaran gagal. Silakan coba lagi.");
+        setErrorMessage(
+          data.error ||
+            (isEn
+              ? "Registration failed. Please try again."
+              : "Pendaftaran gagal. Silakan coba lagi.")
+        );
         setIsLoading(false);
         return;
       }
 
-      setSuccessMessage("Akun berhasil dibuat! Mengalihkan ke dashboard...");
+      setSuccessMessage(
+        isEn
+          ? "Account created successfully! Redirecting to dashboard..."
+          : "Akun berhasil dibuat! Mengalihkan ke dashboard..."
+      );
       setTimeout(() => {
         router.push("/overview");
         router.refresh();
       }, 700);
     } catch {
-      setErrorMessage("Terjadi gangguan jaringan saat mendaftarkan akun.");
+      setErrorMessage(
+        isEn
+          ? "Network error while registering account."
+          : "Terjadi gangguan jaringan saat mendaftarkan akun."
+      );
       setIsLoading(false);
     }
   };
@@ -139,17 +185,36 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (data.success) {
-        setSuccessMessage("Masuk sebagai Akun Demo (Owner). Membuka dashboard...");
+        try {
+          sessionStorage.setItem("finiq_demo_tour_trigger", "true");
+          sessionStorage.removeItem("finiq_demo_session_welcomed");
+          localStorage.removeItem("finiq_tour_completed");
+          localStorage.removeItem("finiq_tour_welcomed");
+          localStorage.removeItem("finiq_tech_tour_completed");
+          localStorage.removeItem("finiq_tour_choice");
+        } catch {}
+
+        setSuccessMessage(
+          isEn
+            ? "Signed in as Demo Account (Owner). Opening dashboard..."
+            : "Masuk sebagai Akun Demo (Owner). Membuka dashboard..."
+        );
         setTimeout(() => {
           router.push("/overview");
           router.refresh();
         }, 600);
       } else {
-        setErrorMessage(data.error || "Gagal masuk akun demo.");
+        setErrorMessage(
+          data.error || (isEn ? "Failed to sign in to demo account." : "Gagal masuk akun demo.")
+        );
         setIsLoading(false);
       }
     } catch {
-      setErrorMessage("Terjadi kendala saat menghubungkan akun demo.");
+      setErrorMessage(
+        isEn
+          ? "Error connecting demo account."
+          : "Terjadi kendala saat menghubungkan akun demo."
+      );
       setIsLoading(false);
     }
   };
@@ -243,7 +308,7 @@ export default function LoginPage() {
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="email"
-                    placeholder="nama@email.com"
+                    placeholder="name@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-9 h-10 text-xs rounded-[10px]"
@@ -253,7 +318,9 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="font-semibold text-foreground block mb-1">Kata Sandi</label>
+                <label className="font-semibold text-foreground block mb-1">
+                  {isEn ? "Password" : "Kata Sandi"}
+                </label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -280,14 +347,20 @@ export default function LoginPage() {
                 disabled={isLoading}
                 className="w-full bg-[#059669] hover:bg-[#047857] text-white h-10 font-semibold text-xs rounded-[10px] shadow-level-1 mt-2 transition-all active:scale-[0.99]"
               >
-                {isLoading ? "Memproses..." : "Masuk ke Fin.IQ"}
+                {isLoading
+                  ? isEn
+                    ? "Processing..."
+                    : "Memproses..."
+                  : isEn
+                  ? "Sign In to Fin.IQ"
+                  : "Masuk ke Fin.IQ"}
               </Button>
 
               {/* Quick Demo Section */}
               <div className="relative flex py-2 items-center">
                 <div className="flex-grow border-t border-border/60"></div>
                 <span className="flex-shrink mx-3 text-[10px] uppercase text-muted-foreground font-semibold">
-                  Akses Demo Cepat
+                  {isEn ? "Quick Demo Access" : "Akses Demo Cepat"}
                 </span>
                 <div className="flex-grow border-t border-border/60"></div>
               </div>
@@ -300,19 +373,21 @@ export default function LoginPage() {
                 className="w-full h-10 text-xs font-semibold gap-2 border border-border/80 text-[#064E3B] bg-[#A7F3D0]/20 hover:bg-[#A7F3D0]/35 rounded-[10px]"
               >
                 <GeometricIcon name="sparkles" className="h-3.5 w-3.5" />
-                Masuk Akun Demo (Owner)
+                {isEn ? "Sign In Demo Account (Owner)" : "Masuk Akun Demo (Owner)"}
               </Button>
             </form>
           ) : (
             /* Form: REGISTER */
             <form onSubmit={handleRegister} className="space-y-3.5 text-xs">
               <div>
-                <label className="font-semibold text-foreground block mb-1">Nama Lengkap</label>
+                <label className="font-semibold text-foreground block mb-1">
+                  {isEn ? "Full Name" : "Nama Lengkap"}
+                </label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="text"
-                    placeholder="Contoh: Jordan"
+                    placeholder={isEn ? "e.g. Jordan" : "Contoh: Jordan"}
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     className="pl-9 h-10 text-xs rounded-[10px]"
@@ -327,7 +402,7 @@ export default function LoginPage() {
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="email"
-                    placeholder="nama@email.com"
+                    placeholder="name@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-9 h-10 text-xs rounded-[10px]"
@@ -338,12 +413,14 @@ export default function LoginPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold text-foreground block mb-1">Kata Sandi</label>
+                  <label className="font-semibold text-foreground block mb-1">
+                    {isEn ? "Password" : "Kata Sandi"}
+                  </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       type="password"
-                      placeholder="Min. 6 digit"
+                      placeholder={isEn ? "Min. 6 characters" : "Min. 6 digit"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="pl-9 h-10 text-xs rounded-[10px]"
@@ -353,12 +430,14 @@ export default function LoginPage() {
                 </div>
 
                 <div>
-                  <label className="font-semibold text-foreground block mb-1">Ulangi Sandi</label>
+                  <label className="font-semibold text-foreground block mb-1">
+                    {isEn ? "Confirm Password" : "Ulangi Sandi"}
+                  </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       type="password"
-                      placeholder="Konfirmasi"
+                      placeholder={isEn ? "Confirm" : "Konfirmasi"}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       className="pl-9 h-10 text-xs rounded-[10px]"
@@ -369,7 +448,9 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="font-semibold text-foreground block mb-1">Mata Uang Utama</label>
+                <label className="font-semibold text-foreground block mb-1">
+                  {isEn ? "Primary Currency" : "Mata Uang Utama"}
+                </label>
                 <div className="relative">
                   <Coins className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <select
@@ -377,7 +458,7 @@ export default function LoginPage() {
                     onChange={(e) => setCurrency(e.target.value)}
                     className="w-full pl-9 pr-8 h-10 text-xs rounded-md border border-border bg-card text-foreground font-medium shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
-                    <option value="IDR">IDR : Rupiah Indonesia</option>
+                    <option value="IDR">{isEn ? "IDR : Indonesian Rupiah" : "IDR : Rupiah Indonesia"}</option>
                     <option value="USD">USD : US Dollar</option>
                     <option value="SGD">SGD : Singapore Dollar</option>
                     <option value="EUR">EUR : Euro</option>
@@ -391,7 +472,13 @@ export default function LoginPage() {
                 disabled={isLoading}
                 className="w-full bg-[#059669] hover:bg-[#047857] text-white h-10 font-semibold text-xs rounded-[10px] shadow-level-1 mt-2 transition-all active:scale-[0.99]"
               >
-                {isLoading ? "Mendaftarkan..." : "Daftar Akun Baru"}
+                {isLoading
+                  ? isEn
+                    ? "Registering..."
+                    : "Mendaftarkan..."
+                  : isEn
+                  ? "Create New Account"
+                  : "Daftar Akun Baru"}
                 <ArrowRight className="h-4 w-4 ml-1" />
               </Button>
             </form>
@@ -400,7 +487,9 @@ export default function LoginPage() {
 
         {/* Footer info */}
         <p className="text-[11px] text-center text-muted-foreground mt-6">
-          Fin.IQ : Enkripsi end-to-end : Pembukuan kas presisi
+          {isEn
+            ? "Fin.IQ : End-to-end encryption : Precision cash accounting"
+            : "Fin.IQ : Enkripsi end-to-end : Pembukuan kas presisi"}
         </p>
       </div>
     </div>

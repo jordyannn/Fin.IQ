@@ -1,0 +1,68 @@
+================================================================================
+KATALOG LENGKAP FOOTAGE FIN.IQ UNTUK GENERATE DI GOOGLE GEMINI / VIDS / VEO
+Folder Root: public/promo-footage/
+================================================================================
+
+Folder ini telah ditata secara modular per fitur & ekspresi:
+
+📁 01_MASCOT_EKSPRESI_LUCU/
+   ├── SURPLUS_CUAN/
+   │   ├── bang_peci_cuan_koin_emas.png       (Bang Peci tersenyum bangga pegang koin emas)
+   │   ├── bang_peci_badge_cuan_gemerlap.png   (Badge koin emas melayang)
+   │   ├── bang_peci_senyum_bahagia.png        (Muka bahagia berseri-seri)
+   │   ├── bang_peci_hemat_senyum.png          (Ekspresi hemat bijak)
+   │   ├── bang_peci_analisis_kacamata.png     (Kacamata analis data keuangan)
+   │   ├── bang_peci_kas_seimbang.png          (Ekspresi stabil netral)
+   │   └── bang_peci_salam_ramah.png           (Melambaikan tangan menyapa)
+   ├── MINUS_BONCOS/
+   │   ├── bang_peci_boncos_pegang_kepala.png  (Pusing pegang kepala, panik saldo tipis)
+   │   ├── bang_peci_sedih_menangis_defisit.png(Menangis sedih arus kas bocor)
+   │   ├── bang_peci_bingung_dompet_kering.png (Mata cengo uang habis ghaib)
+   │   ├── bang_peci_warning_ekor_tegang.png   (Tanda seru waspada, ekor tegang kasih warning)
+   │   └── bang_peci_rpg_kecewa.png            (Kecewa melihat belanja impulsif)
+   └── ANIMASI_RUTIN/
+       ├── bang_peci_tidur_pulas_kasur.png     (Tidur mendengkur Zzz di kasur bulat)
+       ├── kasur_kucing_kosong.png             (Kasur kosong saat Bang Peci melompat bangun)
+       ├── bang_peci_jalan_step1.png           (Kaki melangkah animasi jalan)
+       ├── bang_peci_jalan_step2.png           (Kaki melangkah langkah kedua)
+       └── logo_bang_peci_official.png         (Badge logo resmi)
+
+📁 02_FITUR_AGEN_CASHFLOW/
+   ├── desktop_overview_dashboard.png          (Dashboard lengkap analitik kas)
+   ├── desktop_card_net_cashflow_surplus.png   (Zoom kartu metrik Net Cash Flow)
+   ├── desktop_bang_peci_interactive_mood_card.png (Card mood: "Alhamdulillah surplus Rp 3.500.000!")
+   └── mobile_overview_cashflow.png            (Tampilan arus kas di layar smartphone)
+
+📁 03_FITUR_AI_ADVISOR/
+   ├── desktop_ai_advisor_studio_full.png      (Layar studio AI konsultasi keuangan)
+   ├── desktop_ai_advisor_prompt_chips.png     (Chips: Audit Pos Boros, Batas Belanja Harian, Alokasi Tabungan)
+   └── mobile_ai_advisor_chat.png              (Chat AI konsultasi di smartphone)
+
+📁 04_FITUR_VOICE_TRANSACTION/
+   ├── desktop_modal_catat_transaksi.png       (Dialog input transaksi dengan mic AI)
+   ├── desktop_toolbar_dikte_suara_ai.png      (Zoom tombol Dikte Suara dengan ikon Mic)
+   └── mobile_voice_quick_add_modal.png        (Input suara versi mobile)
+
+📁 05_FITUR_FOTO_BILLS_OCR/
+   ├── desktop_modal_catat_transaksi.png       (Modal dengan tombol Kamera & Galeri Struk)
+   ├── desktop_toolbar_kamera_galeri_struk.png (Zoom tombol Kamera & Galeri)
+   └── mobile_bills_quick_add_modal.png        (Scan struk versi mobile PWA)
+
+📁 06_DUAL_VIEW_DESKTOP_MOBILE/
+   ├── desktop_overview_full_dashboard.png     (1920x1080 Retina Desktop Dashboard)
+   └── mobile_overview_pwa_screen.png          (Mobile PWA responsif iPhone 13)
+
+📁 07_FITUR_LENGKAP_LAINNYA/
+   ├── desktop_budgets_progress_monitoring.png (Monitoring anggaran dengan batas belanja progress bar)
+   ├── desktop_accounts_cash_blu_dana.png      (Multi-rekening: Cash, Blu BCA, Dana)
+   ├── desktop_analytics_breakdown_pos.png     (Laporan & diagram persentase pengeluaran)
+   ├── desktop_calendar_mutasi_harian.png      (Kalender mutasi transaksi harian)
+   ├── desktop_import_bank_csv_ocr.png         (Hub impor file CSV dan mutasi rekening)
+   ├── mobile_budgets_monitoring.png           (Anggaran versi smartphone)
+   └── mobile_accounts_cash_blu_dana.png       (Multi-akun versi smartphone)
+
+================================================================================
+PETUNJUK PROMPT DI GOOGLE GEMINI:
+Buka folder terkait, upload gambar screenshot-nya ke Gemini, lalu ketik prompt:
+"Animate this UI screen and combine with the mascot character. Make the mascot react expressively to the financial data. Format 9:16 vertical video."
+================================================================================

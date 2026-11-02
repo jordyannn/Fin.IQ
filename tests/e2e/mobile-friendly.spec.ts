@@ -26,7 +26,6 @@ const PAGES_TO_TEST = [
   { path: "/ledgers", name: "Ledgers" },
   { path: "/import", name: "Import" },
   { path: "/settings", name: "Settings" },
-  { path: "/integrity", name: "Integrity" },
 ];
 
 async function checkNoHorizontalOverflow(page: Page, pageName: string, viewportName: string) {

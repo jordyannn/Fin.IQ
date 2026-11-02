@@ -42,7 +42,8 @@ export default function TransactionsPage() {
   const utils = trpc.useUtils();
   const confirm = useConfirm();
   const alert = useAlert();
-  const { t, formatCurrency, formatDateTime } = useTranslation();
+  const { t, locale, formatCurrency, formatDateTime } = useTranslation();
+  const isEn = locale === "en";
 
   // Filters state
   const [search, setSearch] = useState("");
@@ -77,8 +78,8 @@ export default function TransactionsPage() {
 
   // Date calculation
   const { dateFrom, dateTo, periodLabel } = useMemo(() => {
-    return computeDateRange(datePreset, currentMonth, customDateFrom, customDateTo);
-  }, [datePreset, currentMonth, customDateFrom, customDateTo]);
+    return computeDateRange(datePreset, currentMonth, customDateFrom, customDateTo, locale);
+  }, [datePreset, currentMonth, customDateFrom, customDateTo, locale]);
 
   // Main Transaction Query with all filters
   const { data: txData, isLoading, refetch } = trpc.transactions.list.useQuery({
@@ -176,9 +177,11 @@ export default function TransactionsPage() {
 
   const handleDelete = async (id: string) => {
     const ok = await confirm({
-      title: "Hapus Transaksi?",
-      description: "Transaksi ini akan dihapus secara permanen dan saldo akun Anda akan disesuaikan otomatis.",
-      confirmText: "Hapus Transaksi",
+      title: isEn ? "Delete Transaction?" : "Hapus Transaksi?",
+      description: isEn
+        ? "This transaction will be permanently deleted and your account balance will be adjusted automatically."
+        : "Transaksi ini akan dihapus secara permanen dan saldo akun Anda akan disesuaikan otomatis.",
+      confirmText: isEn ? "Delete Transaction" : "Hapus Transaksi",
       variant: "destructive",
       icon: "trash",
     });
@@ -190,9 +193,11 @@ export default function TransactionsPage() {
   const handleBatchDelete = async () => {
     if (selectedIds.length === 0) return;
     const ok = await confirm({
-      title: `Hapus ${selectedIds.length} Transaksi Terpilih?`,
-      description: `Apakah Anda yakin ingin menghapus ${selectedIds.length} transaksi sekaligus? Tindakan ini tidak dapat dibatalkan.`,
-      confirmText: `Hapus ${selectedIds.length} Transaksi`,
+      title: isEn ? `Delete ${selectedIds.length} Selected Transactions?` : `Hapus ${selectedIds.length} Transaksi Terpilih?`,
+      description: isEn
+        ? `Are you sure you want to delete ${selectedIds.length} transactions at once? This action cannot be undone.`
+        : `Apakah Anda yakin ingin menghapus ${selectedIds.length} transaksi sekaligus? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: isEn ? `Delete ${selectedIds.length} Transactions` : `Hapus ${selectedIds.length} Transaksi`,
       variant: "destructive",
       icon: "trash",
     });
@@ -221,15 +226,19 @@ export default function TransactionsPage() {
   const handleExportCSV = () => {
     if (!txData?.items || txData.items.length === 0) {
       alert({
-        title: "Tidak Ada Transaksi",
-        description: "Tidak ada transaksi yang dapat diekspor sesuai filter saat ini.",
+        title: isEn ? "No Transactions" : "Tidak Ada Transaksi",
+        description: isEn
+          ? "There are no transactions to export matching current filters."
+          : "Tidak ada transaksi yang dapat diekspor sesuai filter saat ini.",
         variant: "info",
         icon: "info",
       });
       return;
     }
 
-    const headers = ["ID", "Waktu", "Tipe", "Nominal", "Mata Uang", "Akun", "Kategori", "Catatan"];
+    const headers = isEn
+      ? ["ID", "Time", "Type", "Amount", "Currency", "Account", "Category", "Memo"]
+      : ["ID", "Waktu", "Tipe", "Nominal", "Mata Uang", "Akun", "Kategori", "Catatan"];
     const rows = txData.items.map((tx) => [
       tx.id,
       new Date(tx.happenedAt).toISOString(),
@@ -283,7 +292,7 @@ export default function TransactionsPage() {
             className="gap-2 text-xs rounded-md shrink-0"
           >
             <GeometricIcon name="ai" size="xs" active />
-            Scan Struk
+            {isEn ? "Scan Receipt" : "Scan Struk"}
           </Button>
           <Button size="sm" onClick={openQuickAdd} className="bg-primary hover:bg-[#047857] text-white gap-2 text-xs shadow-xs rounded-md font-bold shrink-0">
             <Plus className="h-4 w-4 stroke-[3px]" />
@@ -311,7 +320,7 @@ export default function TransactionsPage() {
                 type="button"
                 onClick={() => setSearch("")}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded"
-                title="Hapus pencarian"
+                title={isEn ? "Clear search" : "Hapus pencarian"}
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -375,8 +384,8 @@ export default function TransactionsPage() {
                   ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/20"
                   : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 active:scale-95 cursor-pointer"
               }`}
-              title="Buka Pemilih Bulan & Kalender Langsung"
-              aria-label="Pilih Bulan Kalender"
+              title={isEn ? "Open Month & Calendar Picker" : "Buka Pemilih Bulan & Kalender Langsung"}
+              aria-label={isEn ? "Select Calendar Month" : "Pilih Bulan Kalender"}
             >
               <Calendar className="h-3.5 w-3.5" />
             </button>
@@ -388,14 +397,14 @@ export default function TransactionsPage() {
               }}
               className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground shrink-0"
             >
-              <option value="this_month">Bulan Ini</option>
-              <option value="today">Hari Ini</option>
-              <option value="last_7_days">7 Hari</option>
-              <option value="last_30_days">30 Hari</option>
-              <option value="last_month">Bulan Lalu</option>
-              <option value="this_year">Tahun Ini</option>
-              <option value="all">Semua</option>
-              <option value="custom">Kustom</option>
+              <option value="this_month">{t.dateFilter.thisMonth}</option>
+              <option value="today">{t.dateFilter.today}</option>
+              <option value="last_7_days">{t.dateFilter.last7Days}</option>
+              <option value="last_30_days">{t.dateFilter.last30Days}</option>
+              <option value="last_month">{t.dateFilter.lastMonth}</option>
+              <option value="this_year">{t.dateFilter.thisYear}</option>
+              <option value="all">{t.dateFilter.all}</option>
+              <option value="custom">{t.dateFilter.custom}</option>
             </select>
 
             {/* MonthYearPicker Dropdown saat preset BUKAN this_month tapi tombol kalender diklik */}
@@ -421,7 +430,7 @@ export default function TransactionsPage() {
                 size="icon"
                 className="h-6 w-6 text-muted-foreground hover:text-foreground cursor-pointer"
                 onClick={handlePrevMonth}
-                title="Bulan sebelumnya"
+                title={isEn ? "Previous month" : "Bulan sebelumnya"}
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
@@ -431,7 +440,7 @@ export default function TransactionsPage() {
                 type="button"
                 onClick={() => setIsMonthPickerOpen((prev) => !prev)}
                 className="flex items-center gap-1 px-2 py-0.5 text-xs font-bold capitalize rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-foreground select-none group cursor-pointer"
-                title="Klik untuk memilih bulan secara langsung dari kalender"
+                title={isEn ? "Click to directly select month from calendar" : "Klik untuk memilih bulan secara langsung dari kalender"}
               >
                 <CalendarDays className="h-3 w-3 text-primary group-hover:scale-105 transition-transform" />
                 <span className="min-w-[80px] text-center">{periodLabel}</span>
@@ -443,7 +452,7 @@ export default function TransactionsPage() {
                 size="icon"
                 className="h-6 w-6 text-muted-foreground hover:text-foreground cursor-pointer"
                 onClick={handleNextMonth}
-                title="Bulan berikutnya"
+                title={isEn ? "Next month" : "Bulan berikutnya"}
               >
                 <ChevronRight className="h-3.5 w-3.5" />
               </Button>
@@ -452,9 +461,9 @@ export default function TransactionsPage() {
                 <button
                   onClick={handleResetMonth}
                   className="px-1.5 py-0.5 text-[10px] font-medium text-primary hover:underline border-l border-border/60 pl-2 cursor-pointer whitespace-nowrap"
-                  title="Kembali ke bulan saat ini"
+                  title={isEn ? "Back to current month" : "Kembali ke bulan saat ini"}
                 >
-                  Bulan Ini
+                  {isEn ? "This Month" : "Bulan Ini"}
                 </button>
               )}
 
@@ -480,7 +489,7 @@ export default function TransactionsPage() {
                 value={customDateFrom}
                 onChange={(e) => setCustomDateFrom(e.target.value)}
                 className="h-8 text-xs w-32 px-2"
-                placeholder="Dari"
+                placeholder={isEn ? "From" : "Dari"}
               />
               <span className="text-muted-foreground text-[11px]">-</span>
               <Input
@@ -488,7 +497,7 @@ export default function TransactionsPage() {
                 value={customDateTo}
                 onChange={(e) => setCustomDateTo(e.target.value)}
                 className="h-8 text-xs w-32 px-2"
-                placeholder="Sampai"
+                placeholder={isEn ? "To" : "Sampai"}
               />
             </div>
           )}
@@ -500,7 +509,7 @@ export default function TransactionsPage() {
               onChange={(e) => setSelectedLedgerId(e.target.value || undefined)}
               className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground shrink-0"
             >
-              <option value="">Semua Buku Kas</option>
+              <option value="">{isEn ? "All Ledgers" : "Semua Buku Kas"}</option>
               {ledgersData.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.name}
@@ -515,7 +524,7 @@ export default function TransactionsPage() {
             onChange={(e) => setSelectedAccountId(e.target.value || undefined)}
             className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground shrink-0"
           >
-            <option value="">Semua Akun</option>
+            <option value="">{isEn ? "All Accounts" : "Semua Akun"}</option>
             {accountsData?.accounts?.map((acc) => (
               <option key={acc.id} value={acc.id}>
                 {acc.name.toUpperCase()}
@@ -529,10 +538,10 @@ export default function TransactionsPage() {
             onChange={(e) => setSelectedCategoryId(e.target.value || undefined)}
             className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-semibold shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground shrink-0"
           >
-            <option value="">Semua Kategori</option>
-            <option value="uncategorized">Belum Berkategori</option>
+            <option value="">{isEn ? "All Categories" : "Semua Kategori"}</option>
+            <option value="uncategorized">{isEn ? "Uncategorized" : "Belum Berkategori"}</option>
             {expenseCategories.length > 0 && (
-              <optgroup label="Pengeluaran">
+              <optgroup label={isEn ? "Expense" : "Pengeluaran"}>
                 {expenseCategories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -541,7 +550,7 @@ export default function TransactionsPage() {
               </optgroup>
             )}
             {incomeCategories.length > 0 && (
-              <optgroup label="Pemasukan">
+              <optgroup label={isEn ? "Income" : "Pemasukan"}>
                 {incomeCategories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -558,7 +567,7 @@ export default function TransactionsPage() {
               size="icon"
               onClick={() => refetch()}
               className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
-              title="Perbarui data"
+              title={isEn ? "Refresh data" : "Perbarui data"}
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
@@ -569,10 +578,10 @@ export default function TransactionsPage() {
                 size="sm"
                 onClick={handleResetAllFilters}
                 className="h-8 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 gap-1.5 px-2.5 shrink-0"
-                title="Reset semua filter ke default"
+                title={isEn ? "Reset all filters to default" : "Reset semua filter ke default"}
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                Reset Filter
+                {isEn ? "Reset Filters" : "Reset Filter"}
               </Button>
             )}
           </div>
@@ -582,10 +591,10 @@ export default function TransactionsPage() {
         <div className="pt-2 border-t border-border flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="font-semibold text-[11px] bg-background">
-              {summary.count} Transaksi
+              {summary.count} {isEn ? "Transactions" : "Transaksi"}
             </Badge>
             <span className="text-muted-foreground text-[11px]">
-              Rentang: <span className="font-medium text-foreground">{periodLabel}</span>
+              {isEn ? "Range:" : "Rentang:"} <span className="font-medium text-foreground">{periodLabel}</span>
             </span>
           </div>
         </div>
@@ -594,7 +603,7 @@ export default function TransactionsPage() {
         {selectedIds.length > 0 && (
           <div className="mt-2 flex items-center justify-between rounded-lg bg-primary/10 px-3 py-2 border border-primary/20 text-xs">
             <span className="font-semibold text-primary">
-              {selectedIds.length} transaksi terpilih
+              {selectedIds.length} {isEn ? "transactions selected" : "transaksi terpilih"}
             </span>
             <Button
               variant="destructive"
@@ -603,7 +612,7 @@ export default function TransactionsPage() {
               className="h-7 text-xs gap-1"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Hapus Terpilih
+              {isEn ? "Delete Selected" : "Hapus Terpilih"}
             </Button>
           </div>
         )}
@@ -622,9 +631,9 @@ export default function TransactionsPage() {
               onChange={(e) => handleSelectAll(e.target.checked)}
               className="rounded border-input h-4 w-4 text-primary focus:ring-primary"
             />
-            <span>Pilih Semua ({txData?.items?.length || 0})</span>
+            <span>{isEn ? "Select All" : "Pilih Semua"} ({txData?.items?.length || 0})</span>
           </label>
-          <span>{txData?.items?.length || 0} Transaksi</span>
+          <span>{txData?.items?.length || 0} {isEn ? "Transactions" : "Transaksi"}</span>
         </div>
 
         {txData?.items?.map((tx) => {
@@ -662,10 +671,10 @@ export default function TransactionsPage() {
                   </div>
                   <div className="min-w-0">
                     <div className="font-bold text-xs sm:text-sm text-foreground truncate">
-                      {tx.note || tx.categoryName || "Transaksi"}
+                      {tx.note || tx.categoryName || (isEn ? "Transaction" : "Transaksi")}
                     </div>
                     <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5 truncate">
-                      <span>{tx.categoryName || "Umum"}</span>
+                      <span>{tx.categoryName || (isEn ? "General" : "Umum")}</span>
                       <span>•</span>
                       <span className="font-semibold uppercase text-foreground/80">{tx.accountName || "-"}</span>
                     </div>
@@ -692,17 +701,17 @@ export default function TransactionsPage() {
                   <div className="flex items-center gap-1 mt-0.5">
                     <button
                       onClick={() => setEditingTx(tx as any)}
-                      aria-label="Edit Transaksi"
+                      aria-label={isEn ? "Edit Transaction" : "Edit Transaksi"}
                       className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-muted active:scale-95 transition-all cursor-pointer"
-                      title="Edit Transaksi"
+                      title={isEn ? "Edit Transaction" : "Edit Transaksi"}
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => handleDelete(tx.id)}
-                      aria-label="Hapus Transaksi"
+                      aria-label={isEn ? "Delete Transaction" : "Hapus Transaksi"}
                       className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 active:scale-95 transition-all cursor-pointer"
-                      title="Hapus Transaksi"
+                      title={isEn ? "Delete Transaction" : "Hapus Transaksi"}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -716,7 +725,7 @@ export default function TransactionsPage() {
 
         {(!txData?.items || txData.items.length === 0) && (
           <Card className="p-8 text-center text-xs text-muted-foreground rounded-md flex flex-col items-center justify-center gap-2.5">
-            <span>{isLoading ? "Memuat transaksi..." : "Tidak ada transaksi yang cocok dengan filter."}</span>
+            <span>{isLoading ? (isEn ? "Loading transactions..." : "Memuat transaksi...") : (isEn ? "No transactions match the filter." : "Tidak ada transaksi yang cocok dengan filter.")}</span>
             {!isLoading && isAnyFilterActive && (
               <Button
                 variant="outline"
@@ -725,7 +734,7 @@ export default function TransactionsPage() {
                 className="h-7 text-xs gap-1.5 text-rose-500 hover:text-rose-600 rounded-sm"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                Reset Semua Filter
+                {isEn ? "Reset All Filters" : "Reset Semua Filter"}
               </Button>
             )}
           </Card>
@@ -749,12 +758,12 @@ export default function TransactionsPage() {
                     className="rounded border-input"
                   />
                 </th>
-                <th className="p-3">Waktu</th>
-                <th className="p-3">Kategori & Catatan</th>
-                <th className="p-3">Akun</th>
-                <th className="p-3 text-right">Nominal</th>
-                <th className="p-3 text-center">Tipe</th>
-                <th className="p-3 text-center w-16">Aksi</th>
+                <th className="p-3">{isEn ? "Time" : "Waktu"}</th>
+                <th className="p-3">{isEn ? "Category & Memo" : "Kategori & Catatan"}</th>
+                <th className="p-3">{isEn ? "Account" : "Akun"}</th>
+                <th className="p-3 text-right">{isEn ? "Amount" : "Nominal"}</th>
+                <th className="p-3 text-center">{isEn ? "Type" : "Tipe"}</th>
+                <th className="p-3 text-center w-16">{isEn ? "Actions" : "Aksi"}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -781,10 +790,10 @@ export default function TransactionsPage() {
                     </td>
                     <td className="p-3">
                       <div className="font-medium text-foreground">
-                        {tx.note || "Tanpa catatan"}
+                        {tx.note || (isEn ? "No memo" : "Tanpa catatan")}
                       </div>
                       <div className="text-[11px] text-muted-foreground">
-                        {tx.categoryName || "Umum"}
+                        {tx.categoryName || (isEn ? "General" : "Umum")}
                       </div>
                     </td>
                     <td className="p-3 font-semibold uppercase text-foreground">
@@ -815,14 +824,14 @@ export default function TransactionsPage() {
                         <button
                           onClick={() => setEditingTx(tx as any)}
                           className="p-1 rounded text-muted-foreground hover:text-[#059669] hover:bg-emerald-50 dark:hover:bg-emerald-950 transition-colors"
-                          title="Edit Transaksi"
+                          title={isEn ? "Edit Transaction" : "Edit Transaksi"}
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
                         <button
                           onClick={() => handleDelete(tx.id)}
                           className="p-1 rounded text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors"
-                          title="Hapus Transaksi"
+                          title={isEn ? "Delete Transaction" : "Hapus Transaksi"}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -836,7 +845,7 @@ export default function TransactionsPage() {
                 <tr>
                   <td colSpan={7} className="p-12 text-center text-muted-foreground">
                     <div className="flex flex-col items-center justify-center gap-2.5">
-                      <span>{isLoading ? "Memuat transaksi..." : "Tidak ada transaksi yang cocok."}</span>
+                      <span>{isLoading ? (isEn ? "Loading transactions..." : "Memuat transaksi...") : (isEn ? "No transactions match." : "Tidak ada transaksi yang cocok.")}</span>
                       {!isLoading && isAnyFilterActive && (
                         <Button
                           variant="outline"
@@ -845,7 +854,7 @@ export default function TransactionsPage() {
                           className="h-7 text-xs gap-1.5 text-rose-500 hover:text-rose-600"
                         >
                           <RotateCcw className="h-3.5 w-3.5" />
-                          Reset Filter
+                          {isEn ? "Reset Filters" : "Reset Filter"}
                         </Button>
                       )}
                     </div>

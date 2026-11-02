@@ -1,13 +1,16 @@
 import { Router, Response } from "express";
 import { z } from "zod";
 import crypto from "crypto";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, gte, lte, asc } from "drizzle-orm";
 import { GoogleGenAI } from "@google/genai";
 import {
   db,
   accounts,
   categories,
   transactions,
+  budgets,
+  users,
+  userProfiles,
   aiChatSessions,
   aiChatMessages,
   aiPromptHistory,
@@ -183,6 +186,7 @@ const askAssistantSchema = z.object({
   model: z.string().optional(),
   sessionId: z.string().optional(),
   lang: z.enum(["id", "en"]).optional().default("id"),
+  clientTime: z.string().optional(),
 });
 
 // POST /ai/chat
@@ -276,14 +280,198 @@ chatRoutes.post("/", requireAuth, async (req, res: Response) => {
     });
   }
 
-  // 3. User Financial Telemetry Context
+  // 3. User Financial Telemetry Context (Verified & Anti-Hallucination)
+  const now = input.clientTime && !isNaN(new Date(input.clientTime).getTime())
+    ? new Date(input.clientTime)
+    : new Date();
+
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const currentMonthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+
+  const monthNamesId = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+  ];
+  const currentMonthNameId = monthNamesId[currentMonth];
+
+  const startOfThisMonth = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+  const endOfThisMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+  const daysInMonth = endOfThisMonth.getDate();
+  const currentDay = Math.min(now.getDate(), daysInMonth);
+  const daysRemaining = Math.max(0, daysInMonth - currentDay);
+
+  const startOfLastMonth = new Date(currentYear, currentMonth - 1, 1, 0, 0, 0, 0);
+  const endOfLastMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999);
+  const lastMonthIdx = (currentMonth - 1 + 12) % 12;
+  const lastMonthYear = startOfLastMonth.getFullYear();
+  const lastMonthNameId = monthNamesId[lastMonthIdx];
+
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  // Profil
+  const userRec = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
+  const profileRec = await db.select({ displayName: userProfiles.displayName }).from(userProfiles).where(eq(userProfiles.userId, userId)).limit(1);
+  const userEmail = userRec[0]?.email || "pengguna@finiq.app";
+  const userName = profileRec[0]?.displayName || userEmail.split("@")[0] || "Pengguna";
+
+  // Akun
   const userAccounts = await db
-    .select({ name: accounts.name, balance: accounts.balance, currency: accounts.currency })
+    .select({ name: accounts.name, group: accounts.group, balance: accounts.balance, isHidden: accounts.isHidden })
     .from(accounts)
     .where(eq(accounts.userId, userId));
 
   const totalBalance = userAccounts.reduce((acc, a) => acc + (a.balance || 0), 0);
+  const accountsInfo = userAccounts.length > 0
+    ? userAccounts.map((a) => `- ${a.name} (${a.group}): Rp ${Math.round(a.balance).toLocaleString("id-ID")}${a.isHidden ? " [Disembunyikan]" : ""}`).join("\n")
+    : "- Belum ada akun";
 
+  // Bulan Berjalan
+  const currentMonthTx = await db
+    .select({
+      txType: transactions.txType,
+      amount: transactions.amount,
+      excludeFromStats: transactions.excludeFromStats,
+      categoryName: categories.name,
+    })
+    .from(transactions)
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        gte(transactions.happenedAt, startOfThisMonth),
+        lte(transactions.happenedAt, now)
+      )
+    );
+
+  let incomeThisMonth = 0;
+  let expenseThisMonth = 0;
+  const catExpenseThisMonth: Record<string, number> = {};
+
+  for (const t of currentMonthTx) {
+    if (t.txType === "income" && !t.excludeFromStats) incomeThisMonth += t.amount || 0;
+    else if (t.txType === "expense" && !t.excludeFromStats) {
+      expenseThisMonth += t.amount || 0;
+      const c = t.categoryName || "Umum";
+      catExpenseThisMonth[c] = (catExpenseThisMonth[c] || 0) + (t.amount || 0);
+    }
+  }
+
+  const netCashFlowThisMonth = incomeThisMonth - expenseThisMonth;
+  const dailyAverageThisMonth = Math.round(expenseThisMonth / Math.max(1, currentDay));
+  const safeDailySpendLimit = daysRemaining > 0
+    ? Math.max(0, Math.round((netCashFlowThisMonth > 0 ? netCashFlowThisMonth : Math.max(0, totalBalance)) / daysRemaining))
+    : 0;
+
+  const topCategoriesThisMonth = Object.entries(catExpenseThisMonth)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 7)
+    .map(([cat, amt]) => {
+      const pct = expenseThisMonth > 0 ? Math.round((amt / expenseThisMonth) * 100) : 0;
+      return `- ${cat}: Rp ${amt.toLocaleString("id-ID")} (${pct}%)`;
+    })
+    .join("\n");
+
+  // Bulan Lalu
+  const lastMonthTx = await db
+    .select({
+      txType: transactions.txType,
+      amount: transactions.amount,
+      excludeFromStats: transactions.excludeFromStats,
+      categoryName: categories.name,
+    })
+    .from(transactions)
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        gte(transactions.happenedAt, startOfLastMonth),
+        lte(transactions.happenedAt, endOfLastMonth)
+      )
+    );
+
+  let incomeLastMonth = 0;
+  let expenseLastMonth = 0;
+  const catExpenseLastMonth: Record<string, number> = {};
+
+  for (const t of lastMonthTx) {
+    if (t.txType === "income" && !t.excludeFromStats) incomeLastMonth += t.amount || 0;
+    else if (t.txType === "expense" && !t.excludeFromStats) {
+      expenseLastMonth += t.amount || 0;
+      const c = t.categoryName || "Umum";
+      catExpenseLastMonth[c] = (catExpenseLastMonth[c] || 0) + (t.amount || 0);
+    }
+  }
+
+  const netCashFlowLastMonth = incomeLastMonth - expenseLastMonth;
+  const topCategoriesLastMonth = Object.entries(catExpenseLastMonth)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 7)
+    .map(([cat, amt]) => {
+      const pct = expenseLastMonth > 0 ? Math.round((amt / expenseLastMonth) * 100) : 0;
+      return `- ${cat}: Rp ${amt.toLocaleString("id-ID")} (${pct}%)`;
+    })
+    .join("\n");
+
+  // Rolling 30 Hari
+  const rolling30Tx = await db
+    .select({
+      txType: transactions.txType,
+      amount: transactions.amount,
+      excludeFromStats: transactions.excludeFromStats,
+      categoryName: categories.name,
+    })
+    .from(transactions)
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        gte(transactions.happenedAt, thirtyDaysAgo),
+        lte(transactions.happenedAt, now)
+      )
+    );
+
+  let incomeRolling30 = 0;
+  let expenseRolling30 = 0;
+  const catExpenseRolling30: Record<string, number> = {};
+
+  for (const t of rolling30Tx) {
+    if (t.txType === "income" && !t.excludeFromStats) incomeRolling30 += t.amount || 0;
+    else if (t.txType === "expense" && !t.excludeFromStats) {
+      expenseRolling30 += t.amount || 0;
+      const c = t.categoryName || "Umum";
+      catExpenseRolling30[c] = (catExpenseRolling30[c] || 0) + (t.amount || 0);
+    }
+  }
+
+  const netCashFlowRolling30 = incomeRolling30 - expenseRolling30;
+  const topCategoriesRolling30 = Object.entries(catExpenseRolling30)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 7)
+    .map(([cat, amt]) => {
+      const pct = expenseRolling30 > 0 ? Math.round((amt / expenseRolling30) * 100) : 0;
+      return `- ${cat}: Rp ${amt.toLocaleString("id-ID")} (${pct}%)`;
+    })
+    .join("\n");
+
+  // Budgets
+  const userBudgets = await db
+    .select({ amount: budgets.amount, categoryName: categories.name })
+    .from(budgets)
+    .leftJoin(categories, eq(budgets.categoryId, categories.id))
+    .where(and(eq(budgets.userId, userId), eq(budgets.month, currentMonthStr)));
+
+  const budgetsInfo = userBudgets.length > 0
+    ? userBudgets.map((b) => {
+        const cat = b.categoryName || "Umum";
+        const spent = catExpenseThisMonth[cat] || 0;
+        const remaining = b.amount - spent;
+        const pct = Math.round((spent / Math.max(1, b.amount)) * 100);
+        return `- Pos ${cat}: Budget Rp ${b.amount.toLocaleString("id-ID")} | Terpakai Rp ${spent.toLocaleString("id-ID")} (${pct}%) | Sisa Rp ${remaining.toLocaleString("id-ID")}`;
+      }).join("\n")
+    : "Belum ada anggaran khusus bulan ini.";
+
+  // Mutasi Terakhir (Completed, happenedAt <= now)
   const recentTx = await db
     .select({
       txType: transactions.txType,
@@ -296,61 +484,80 @@ chatRoutes.post("/", requireAuth, async (req, res: Response) => {
     .from(transactions)
     .leftJoin(accounts, eq(transactions.accountId, accounts.id))
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
-    .where(eq(transactions.userId, userId))
+    .where(and(eq(transactions.userId, userId), lte(transactions.happenedAt, now)))
     .orderBy(desc(transactions.happenedAt))
-    .limit(30);
+    .limit(25);
 
-  const accountsInfo = userAccounts
-    .map((a) => `${a.name}: Rp ${a.balance.toLocaleString("id-ID")}`)
-    .join(", ");
+  const txInfo = recentTx.length > 0
+    ? recentTx
+        .map(
+          (t) =>
+            `- [${formatDateStr(t.happenedAt)}] [${t.txType.toUpperCase()}] Rp ${t.amount.toLocaleString("id-ID")} (${t.categoryName || "Umum"} | Akun: ${t.accountName || "Kas"}): "${t.note || "-"}"`
+        )
+        .join("\n")
+    : "Belum ada transaksi.";
 
-  let totalExpenseRecent = 0;
-  let totalIncomeRecent = 0;
-  const categoryExpenseMap: Record<string, number> = {};
+  // Mutasi Terjadwal / Masa Depan (happenedAt > now)
+  const upcomingTx = await db
+    .select({
+      txType: transactions.txType,
+      amount: transactions.amount,
+      happenedAt: transactions.happenedAt,
+      note: transactions.note,
+      categoryName: categories.name,
+      accountName: accounts.name,
+    })
+    .from(transactions)
+    .leftJoin(accounts, eq(transactions.accountId, accounts.id))
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .where(and(eq(transactions.userId, userId), gte(transactions.happenedAt, now)))
+    .orderBy(asc(transactions.happenedAt))
+    .limit(10);
 
-  for (const t of recentTx) {
-    if (t.txType === "expense") {
-      totalExpenseRecent += t.amount || 0;
-      const cat = t.categoryName || "Umum";
-      categoryExpenseMap[cat] = (categoryExpenseMap[cat] || 0) + (t.amount || 0);
-    } else if (t.txType === "income") {
-      totalIncomeRecent += t.amount || 0;
-    }
-  }
+  const upcomingTxInfo = upcomingTx.length > 0
+    ? upcomingTx.map(t => `- [${formatDateStr(t.happenedAt)}] [${t.txType.toUpperCase()}] Rp ${t.amount.toLocaleString("id-ID")} (${t.categoryName || "Umum"} | Akun: ${t.accountName || "Kas"}): "${t.note || "-"}"`).join("\n")
+    : "Tidak ada transaksi terjadwal mendatang.";
 
-  const topCategories = Object.entries(categoryExpenseMap)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([cat, amt]) => `${cat} (Rp ${amt.toLocaleString("id-ID")})`)
-    .join(", ");
-
-  const txInfo = recentTx
-    .map(
-      (t) =>
-        `- [${t.txType.toUpperCase()}] Rp ${t.amount.toLocaleString("id-ID")} (${t.categoryName || "Umum"}): "${t.note || "-"}" pada ${formatDateStr(t.happenedAt)}`
-    )
-    .join("\n");
-
-  const netCashFlowRecent = totalIncomeRecent - totalExpenseRecent;
+  const dateNowStr = formatDateStr(now);
 
   const systemPrompt = `Kamu adalah Fin.IQ Chief Financial Advisor, penasihat keuangan pribadi cerdas, analitis, dan berstandar industri perbankan/fintech modern di Indonesia.
 TUGAS UTAMA:
 Memberikan evaluasi keuangan yang TAJAM, KONKRET, MATEMATIS, dan MENYELESAIKAN MASALAH NYATA PENGGUNA berdasarkan data telemetri yang tersedia.
 
-TELEMETRI KEUANGAN PENGGUNA:
-- Total Saldo / Kekayaan Bersih: Rp ${totalBalance.toLocaleString("id-ID")}
-- Rincian Akun: ${accountsInfo || "Belum ada akun"}
-- Arus Kas 30 Transaksi Terakhir:
-  * Total Pemasukan: Rp ${totalIncomeRecent.toLocaleString("id-ID")}
-  * Total Pengeluaran: Rp ${totalExpenseRecent.toLocaleString("id-ID")}
-  * Net Cash Flow: Rp ${netCashFlowRecent.toLocaleString("id-ID")}
-- Top 5 Pengeluaran: ${topCategories || "Belum ada data"}
-- Riwayat Transaksi Terakhir:
-${txInfo || "Belum ada transaksi"}
+ATURAN KEBENARAN DATA MUTLAK (ANTI-HALUSINASI):
+1. Kamu WAJIB menggunakan HANYA angka, nama akun, saldo, dan riwayat mutasi aktual milik pengguna yang tercantum pada data telemetri.
+2. DILARANG KERAS mengarang transaksi, berasumsi di luar data, atau meniru contoh fiktif.
+3. Bedakan antara transaksi yang SUDAH TERJADI (happenedAt <= saat ini) dengan TRANSAKSI TERJADWAL/MENDATANG (happenedAt > saat ini). Transaksi terjadwal adalah komitmen pengeluaran di masa depan, BUKAN pengeluaran masa lalu.
+4. Gunakan struktur eksekutif 3 bagian:
+   ### Ringkasan Eksekutif
+   ### Temuan & Analisis Data
+   ### Langkah Solutif & Aksi Konkret`;
 
-Format jawaban rapi menggunakan Markdown. Berikan insight yang actionable dan solutif.`;
+  const userPrompt = `DATA TELEMETRI KEUANGAN PENGGUNA TERVERIFIKASI FIN.IQ:
+1. IDENTITAS AKUN: ${userName} (${userEmail}) | Waktu: ${dateNowStr} (Hari ke-${currentDay} di ${currentMonthNameId} ${currentYear}, sisa ${daysRemaining} hari)
+2. TOTAL SALDO & AKUN: Rp ${totalBalance.toLocaleString("id-ID")}
+${accountsInfo}
+3. ARUS KAS BULAN BERJALAN (${currentMonthNameId} ${currentYear}):
+   - Pemasukan: Rp ${incomeThisMonth.toLocaleString("id-ID")} | Pengeluaran: Rp ${expenseThisMonth.toLocaleString("id-ID")} | Net: Rp ${netCashFlowThisMonth.toLocaleString("id-ID")}
+   - Rata-rata Harian: Rp ${dailyAverageThisMonth.toLocaleString("id-ID")}/hari | Estimasi Batas Harian Aman Sisa Bulan: Rp ${safeDailySpendLimit.toLocaleString("id-ID")}/hari
+   - Top Pengeluaran Bulan Ini:
+${topCategoriesThisMonth || "     (Belum ada pengeluaran)"}
+4. ARUS KAS BULAN LALU (${lastMonthNameId} ${lastMonthYear}) [POLA BULANAN PENUH]:
+   - Pemasukan: Rp ${incomeLastMonth.toLocaleString("id-ID")} | Pengeluaran: Rp ${expenseLastMonth.toLocaleString("id-ID")} | Net: Rp ${netCashFlowLastMonth.toLocaleString("id-ID")}
+   - Top Pengeluaran Bulan Lalu:
+${topCategoriesLastMonth || "     (Tidak ada data)"}
+5. ARUS KAS ROLLING 30 HARI TERAKHIR:
+   - Pemasukan: Rp ${incomeRolling30.toLocaleString("id-ID")} | Pengeluaran: Rp ${expenseRolling30.toLocaleString("id-ID")} | Net: Rp ${netCashFlowRolling30.toLocaleString("id-ID")}
+   - Top Pengeluaran:
+${topCategoriesRolling30 || "     (Tidak ada data)"}
+6. TARGET ANGGARAN (BUDGETS):
+${budgetsInfo}
+7. SAMPEL 25 MUTASI TRANSAKSI TERAKHIR (SUDAH TERJADI):
+${txInfo}
+8. TRANSAKSI MENDATANG / TERJADWAL DI MASA DEPAN:
+${upcomingTxInfo}
 
-  const userPrompt = input.question;
+Pertanyaan Pengguna: "${input.question}"`;
 
   try {
     const result = await generateOpenRouterCompletion({

@@ -14,9 +14,12 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/i18n";
 
 export function ConfirmModalDialog() {
   const { isOpen, options, handleConfirm, handleCancel } = useConfirmStore();
+  const { locale } = useTranslation();
+  const isEn = locale === "en";
 
   // Keyboard shortcut listener (ESC to cancel)
   useEffect(() => {
@@ -85,6 +88,24 @@ export function ConfirmModalDialog() {
 
   const showCancel = options.cancelText !== null && options.cancelText !== undefined && options.cancelText !== "";
 
+  const cancelLabel = (() => {
+    if (!options.cancelText) return isEn ? "Cancel" : "Batal";
+    if (isEn && options.cancelText === "Batal") return "Cancel";
+    return options.cancelText;
+  })();
+
+  const confirmLabel = (() => {
+    if (!options.confirmText) return showCancel ? (isEn ? "Yes, Proceed" : "Ya, Lanjutkan") : (isEn ? "Close" : "Tutup");
+    if (isEn) {
+      if (options.confirmText === "Ya, Lanjutkan") return "Yes, Proceed";
+      if (options.confirmText === "Tutup") return "Close";
+      if (options.confirmText === "Keluar") return "Log Out";
+      if (options.confirmText === "Hapus") return "Delete";
+      if (options.confirmText === "Simpan") return "Save";
+    }
+    return options.confirmText;
+  })();
+
   return (
     <div
       className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150"
@@ -101,7 +122,7 @@ export function ConfirmModalDialog() {
           type="button"
           onClick={handleCancel}
           className="absolute right-3.5 top-3.5 rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          aria-label="Tutup"
+          aria-label={isEn ? "Close" : "Tutup"}
         >
           <X className="h-4 w-4" />
         </button>
@@ -130,7 +151,7 @@ export function ConfirmModalDialog() {
               onClick={handleCancel}
               className="h-8 sm:h-9 px-3.5 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground border-border/80"
             >
-              {options.cancelText || "Batal"}
+              {cancelLabel}
             </Button>
           )}
 
@@ -149,7 +170,7 @@ export function ConfirmModalDialog() {
                 "bg-[#059669] hover:bg-[#047857] shadow-[#059669]/20"
             )}
           >
-            {options.confirmText || (showCancel ? "Ya, Lanjutkan" : "Tutup")}
+            {confirmLabel}
           </Button>
         </div>
       </div>

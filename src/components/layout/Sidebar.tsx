@@ -26,13 +26,6 @@ import { useTranslation } from "@/i18n";
 const navigationItems = MAIN_NAVIGATION_ITEMS;
 const secondaryItems = SECONDARY_NAVIGATION_ITEMS;
 
-interface Ripple {
-  x: number;
-  y: number;
-  size: number;
-  id: number;
-}
-
 function NavItemLink({
   item,
   displayLabel,
@@ -46,34 +39,19 @@ function NavItemLink({
   onItemClick?: () => void;
   className?: string;
 }) {
-  const [ripples, setRipples] = useState<Ripple[]>([]);
-
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const size = Math.max(rect.width, rect.height) * 2.2;
-    const id = Date.now() + Math.random();
-    setRipples((prev) => [...prev.slice(-2), { x, y, size, id }]);
-    setTimeout(() => {
-      setRipples((prev) => prev.filter((r) => r.id !== id));
-    }, 600);
-    onItemClick?.();
-  };
-
-  const isSmallIcon = item.iconName === "settings" || item.iconName === "integrity";
+  const isSmallIcon = item.iconName === "settings";
 
   return (
     <Link
       href={item.href}
-      onClick={handleClick}
+      onClick={onItemClick}
       {...(item.isAI ? { "data-tour": "ai-studio" } : {})}
       aria-current={isActive ? "page" : undefined}
       className={cn(
-        "relative overflow-hidden flex items-center gap-2.5 rounded-md px-2.5 py-2 text-xs transition-all group select-none",
+        "relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-all group select-none min-h-[36px]",
         isActive
-          ? "border-l-[3px] border-primary bg-emerald-500/12 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-bold shadow-2xs pl-2"
-          : "text-muted-foreground hover:bg-muted/70 hover:text-foreground active:scale-[0.98]",
+          ? "bg-primary/10 text-primary font-semibold shadow-2xs"
+          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground active:scale-[0.98]",
         className
       )}
     >
@@ -83,34 +61,22 @@ function NavItemLink({
         active={isActive}
         className={cn(
           "transition-transform shrink-0",
-          isActive ? "scale-105" : "opacity-70 group-hover:opacity-100"
+          isActive ? "scale-105" : "opacity-75 group-hover:opacity-100"
         )}
       />
-      <span className="truncate flex-1 font-medium">{displayLabel || item.label}</span>
+      <span className="truncate flex-1">{displayLabel || item.label}</span>
       {item.isAI && (
         <span
           className={cn(
-            "text-[9px] font-black px-1.5 py-0.5 rounded-sm uppercase tracking-wider shrink-0",
+            "text-[9px] font-semibold px-1.5 py-0.5 rounded-md shrink-0 transition-colors",
             isActive
-              ? "bg-primary text-primary-foreground shadow-2xs"
-              : "bg-secondary text-secondary-foreground"
+              ? "bg-primary text-primary-foreground font-bold"
+              : "bg-muted text-muted-foreground"
           )}
         >
           AI
         </span>
       )}
-      {ripples.map((r) => (
-        <span
-          key={r.id}
-          className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/25 animate-button-click-ripple select-none"
-          style={{
-            left: r.x,
-            top: r.y,
-            width: r.size,
-            height: r.size,
-          }}
-        />
-      ))}
     </Link>
   );
 }
@@ -125,7 +91,8 @@ export function Sidebar({
   const router = useRouter();
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const isEn = locale === "en";
   const [mounted, setMounted] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -144,7 +111,6 @@ export function Sidebar({
       case "/ledgers": return t.nav.ledgers;
       case "/annual-report": return t.nav.annualReport;
       case "/settings": return t.nav.settings;
-      case "/integrity": return t.nav.integrity;
       default: return fallback;
     }
   };
@@ -175,6 +141,8 @@ export function Sidebar({
   const handleLogout = async () => {
     setIsProfileMenuOpen(false);
     try {
+      sessionStorage.removeItem("finiq_demo_session_welcomed");
+      sessionStorage.removeItem("finiq_demo_tour_trigger");
       await fetch("/api/auth/logout", { method: "POST" });
       router.push("/login");
       router.refresh();
@@ -245,7 +213,7 @@ export function Sidebar({
               ? "bg-muted border-primary/50 ring-2 ring-primary/20"
               : "bg-background/80 hover:bg-muted/70 border-border hover:border-border/90"
           )}
-          aria-label="Menu Profil Pengguna"
+          aria-label={isEn ? "User Profile Menu" : "Menu Profil Pengguna"}
         >
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-secondary text-secondary-foreground text-xs font-black shrink-0 border border-emerald-300 dark:border-emerald-800 shadow-2xs group-hover:scale-105 transition-transform">
@@ -253,7 +221,7 @@ export function Sidebar({
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold text-foreground truncate group-hover:text-primary transition-colors">
-                {profile?.displayName || "Pengguna Fin.IQ"}
+                {profile?.displayName || (isEn ? "Fin.IQ User" : "Pengguna Fin.IQ")}
               </p>
               <p className="text-[10px] text-muted-foreground truncate font-mono">
                 {profile?.email || "owner@finiq.app"}
@@ -268,10 +236,10 @@ export function Sidebar({
           <div className="absolute top-full left-0 right-0 mt-1.5 rounded-md border border-border bg-card p-1.5 text-xs shadow-level-2 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-150 z-50">
             <div className="px-2.5 py-2 border-b border-border/70">
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-secondary text-secondary-foreground">
-                Akun Aktif
+                {isEn ? "Active Account" : "Akun Aktif"}
               </span>
               <p className="font-bold text-foreground truncate text-sm mt-1">
-                {profile?.displayName || "Pengguna Fin.IQ"}
+                {profile?.displayName || (isEn ? "Fin.IQ User" : "Pengguna Fin.IQ")}
               </p>
               <p className="text-[11px] text-muted-foreground truncate font-mono">
                 {profile?.email || "owner@finiq.app"}
@@ -289,18 +257,6 @@ export function Sidebar({
               >
                 <GeometricIcon name="settings" size="xs" active />
                 <span>{t.nav.settings}</span>
-              </Link>
-
-              <Link
-                href="/integrity"
-                onClick={() => {
-                  setIsProfileMenuOpen(false);
-                  onItemClick?.();
-                }}
-                className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors font-medium"
-              >
-                <GeometricIcon name="integrity" size="xs" active />
-                <span>{t.nav.integrity}</span>
               </Link>
             </div>
 
@@ -323,7 +279,7 @@ export function Sidebar({
       <div className="flex-1 overflow-y-auto pr-1 -mr-1 space-y-3 scrollbar-none">
         {/* Menu Utama */}
         <nav data-tour="sidebar-nav" className="flex flex-col gap-0.5">
-          <p className="px-2 text-[10px] font-bold tracking-wider text-muted-foreground/80 uppercase mb-0.5">
+          <p className="px-2.5 text-[11px] font-semibold text-muted-foreground/70 mb-1">
             {t.nav.mainMenu}
           </p>
           {navigationItems.map((item) => {
@@ -345,7 +301,7 @@ export function Sidebar({
 
         {/* Preferensi */}
         <div className="pt-2 border-t border-border/60">
-          <p className="px-2 text-[10px] font-bold tracking-wider text-muted-foreground/80 uppercase mb-0.5">
+          <p className="px-2.5 text-[11px] font-semibold text-muted-foreground/70 mb-1">
             {t.nav.preferences}
           </p>
           <div className="flex flex-col gap-0.5">

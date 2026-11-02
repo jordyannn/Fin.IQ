@@ -25,7 +25,9 @@ import {
   Plus,
   RotateCcw,
   Compass,
+  ChevronDown,
 } from "lucide-react";
+import { useBottomSheetDrag } from "@/hooks/use-bottom-sheet-drag";
 import { useMascotStore } from "@/store/mascot.store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +40,7 @@ import {
   detectCategory,
   detectAccount,
   isConfidentDatasetMatch,
+  deduplicateTranscript,
 } from "@/lib/nlp-parser";
 import { useAlert, useConfirm } from "@/store/confirm.store";
 import { useTranslation } from "@/i18n";
@@ -50,6 +53,7 @@ export function QuickAddModal() {
   const utils = trpc.useUtils();
   const alert = useAlert();
   const { t, locale } = useTranslation();
+  const isEn = locale === "en";
   const confirm = useConfirm();
 
   const [txType, setTxType] = useState<"expense" | "income" | "transfer">("expense");
@@ -76,7 +80,7 @@ export function QuickAddModal() {
       const newTotal = updated.reduce((sum, it) => sum + it.amount, 0);
       setAmount(formatInputIDR(String(newTotal)));
       const newNote = updated
-        .map((it) => `${it.qty && it.qty > 1 ? `${it.qty}x ` : ""}${it.name} (Rp ${it.formattedAmount})`)
+        .map((it) => `${it.qty && it.qty > 1 ? `${it.qty}x ` : ""}${it.name} (${isEn ? "IDR" : "Rp"} ${it.formattedAmount})`)
         .join(", ");
       setNote(newNote);
     } else {
@@ -94,7 +98,7 @@ export function QuickAddModal() {
     },
     onError: (err) => {
       alert({
-        title: "Gagal Membuat Kategori",
+        title: isEn ? "Failed to Create Category" : "Gagal Membuat Kategori",
         description: err.message,
         variant: "destructive",
       });
@@ -104,10 +108,12 @@ export function QuickAddModal() {
   const handleCreateRecommendedCategory = async (catName: string, kind?: "expense" | "income") => {
     const targetKind = kind || (txType === "income" ? "income" : "expense");
     const ok = await confirm({
-      title: `Buat Kategori "${catName}"?`,
-      description: `Kategori "${catName}" belum terdaftar di pembukuan Anda. Buat kategori baru ini untuk jenis ${targetKind === "income" ? "Pemasukan" : "Pengeluaran"} dan gunakan pada transaksi ini?`,
-      confirmText: "Ya, Buat Kategori",
-      cancelText: "Batal",
+      title: isEn ? `Create Category "${catName}"?` : `Buat Kategori "${catName}"?`,
+      description: isEn
+        ? `Category "${catName}" is not registered in your ledger yet. Create this new category for ${targetKind === "income" ? "Income" : "Expense"} and use it in this transaction?`
+        : `Kategori "${catName}" belum terdaftar di pembukuan Anda. Buat kategori baru ini untuk jenis ${targetKind === "income" ? "Pemasukan" : "Pengeluaran"} dan gunakan pada transaksi ini?`,
+      confirmText: isEn ? "Yes, Create Category" : "Ya, Buat Kategori",
+      cancelText: t.common.cancel,
       variant: "default",
       icon: "help",
     });
@@ -285,7 +291,7 @@ export function QuickAddModal() {
     audioBase64?: string,
     mimeType?: string
   ) => {
-    const cleanText = (transcript || "").trim();
+    const cleanText = deduplicateTranscript((transcript || "").trim());
     if (!cleanText && !audioBase64) return;
 
     if (cleanText) {
@@ -437,7 +443,7 @@ export function QuickAddModal() {
     },
     onError: (err) => {
       setIsScanningBill(false);
-      setBillScanError(err.message || "Gagal memproses struk dengan Gemini AI.");
+      setBillScanError(err.message || (isEn ? "Failed to process receipt with Gemini AI." : "Gagal memproses struk dengan Gemini AI."));
     },
   });
 
@@ -447,8 +453,8 @@ export function QuickAddModal() {
 
     if (!file.type.startsWith("image/")) {
       alert({
-        title: "Format Gambar Tidak Didukung",
-        description: "Harap pilih file gambar (JPG, PNG, atau WEBP).",
+        title: isEn ? "Unsupported Image Format" : "Format Gambar Tidak Didukung",
+        description: isEn ? "Please select an image file (JPG, PNG, or WEBP)." : "Harap pilih file gambar (JPG, PNG, atau WEBP).",
         variant: "warning",
       });
       return;
@@ -467,7 +473,7 @@ export function QuickAddModal() {
       });
     } catch (err: any) {
       setIsScanningBill(false);
-      setBillScanError(err.message || "Gagal memproses gambar.");
+      setBillScanError(err.message || (isEn ? "Failed to process image." : "Gagal memproses gambar."));
     } finally {
       e.target.value = "";
     }
@@ -509,7 +515,7 @@ export function QuickAddModal() {
     },
     onError: (err) => {
       alert({
-        title: "Gagal Menyimpan Transaksi",
+        title: isEn ? "Failed to Save Transaction" : "Gagal Menyimpan Transaksi",
         description: err.message,
         variant: "destructive",
       });
@@ -534,6 +540,18 @@ export function QuickAddModal() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isQuickAddOpen, previewModalOpen, showSourceChoiceModal, closeQuickAdd]);
+
+  // Gesture slide / swipe kebawah untuk menutup modal di mobile ("slider nyala")
+  const {
+    dragY,
+    isDragging,
+    dragHandleProps,
+    modalStyle,
+    backdropStyle,
+  } = useBottomSheetDrag({
+    onClose: closeQuickAdd,
+    disabled: isTourActive && activeTourType === "transaction",
+  });
 
   const defaultAccountId = accountsData?.accounts?.[0]?.id || "";
   const defaultExpenseCategoryId = categoriesList?.find((c) => c.kind === "expense")?.id || "";
@@ -578,11 +596,12 @@ export function QuickAddModal() {
   const handleClearForm = async () => {
     if (!hasDraftData) return;
     const ok = await confirm({
-      title: "Bersihkan Form Catat Transaksi?",
-      description:
-        "Semua input nominal, catatan, foto struk, dan pengaturan transaksi yang belum disimpan akan dikosongkan.",
-      confirmText: "Ya, Bersihkan",
-      cancelText: "Batal",
+      title: isEn ? "Clear Transaction Form?" : "Bersihkan Form Catat Transaksi?",
+      description: isEn
+        ? "All unsaved amount inputs, notes, receipt photos, and settings will be reset."
+        : "Semua input nominal, catatan, foto struk, dan pengaturan transaksi yang belum disimpan akan dikosongkan.",
+      confirmText: isEn ? "Yes, Clear" : "Ya, Bersihkan",
+      cancelText: t.common.cancel,
       variant: "destructive",
       icon: "trash",
     });
@@ -597,8 +616,8 @@ export function QuickAddModal() {
     const numAmount = parseInputIDR(amount);
     if (!numAmount || numAmount <= 0) {
       alert({
-        title: "Nominal Tidak Valid",
-        description: "Harap masukkan nominal transaksi yang valid.",
+        title: isEn ? "Invalid Amount" : "Nominal Tidak Valid",
+        description: isEn ? "Please enter a valid transaction amount." : "Harap masukkan nominal transaksi yang valid.",
         variant: "warning",
       });
       const amountEl = document.querySelector<HTMLInputElement>(
@@ -617,8 +636,8 @@ export function QuickAddModal() {
 
     if (!selectedAcc) {
       alert({
-        title: "Akun Belum Dipilih",
-        description: "Harap pilih akun transaksi terlebih dahulu.",
+        title: isEn ? "Account Not Selected" : "Akun Belum Dipilih",
+        description: isEn ? "Please select a transaction account first." : "Harap pilih akun transaksi terlebih dahulu.",
         variant: "warning",
       });
       return;
@@ -627,16 +646,16 @@ export function QuickAddModal() {
     if (txType === "transfer") {
       if (!toAccountId) {
         alert({
-          title: "Akun Tujuan Belum Dipilih",
-          description: "Harap pilih akun tujuan untuk transaksi transfer.",
+          title: isEn ? "Destination Account Not Selected" : "Akun Tujuan Belum Dipilih",
+          description: isEn ? "Please select a destination account for the transfer." : "Harap pilih akun tujuan untuk transaksi transfer.",
           variant: "warning",
         });
         return;
       }
       if (selectedAcc === toAccountId) {
         alert({
-          title: "Akun Tidak Boleh Sama",
-          description: "Akun asal dan akun tujuan transfer tidak boleh sama.",
+          title: isEn ? "Accounts Cannot Be the Same" : "Akun Tidak Boleh Sama",
+          description: isEn ? "Source and destination accounts cannot be identical." : "Akun asal dan akun tujuan transfer tidak boleh sama.",
           variant: "warning",
         });
         return;
@@ -676,6 +695,7 @@ export function QuickAddModal() {
   return (
     <div
       className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200"
+      style={backdropStyle}
       onClick={() => {
         if (isTourActive && activeTourType === "transaction") return;
         closeQuickAdd();
@@ -684,19 +704,54 @@ export function QuickAddModal() {
       <form
         role="dialog"
         aria-modal="true"
-        aria-label="Catat Transaksi"
+        aria-label={isEn ? "Record Transaction" : "Catat Transaksi"}
         data-tour-modal="quick-add"
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
+        style={modalStyle}
         className="relative w-full max-w-lg max-h-[90vh] sm:max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl bg-card border-t sm:border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in slide-in-from-bottom-5 sm:zoom-in-95 duration-200"
       >
-        {/* Mobile Drag Indicator Bar */}
-        <div className="sm:hidden pt-2.5 pb-1 flex justify-center shrink-0 bg-card select-none">
-          <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
+        {/* Mobile Drag Indicator Bar (Slider Aktif / Geser ke Bawah untuk Menutup) */}
+        <div
+          {...dragHandleProps}
+          className={cn(
+            "sm:hidden pt-3 pb-1.5 px-4 flex flex-col items-center justify-center shrink-0 bg-card select-none touch-none cursor-grab active:cursor-grabbing transition-colors",
+            isDragging && "bg-muted/40"
+          )}
+          title={isEn ? "Swipe down to close transaction modal" : "Geser ke bawah untuk menutup modal transaksi"}
+        >
+          <div className="relative flex items-center justify-center py-0.5">
+            <div
+              className={cn(
+                "rounded-full transition-all duration-200",
+                isDragging
+                  ? "h-2 w-16 bg-primary shadow-md ring-4 ring-primary/20 scale-105"
+                  : "h-1.5 w-12 bg-muted-foreground/35 hover:bg-muted-foreground/60 hover:w-14"
+              )}
+            />
+          </div>
+          {/* Micro-hint teks saat disentuh / digeser */}
+          <div
+            className={cn(
+              "overflow-hidden transition-all duration-200 text-center flex items-center justify-center",
+              isDragging && dragY > 15 ? "max-h-5 opacity-100 mt-1" : "max-h-0 opacity-0"
+            )}
+          >
+            <span className="text-[10px] font-semibold text-primary flex items-center gap-1">
+              <ChevronDown className="h-3 w-3 animate-bounce" />
+              {dragY > 80 ? (isEn ? "Release to close" : "Lepaskan untuk menutup") : (isEn ? "Swipe down to close" : "Geser ke bawah untuk menutup")}
+            </span>
+          </div>
         </div>
 
-        {/* Header - Fixed & Pinned at Top */}
-        <div className="flex items-center justify-between border-b border-border/70 px-5 sm:px-6 py-3.5 shrink-0 bg-card z-10">
+        {/* Header - Fixed & Pinned at Top (Mendukung drag pada mobile) */}
+        <div
+          {...dragHandleProps}
+          className={cn(
+            "flex items-center justify-between border-b border-border/70 px-5 sm:px-6 py-3.5 shrink-0 bg-card z-10 select-none",
+            "touch-none cursor-grab active:cursor-grabbing sm:cursor-default"
+          )}
+        >
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-primary shrink-0">
               <Sparkles className="h-4.5 w-4.5" />
@@ -709,28 +764,34 @@ export function QuickAddModal() {
                 {hasDraftData && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25 shrink-0">
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                    Draf
+                    {isEn ? "Draft" : "Draf"}
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">Manual, suara, atau foto struk</p>
+              <p className="text-xs text-muted-foreground">{isEn ? "Manual, voice, or receipt photo" : "Manual, suara, atau foto struk"}</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
             <button
               type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={() => startTransactionTour(false)}
               className="h-9 px-2.5 sm:px-3 rounded-lg text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs touch-manipulation"
-              title="Buka tutorial interaktif form transaksi"
+              title={isEn ? "Open interactive transaction guide" : "Buka tutorial interaktif form transaksi"}
             >
               <Compass className="h-3.5 w-3.5 text-primary" />
               <span>Tutorial</span>
             </button>
             <button
               type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={closeQuickAdd}
               className="h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer active:scale-95 touch-manipulation"
-              title="Tutup (Draf input tetap tersimpan)"
+              title={isEn ? "Close (Draft is retained)" : "Tutup (Draf input tetap tersimpan)"}
             >
               <X className="h-4 w-4" />
             </button>
@@ -771,9 +832,9 @@ export function QuickAddModal() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5 text-primary" />
-                <span className="text-xs font-bold text-foreground">Bantuan AI & Cepat</span>
+                <span className="text-xs font-bold text-foreground">{isEn ? "AI & Quick Assistant" : "Bantuan AI & Cepat"}</span>
               </div>
-              <span className="text-[10px] text-muted-foreground">Dikte suara, scan struk, atau ketik teks</span>
+              <span className="text-[10px] text-muted-foreground">{isEn ? "Voice dictation, receipt scanner, or natural text" : "Dikte suara, scan struk, atau ketik teks"}</span>
             </div>
 
             <div className="grid grid-cols-3 gap-2">
@@ -789,7 +850,7 @@ export function QuickAddModal() {
                   isListening && "animate-pulse bg-rose-500 text-white border-rose-500 hover:bg-rose-600",
                   isVoiceBusy && "border-primary/40 text-primary animate-pulse"
                 )}
-                title="Dikte transaksi lewat suara"
+                title={isEn ? "Dictate transaction with voice" : "Dikte transaksi lewat suara"}
               >
                 {isListening ? (
                   <MicOff className="h-3.5 w-3.5 shrink-0" />
@@ -798,7 +859,7 @@ export function QuickAddModal() {
                 ) : (
                   <Mic className="h-3.5 w-3.5 text-primary shrink-0" />
                 )}
-                <span className="truncate">{isListening ? "Berhenti" : isVoiceBusy ? "Memproses..." : "Dikte"}</span>
+                <span className="truncate">{isListening ? (isEn ? "Stop" : "Berhenti") : isVoiceBusy ? (isEn ? "Processing..." : "Memproses...") : (isEn ? "Voice" : "Dikte")}</span>
               </Button>
 
               {/* Buka Kamera */}
@@ -809,14 +870,14 @@ export function QuickAddModal() {
                 disabled={isScanningBill || isVoiceBusy}
                 onClick={() => cameraInputRef.current?.click()}
                 className="h-9 rounded-lg text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 hover:text-primary transition-all shadow-2xs cursor-pointer active:scale-[0.98]"
-                title="Buka Kamera untuk foto struk atau mutasi"
+                title={isEn ? "Open camera to snap receipt or statement" : "Buka Kamera untuk foto struk atau mutasi"}
               >
                 {isScanningBill ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
                 ) : (
                   <Camera className="h-3.5 w-3.5 text-primary shrink-0" />
                 )}
-                <span className="truncate">Kamera</span>
+                <span className="truncate">{isEn ? "Camera" : "Kamera"}</span>
               </Button>
 
               {/* Buka Galeri */}
@@ -827,14 +888,14 @@ export function QuickAddModal() {
                 disabled={isScanningBill || isVoiceBusy}
                 onClick={() => galleryInputRef.current?.click()}
                 className="h-9 rounded-lg text-xs font-semibold gap-1.5 border-border/80 bg-card hover:bg-muted/80 hover:text-primary transition-all shadow-2xs cursor-pointer active:scale-[0.98]"
-                title="Buka Galeri foto atau dokumen"
+                title={isEn ? "Open photo gallery or document" : "Buka Galeri foto atau dokumen"}
               >
                 {isScanningBill ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
                 ) : (
                   <ImageIcon className="h-3.5 w-3.5 text-primary shrink-0" />
                 )}
-                <span className="truncate">Galeri</span>
+                <span className="truncate">{isEn ? "Gallery" : "Galeri"}</span>
               </Button>
             </div>
 
@@ -849,7 +910,7 @@ export function QuickAddModal() {
             <div className="flex items-center gap-2 pt-2 border-t border-border/40">
               <Input
                 type="text"
-                placeholder="Ketik santai: 'Kopi 25rb bayar bca tadi siang'..."
+                placeholder={isEn ? "Type naturally: 'Coffee $5 paid with cash this morning'..." : "Ketik santai: 'Kopi 25rb bayar bca tadi siang'..."}
                 value={nlpInputText}
                 onChange={(e) => setNlpInputText(e.target.value)}
                 onKeyDown={(e) => {
@@ -874,10 +935,10 @@ export function QuickAddModal() {
                   }
                 }}
                 className="h-8.5 px-3.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary/90 text-white shrink-0 gap-1.5 cursor-pointer active:scale-[0.98] shadow-xs"
-                title="Parse transaksi otomatis dengan NLP lokal"
+                title={isEn ? "Auto-parse transaction using local NLP" : "Parse transaksi otomatis dengan NLP lokal"}
               >
                 <Sparkles className="h-3 w-3" />
-                <span>Proses</span>
+                <span>{isEn ? "Process" : "Proses"}</span>
               </Button>
             </div>
           </div>
@@ -887,9 +948,9 @@ export function QuickAddModal() {
           <div className="mt-2.5 flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/10 text-xs animate-pulse">
             <Loader2 className="h-4 w-4 animate-spin shrink-0 text-primary" />
             <div className="flex flex-col">
-              <span className="font-semibold text-foreground">Membaca struk...</span>
+              <span className="font-semibold text-foreground">{isEn ? "Scanning receipt..." : "Membaca struk..."}</span>
               <span className="text-[11px] text-muted-foreground">
-                Mendeteksi nominal, tanggal, dan nama toko.
+                {isEn ? "Detecting amount, date, and merchant name." : "Mendeteksi nominal, tanggal, dan nama toko."}
               </span>
             </div>
           </div>
@@ -902,11 +963,11 @@ export function QuickAddModal() {
               <div
                 className="relative h-10 w-10 rounded-lg overflow-hidden border border-emerald-500/30 cursor-pointer group shrink-0"
                 onClick={() => setPreviewModalOpen(true)}
-                title="Perbesar struk"
+                title={isEn ? "Zoom receipt" : "Perbesar struk"}
               >
                 <img
                   src={receiptPreviewUrl}
-                  alt="Struk Preview"
+                  alt="Receipt Preview"
                   className="h-full w-full object-cover group-hover:scale-105 transition-transform"
                 />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
@@ -918,24 +979,24 @@ export function QuickAddModal() {
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span className="font-bold text-foreground truncate">
                     {scannedBillMeta?.documentType === "transfer_proof"
-                      ? `Bukti Transfer: ${scannedBillMeta.merchantName || "M-Banking"}`
+                      ? (isEn ? `Transfer Proof: ${scannedBillMeta.merchantName || "M-Banking"}` : `Bukti Transfer: ${scannedBillMeta.merchantName || "M-Banking"}`)
                       : scannedBillMeta?.isMultipleTransactions
-                      ? `Mutasi: ${scannedBillMeta.merchantName || "M-Banking"}`
-                      : scannedBillMeta?.merchantName || "Dokumen Keuangan Terbaca"}
+                      ? (isEn ? `Mutations: ${scannedBillMeta.merchantName || "M-Banking"}` : `Mutasi: ${scannedBillMeta.merchantName || "M-Banking"}`)
+                      : scannedBillMeta?.merchantName || (isEn ? "Financial Document Detected" : "Dokumen Keuangan Terbaca")}
                   </span>
                   {scannedBillMeta?.itemsCount && scannedBillMeta.itemsCount > 1 ? (
                     <span className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
-                      {scannedBillMeta.itemsCount} Produk
+                      {scannedBillMeta.itemsCount} {isEn ? "Products" : "Produk"}
                     </span>
                   ) : null}
                   {scannedBillMeta?.isMultipleTransactions ? (
                     <span className="bg-blue-500/20 text-blue-700 dark:text-blue-300 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
-                      {scannedBillMeta.transactions?.length} Mutasi
+                      {scannedBillMeta.transactions?.length} {isEn ? "Mutations" : "Mutasi"}
                     </span>
                   ) : null}
                 </div>
                 <span className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
-                  {scannedBillMeta?.itemsSummary || "Data transaksi berhasil diekstrak dan diisi otomatis."}
+                  {scannedBillMeta?.itemsSummary || (isEn ? "Transaction data extracted and autofilled." : "Data transaksi berhasil diekstrak dan diisi otomatis.")}
                 </span>
               </div>
             </div>
@@ -948,7 +1009,7 @@ export function QuickAddModal() {
                 className="h-7 text-[11px] px-2 text-muted-foreground hover:text-foreground"
               >
                 <Eye className="h-3 w-3 mr-1" />
-                Lihat
+                {isEn ? "View" : "Lihat"}
               </Button>
               <Button
                 type="button"
@@ -956,7 +1017,7 @@ export function QuickAddModal() {
                 size="icon"
                 onClick={handleClearReceipt}
                 className="h-7 w-7 text-muted-foreground hover:text-rose-500"
-                title="Hapus struk"
+                title={isEn ? "Remove receipt" : "Hapus struk"}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -978,7 +1039,7 @@ export function QuickAddModal() {
               onClick={() => setShowSourceChoiceModal(true)}
               className="h-6 text-[10px] px-2 text-rose-600 hover:bg-rose-500/20 shrink-0 font-medium"
             >
-              Coba Lagi
+              {isEn ? "Try Again" : "Coba Lagi"}
             </Button>
           </div>
         )}
@@ -990,7 +1051,7 @@ export function QuickAddModal() {
               <div className="flex items-center justify-between pb-3 border-b border-border/70">
                 <span className="text-sm font-bold flex items-center gap-1.5 text-foreground">
                   <Receipt className="h-4 w-4 text-primary" />
-                  Pratinjau Struk / Bukti
+                  {isEn ? "Receipt / Proof Preview" : "Pratinjau Struk / Bukti"}
                 </span>
                 <button
                   type="button"
@@ -1003,7 +1064,7 @@ export function QuickAddModal() {
               <div className="flex-1 overflow-auto py-3 flex items-center justify-center bg-muted/20 rounded-xl mt-2 border border-border/50">
                 <img
                   src={receiptPreviewUrl}
-                  alt="Struk Belanja Penuh"
+                  alt="Receipt Preview Full"
                   className="max-h-[60vh] object-contain rounded-lg"
                 />
               </div>
@@ -1014,7 +1075,7 @@ export function QuickAddModal() {
                   onClick={() => setPreviewModalOpen(false)}
                   className="text-xs rounded-lg h-8 px-4"
                 >
-                  Tutup
+                  {isEn ? "Close" : "Tutup"}
                 </Button>
               </div>
             </div>
@@ -1037,8 +1098,8 @@ export function QuickAddModal() {
                     <Receipt className="h-4 w-4" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-foreground">Sumber Foto Struk</h3>
-                    <p className="text-[11px] text-muted-foreground">Pilih cara mengambil foto struk / bill</p>
+                    <h3 className="font-bold text-sm text-foreground">{isEn ? "Receipt Photo Source" : "Sumber Foto Struk"}</h3>
+                    <p className="text-[11px] text-muted-foreground">{isEn ? "Choose how to capture receipt photo" : "Pilih cara mengambil foto struk / bill"}</p>
                   </div>
                 </div>
                 <button
@@ -1063,8 +1124,8 @@ export function QuickAddModal() {
                     <Camera className="h-5.5 w-5.5" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-foreground">Buka Kamera</span>
-                    <span className="text-[10px] text-muted-foreground">Ambil foto langsung</span>
+                    <span className="text-xs font-bold text-foreground">{isEn ? "Open Camera" : "Buka Kamera"}</span>
+                    <span className="text-[10px] text-muted-foreground">{isEn ? "Take photo directly" : "Ambil foto langsung"}</span>
                   </div>
                 </button>
 
@@ -1080,8 +1141,8 @@ export function QuickAddModal() {
                     <ImageIcon className="h-5.5 w-5.5" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-foreground">Buka Galeri</span>
-                    <span className="text-[10px] text-muted-foreground">Pilih dari album</span>
+                    <span className="text-xs font-bold text-foreground">{isEn ? "Open Gallery" : "Buka Galeri"}</span>
+                    <span className="text-[10px] text-muted-foreground">{isEn ? "Choose from album" : "Pilih dari album"}</span>
                   </div>
                 </button>
               </div>
@@ -1140,7 +1201,7 @@ export function QuickAddModal() {
               <label className="text-xs font-medium text-foreground/80">{t.quickAdd.amountLabel}</label>
               <VoiceMicButton
                 size="xs"
-                title="Dikte nominal (misal: lima puluh ribu)"
+                title={isEn ? "Dictate amount (e.g. fifty thousand)" : "Dikte nominal (misal: lima puluh ribu)"}
                 onResult={(text) => {
                   const num = parseSpokenNumber(text);
                   if (num) {
@@ -1171,7 +1232,7 @@ export function QuickAddModal() {
                   type="button"
                   onClick={() => setAmount("")}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer active:scale-95"
-                  title="Hapus nominal"
+                  title={isEn ? "Clear amount" : "Hapus nominal"}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -1185,15 +1246,15 @@ export function QuickAddModal() {
                   <div className="flex items-center gap-1.5">
                     <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     <span className="text-xs font-bold text-foreground">
-                      {detectedItems.length} Item Terdeteksi (Dijumlahkan Otomatis)
+                      {detectedItems.length} {isEn ? "Items Detected (Auto Summed)" : "Item Terdeteksi (Dijumlahkan Otomatis)"}
                     </span>
                   </div>
                   <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 border border-emerald-500/25 px-2 py-0.5 rounded-full font-mono shrink-0">
-                    Total: Rp {amount}
+                    Total: {locale === "en" ? "IDR" : "Rp"} {amount}
                   </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Semua item di bawah dijumlahkan ke nominal transaksi dan otomatis dicantumkan di catatan.
+                  {isEn ? "All items below are summed into the transaction amount and listed in notes." : "Semua item di bawah dijumlahkan ke nominal transaksi dan otomatis dicantumkan di catatan."}
                 </p>
                 <div className="flex flex-wrap gap-1.5 pt-0.5">
                   {detectedItems.map((item, idx) => (
@@ -1203,13 +1264,13 @@ export function QuickAddModal() {
                     >
                       <span className="font-semibold">{item.qty && item.qty > 1 ? `${item.qty}x ` : ""}{item.name}:</span>
                       <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-                        Rp {item.formattedAmount}
+                        {isEn ? "IDR" : "Rp"} {item.formattedAmount}
                       </span>
                       <button
                         type="button"
                         onClick={() => handleRemoveDetectedItem(idx)}
                         className="text-muted-foreground hover:text-rose-500 ml-0.5 p-0.5 rounded hover:bg-muted cursor-pointer active:scale-95 transition-colors"
-                        title={`Hapus ${item.name} dari penjumlahan`}
+                        title={isEn ? `Remove ${item.name} from sum` : `Hapus ${item.name} dari penjumlahan`}
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -1225,21 +1286,21 @@ export function QuickAddModal() {
             <div className="flex items-center justify-between h-6 mb-1.5">
               <div className="flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                <label className="text-xs font-medium text-foreground/80">Tanggal & Waktu</label>
+                <label className="text-xs font-medium text-foreground/80">{isEn ? "Date & Time" : "Tanggal & Waktu"}</label>
               </div>
               <div className="flex items-center gap-2">
                 {happenedAt ? (
                   <span className="text-[10px] font-semibold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
-                    Kustom
+                    {isEn ? "Custom" : "Kustom"}
                   </span>
                 ) : (
                   <span className="text-[10px] text-muted-foreground">
-                    Otomatis (Saat Ini)
+                    {isEn ? "Automatic (Current Time)" : "Otomatis (Saat Ini)"}
                   </span>
                 )}
                 <VoiceMicButton
                   size="xs"
-                  title="Dikte waktu (misal: saat ini, kemarin sore, tanggal 15)"
+                  title={isEn ? "Dictate time (e.g. now, yesterday, 15th)" : "Dikte waktu (misal: saat ini, kemarin sore, tanggal 15)"}
                   onResult={(text) => {
                     const { happenedAtFormatted } = extractDateTimeFromText(text);
                     if (happenedAtFormatted) {
@@ -1263,7 +1324,7 @@ export function QuickAddModal() {
                   size="sm"
                   onClick={() => setHappenedAt("")}
                   className="h-10 px-3 rounded-lg text-xs font-medium border-border/80 bg-background hover:bg-muted text-muted-foreground hover:text-foreground shrink-0 flex items-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer shadow-2xs"
-                  title="Kembalikan ke waktu sekarang (NOW)"
+                  title={isEn ? "Reset to current time (NOW)" : "Kembalikan ke waktu sekarang (NOW)"}
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                   <span>Reset NOW</span>
@@ -1280,15 +1341,15 @@ export function QuickAddModal() {
                     setHappenedAt(localISOTime);
                   }}
                   className="h-10 px-3 rounded-lg text-xs font-medium border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary shrink-0 flex items-center gap-1.5 active:scale-[0.98] transition-all cursor-pointer shadow-2xs"
-                  title="Pilih tanggal & jam spesifik"
+                  title={isEn ? "Set specific date & time" : "Pilih tanggal & jam spesifik"}
                 >
                   <Calendar className="h-3.5 w-3.5" />
-                  <span>Atur Waktu</span>
+                  <span>{isEn ? "Set Time" : "Atur Waktu"}</span>
                 </Button>
               )}
             </div>
             <p className="text-[10px] text-muted-foreground/70 mt-1">
-              *Transaksi otomatis dicatat pada waktu saat ini jika tidak diatur.
+              *{isEn ? "Transaction automatically recorded at current time if unset." : "Transaksi otomatis dicatat pada waktu saat ini jika tidak diatur."}
             </p>
           </div>
 
@@ -1302,9 +1363,9 @@ export function QuickAddModal() {
                 <div className="flex flex-col min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                      Rekomendasi Kategori NLP
+                      {isEn ? "NLP Category Suggestion" : "Rekomendasi Kategori NLP"}
                     </span>
-                    <span className="text-[10px] text-muted-foreground/80">&bull; Belum ada di daftar</span>
+                    <span className="text-[10px] text-muted-foreground/80">&bull; {isEn ? "Not yet in list" : "Belum ada di daftar"}</span>
                   </div>
                   <span className="text-xs font-bold text-foreground truncate">
                     &quot;{nlpRecommendedCategory.name}&quot;
@@ -1318,7 +1379,7 @@ export function QuickAddModal() {
                 className="h-8 px-3 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 gap-1.5 shadow-xs cursor-pointer transition-all active:scale-[0.98]"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Buat Kategori
+                {isEn ? "Create Category" : "Buat Kategori"}
               </Button>
             </div>
           )}
@@ -1329,11 +1390,11 @@ export function QuickAddModal() {
             <div>
               <div className="flex items-center justify-between h-6 mb-1.5">
                 <label className="text-xs font-medium text-foreground/80">
-                  {txType === "transfer" ? "Dari Akun" : "Akun"}
+                  {txType === "transfer" ? (isEn ? "From Account" : "Dari Akun") : (isEn ? "Account" : "Akun")}
                 </label>
                 <VoiceMicButton
                   size="xs"
-                  title="Sebut akun (misal: Blu, Cash, BCA)"
+                  title={isEn ? "Say account name (e.g. Cash, Checking)" : "Sebut akun (misal: Blu, Cash, BCA)"}
                   onResult={(text) => {
                     if (accountsData?.accounts) {
                       const detected = detectAccount(text, accountsData.accounts);
@@ -1348,7 +1409,7 @@ export function QuickAddModal() {
                 accounts={accountsData?.accounts || []}
                 value={accountId}
                 onChange={setAccountId}
-                placeholder="Pilih Akun..."
+                placeholder={isEn ? "Select Account..." : "Pilih Akun..."}
                 align="left"
               />
             </div>
@@ -1357,10 +1418,10 @@ export function QuickAddModal() {
             {txType === "transfer" ? (
               <div>
                 <div className="flex items-center justify-between h-6 mb-1.5">
-                  <label className="text-xs font-medium text-foreground/80">Ke Akun</label>
+                  <label className="text-xs font-medium text-foreground/80">{isEn ? "To Account" : "Ke Akun"}</label>
                   <VoiceMicButton
                     size="xs"
-                    title="Sebut akun tujuan"
+                    title={isEn ? "Say destination account" : "Sebut akun tujuan"}
                     onResult={(text) => {
                       if (accountsData?.accounts) {
                         const targetAccounts = accountsData.accounts.filter((a) => a.id !== accountId);
@@ -1376,17 +1437,17 @@ export function QuickAddModal() {
                   accounts={(accountsData?.accounts || []).filter((a) => a.id !== accountId)}
                   value={toAccountId}
                   onChange={setToAccountId}
-                  placeholder="Pilih Akun Tujuan..."
+                  placeholder={isEn ? "Select Destination Account..." : "Pilih Akun Tujuan..."}
                   align="right"
                 />
               </div>
             ) : (
               <div>
                 <div className="flex items-center justify-between h-6 mb-1.5">
-                  <label className="text-xs font-medium text-foreground/80">Kategori</label>
+                  <label className="text-xs font-medium text-foreground/80">{isEn ? "Category" : "Kategori"}</label>
                   <VoiceMicButton
                     size="xs"
-                    title="Sebut kategori (misal: Kopi, Bensin, Gaji, Belanja)"
+                    title={isEn ? "Say category (e.g. Coffee, Fuel, Salary, Groceries)" : "Sebut kategori (misal: Kopi, Bensin, Gaji, Belanja)"}
                     onResult={(text) => {
                       if (categoriesList) {
                         const detected = detectCategory(text, txType, categoriesList);
@@ -1411,7 +1472,7 @@ export function QuickAddModal() {
                     setNlpRecommendedCategory(null);
                   }}
                   txType={txType}
-                  placeholder="Pilih Kategori..."
+                  placeholder={isEn ? "Select Category..." : "Pilih Kategori..."}
                   recommendedCategory={nlpRecommendedCategory}
                   onCreateRecommended={handleCreateRecommendedCategory}
                   align="right"
@@ -1423,10 +1484,10 @@ export function QuickAddModal() {
           {/* Catatan */}
           <div>
             <div className="flex items-center justify-between h-6 mb-1.5">
-              <label className="text-xs font-medium text-foreground/80">Catatan / Deskripsi</label>
+              <label className="text-xs font-medium text-foreground/80">{isEn ? "Notes / Description" : "Catatan / Deskripsi"}</label>
               <VoiceMicButton
                 size="xs"
-                title="Dikte transaksi cerdas (otomatis isi seluruh form)"
+                title={isEn ? "Smart voice dictation (autofills whole form)" : "Dikte transaksi cerdas (otomatis isi seluruh form)"}
                 onResult={(text, audioBase64, mimeType) => {
                   applySmartSpeechParse(text, audioBase64, mimeType);
                 }}
@@ -1435,7 +1496,7 @@ export function QuickAddModal() {
             <div className="relative">
               <Input
                 type="text"
-                placeholder="Contoh: Sarapan pagi, beli bensin, dll."
+                placeholder={isEn ? "e.g. Breakfast, fuel refill, groceries, etc." : "Contoh: Sarapan pagi, beli bensin, dll."}
                 value={note}
                 onChange={(e) => {
                   const val = e.target.value;
@@ -1457,7 +1518,7 @@ export function QuickAddModal() {
                   type="button"
                   onClick={() => setNote("")}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer active:scale-95"
-                  title="Hapus catatan"
+                  title={isEn ? "Clear note" : "Hapus catatan"}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -1481,7 +1542,7 @@ export function QuickAddModal() {
                   ? "text-muted-foreground hover:text-destructive hover:border-destructive/40 hover:bg-destructive/10"
                   : "opacity-40 cursor-not-allowed text-muted-foreground"
               )}
-              title={hasDraftData ? "Bersihkan seluruh input form" : "Form masih kosong"}
+              title={hasDraftData ? (isEn ? "Clear all form inputs" : "Bersihkan seluruh input form") : (isEn ? "Form is empty" : "Form masih kosong")}
             >
               <RotateCcw className="h-3.5 w-3.5 shrink-0" />
               <span>{locale === "en" ? "Clear" : "Bersihkan"}</span>

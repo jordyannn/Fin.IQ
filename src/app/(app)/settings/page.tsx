@@ -41,6 +41,7 @@ export default function SettingsPage() {
   const utils = trpc.useUtils();
   const confirm = useConfirm();
   const { t, locale } = useTranslation();
+  const isEn = locale === "en";
 
   // Gemini AI Key State
   const [geminiKeyInput, setGeminiKeyInput] = useState("");
@@ -130,11 +131,17 @@ export default function SettingsPage() {
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
-      setPasswordMsg({ type: "error", text: "Konfirmasi kata sandi baru tidak cocok." });
+      setPasswordMsg({
+        type: "error",
+        text: isEn ? "New password confirmation does not match." : "Konfirmasi kata sandi baru tidak cocok.",
+      });
       return;
     }
     if (newPassword.length < 6) {
-      setPasswordMsg({ type: "error", text: "Kata sandi baru minimal 6 karakter." });
+      setPasswordMsg({
+        type: "error",
+        text: isEn ? "New password must be at least 6 characters." : "Kata sandi baru minimal 6 karakter.",
+      });
       return;
     }
     changePasswordMutation.mutate({ currentPassword, newPassword });
@@ -144,16 +151,20 @@ export default function SettingsPage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const handleLogout = async () => {
     const ok = await confirm({
-      title: "Keluar dari Akun Fin.IQ?",
-      description: "Sesi Anda akan diakhiri dan Anda perlu masuk kembali untuk mengakses pembukuan.",
-      confirmText: "Keluar",
-      cancelText: "Batal",
+      title: isEn ? "Log out from Fin.IQ?" : "Keluar dari Akun Fin.IQ?",
+      description: isEn
+        ? "Your session will end and you will need to log back in to access bookkeeping."
+        : "Sesi Anda akan diakhiri dan Anda perlu masuk kembali untuk mengakses pembukuan.",
+      confirmText: isEn ? "Log Out" : "Keluar",
+      cancelText: isEn ? "Cancel" : "Batal",
       variant: "warning",
       icon: "logout",
     });
     if (!ok) return;
     setIsLoggingOut(true);
     try {
+      sessionStorage.removeItem("finiq_demo_session_welcomed");
+      sessionStorage.removeItem("finiq_demo_tour_trigger");
       await fetch("/api/auth/logout", { method: "POST" });
       router.push("/login");
       router.refresh();
@@ -213,12 +224,12 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-base text-foreground">
-                    {profile?.displayName || "Memuat..."}
+                    {profile?.displayName || (isEn ? "Loading..." : "Memuat...")}
                   </h3>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs text-muted-foreground">{profile?.email}</span>
                     <Badge className="bg-[#A7F3D0]/40 text-[#064E3B] text-[10px] px-2 py-0 border-none font-semibold rounded-sm">
-                      Aktif
+                      {isEn ? "Active" : "Aktif"}
                     </Badge>
                   </div>
                 </div>
@@ -232,7 +243,7 @@ export default function SettingsPage() {
                 className="text-xs font-semibold text-[#BA1A1A] hover:bg-[#BA1A1A]/10 border-[#BA1A1A]/30 rounded-sm gap-1.5 h-8 px-2.5"
               >
                 <LogOut className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Keluar</span>
+                <span className="hidden sm:inline">{isEn ? "Log Out" : "Keluar"}</span>
               </Button>
             </div>
 
@@ -266,32 +277,32 @@ export default function SettingsPage() {
               className="space-y-3.5 text-xs"
             >
               <div>
-                <label className="font-semibold text-foreground block mb-1">Nama Lengkap</label>
+                <label className="font-semibold text-foreground block mb-1">{isEn ? "Full Name" : "Nama Lengkap"}</label>
                 <Input
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Nama tampilan Anda"
+                  placeholder={isEn ? "Your display name" : "Nama tampilan Anda"}
                   className="h-9 sm:h-10 text-xs rounded-md"
                   required
                 />
               </div>
 
               <div>
-                <label className="font-semibold text-foreground block mb-1">Mata Uang Utama</label>
+                <label className="font-semibold text-foreground block mb-1">{isEn ? "Primary Currency" : "Mata Uang Utama"}</label>
                 <select
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
                   className="w-full h-9 sm:h-10 text-xs rounded-md border border-border bg-card text-foreground pl-3 pr-8 font-medium shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
-                  <option value="IDR">IDR : Rupiah Indonesia (Rp)</option>
+                  <option value="IDR">{isEn ? "IDR : Indonesian Rupiah (Rp)" : "IDR : Rupiah Indonesia (Rp)"}</option>
                   <option value="USD">USD : US Dollar ($)</option>
                   <option value="SGD">SGD : Singapore Dollar (S$)</option>
                   <option value="EUR">EUR : Euro (€)</option>
                   <option value="JPY">JPY : Japanese Yen (¥)</option>
                 </select>
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  Mata uang dasar untuk kalkulasi saldo portofolio dan laporan.
+                  {isEn ? "Base currency for portfolio balances and report calculations." : "Mata uang dasar untuk kalkulasi saldo portofolio dan laporan."}
                 </p>
               </div>
 
@@ -300,20 +311,20 @@ export default function SettingsPage() {
                 <div className="p-3 rounded-sm bg-slate-50 dark:bg-slate-900 border border-border/50">
                   <div className="flex items-center gap-1.5 text-muted-foreground text-[11px] font-medium">
                     <GeometricIcon name="accounts" className="h-3.5 w-3.5" />
-                    Jumlah Akun
+                    {isEn ? "Total Accounts" : "Jumlah Akun"}
                   </div>
                   <div className="text-base font-extrabold text-foreground mt-1">
-                    {profile?.accountCount || 0} Akun
+                    {profile?.accountCount || 0} {isEn ? "Accounts" : "Akun"}
                   </div>
                 </div>
 
                 <div className="p-3 rounded-sm bg-slate-50 dark:bg-slate-900 border border-border/50">
                   <div className="flex items-center gap-1.5 text-muted-foreground text-[11px] font-medium">
                     <Receipt className="h-3.5 w-3.5 text-[#059669]" />
-                    Total Transaksi
+                    {isEn ? "Total Transactions" : "Total Transaksi"}
                   </div>
                   <div className="text-base font-extrabold text-foreground mt-1">
-                    {profile?.transactionCount || 0} Data
+                    {profile?.transactionCount || 0} {isEn ? "Records" : "Data"}
                   </div>
                 </div>
               </div>
@@ -325,7 +336,9 @@ export default function SettingsPage() {
                   className="w-full bg-[#059669] hover:bg-[#047857] text-white font-semibold h-9 sm:h-10 rounded-md shadow-level-1 gap-2"
                 >
                   <Save className="h-4 w-4" />
-                  {updateProfileMutation.isPending ? "Menyimpan..." : "Simpan Perubahan Profil"}
+                  {updateProfileMutation.isPending
+                    ? (isEn ? "Saving..." : "Menyimpan...")
+                    : (isEn ? "Save Profile Changes" : "Simpan Perubahan Profil")}
                 </Button>
               </div>
             </form>
@@ -340,10 +353,12 @@ export default function SettingsPage() {
             >
               <span className="flex items-center gap-2">
                 <Lock className="h-3.5 w-3.5 text-[#059669]" />
-                Ubah Kata Sandi
+                {isEn ? "Change Password" : "Ubah Kata Sandi"}
               </span>
               <span className="text-[11px] text-[#059669]">
-                {showPasswordChange ? "Tutup" : "Buka Formulir"}
+                {showPasswordChange
+                  ? (isEn ? "Close" : "Tutup")
+                  : (isEn ? "Open Form" : "Buka Formulir")}
               </span>
             </button>
 
@@ -362,7 +377,9 @@ export default function SettingsPage() {
             {showPasswordChange && (
               <form onSubmit={handlePasswordSubmit} className="mt-3 space-y-2.5 text-xs animate-in fade-in">
                 <div>
-                  <label className="text-muted-foreground font-medium block mb-1">Kata Sandi Saat Ini</label>
+                  <label className="text-muted-foreground font-medium block mb-1">
+                    {isEn ? "Current Password" : "Kata Sandi Saat Ini"}
+                  </label>
                   <Input
                     type="password"
                     value={currentPassword}
@@ -374,23 +391,27 @@ export default function SettingsPage() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
-                    <label className="text-muted-foreground font-medium block mb-1">Kata Sandi Baru</label>
+                    <label className="text-muted-foreground font-medium block mb-1">
+                      {isEn ? "New Password" : "Kata Sandi Baru"}
+                    </label>
                     <Input
                       type="password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Min. 6 digit"
+                      placeholder={isEn ? "Min. 6 characters" : "Min. 6 digit"}
                       className="h-9 text-xs rounded-md"
                       required
                     />
                   </div>
                   <div>
-                    <label className="text-muted-foreground font-medium block mb-1">Konfirmasi Sandi Baru</label>
+                    <label className="text-muted-foreground font-medium block mb-1">
+                      {isEn ? "Confirm New Password" : "Konfirmasi Sandi Baru"}
+                    </label>
                     <Input
                       type="password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Ulangi sandi baru"
+                      placeholder={isEn ? "Repeat new password" : "Ulangi sandi baru"}
                       className="h-9 text-xs rounded-md"
                       required
                     />
@@ -402,7 +423,9 @@ export default function SettingsPage() {
                   disabled={changePasswordMutation.isPending}
                   className="w-full bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-bold h-9 rounded-md"
                 >
-                  {changePasswordMutation.isPending ? "Memproses..." : "Perbarui Kata Sandi"}
+                  {changePasswordMutation.isPending
+                    ? (isEn ? "Processing..." : "Memproses...")
+                    : (isEn ? "Update Password" : "Perbarui Kata Sandi")}
                 </Button>
               </form>
             )}
@@ -421,25 +444,29 @@ export default function SettingsPage() {
                   <h3 className="font-extrabold text-base text-foreground">
                     Google Gemini AI Studio Token
                   </h3>
-                  <p className="text-[11px] text-muted-foreground">Koneksi model OCR &amp; Financial AI</p>
+                  <p className="text-[11px] text-muted-foreground">{isEn ? "OCR & Financial AI model connection" : "Koneksi model OCR & Financial AI"}</p>
                 </div>
               </div>
 
               {geminiStatus?.connected ? (
                 <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-none font-semibold text-[10px] gap-1 rounded-sm">
                   <CheckCircle2 className="h-3 w-3" />
-                  {geminiStatus.source === "personal" ? "Token Pribadi Aktif" : "Token Server Aktif"}
+                  {geminiStatus.source === "personal"
+                    ? (isEn ? "Personal Token Active" : "Token Pribadi Aktif")
+                    : (isEn ? "Server Token Active" : "Token Server Aktif")}
                 </Badge>
               ) : (
                 <Badge variant="outline" className="text-amber-600 border-amber-300 text-[10px] gap-1 rounded-sm">
                   <AlertCircle className="h-3 w-3" />
-                  Belum Terhubung
+                  {isEn ? "Not Connected" : "Belum Terhubung"}
                 </Badge>
               )}
             </div>
 
             <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-              Sambungkan API Key Google Gemini Anda untuk mengaktifkan Fin.IQ AI Financial Advisor dan rekomendasi keuangan cerdas berbasis Generative AI.
+              {isEn
+                ? "Connect your Google Gemini API Key to enable Fin.IQ AI Financial Advisor and intelligent generative AI recommendations."
+                : "Sambungkan API Key Google Gemini Anda untuk mengaktifkan Fin.IQ AI Financial Advisor dan rekomendasi keuangan cerdas berbasis Generative AI."}
             </p>
 
             {/* Token status feedback */}
@@ -465,7 +492,7 @@ export default function SettingsPage() {
               <div className="p-3 rounded-sm bg-muted/40 border border-border/60 mb-4 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] uppercase font-semibold text-muted-foreground block">
-                    Token Tersimpan Saat Ini
+                    {isEn ? "Currently Saved Token" : "Token Tersimpan Saat Ini"}
                   </span>
                   <span className="font-mono text-xs font-bold text-foreground">
                     {profile.geminiApiKeyMasked}
@@ -478,9 +505,11 @@ export default function SettingsPage() {
                   disabled={removeGeminiKeyMutation.isPending}
                   onClick={async () => {
                     const ok = await confirm({
-                      title: "Putuskan Token Gemini AI?",
-                      description: "Token API Key Gemini Anda akan dihapus dari akun. Fitur AI akan kembali menggunakan konfigurasi sistem atau meminta token baru.",
-                      confirmText: "Putuskan Sambungan",
+                      title: isEn ? "Disconnect Gemini AI Token?" : "Putuskan Token Gemini AI?",
+                      description: isEn
+                        ? "Your Gemini API Key token will be removed from your account. AI features will fallback to server defaults or prompt for a new token."
+                        : "Token API Key Gemini Anda akan dihapus dari akun. Fitur AI akan kembali menggunakan konfigurasi sistem atau meminta token baru.",
+                      confirmText: isEn ? "Disconnect" : "Putuskan Sambungan",
                       variant: "warning",
                       icon: "unlink",
                     });
@@ -491,7 +520,7 @@ export default function SettingsPage() {
                   className="text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 h-7 px-2.5 rounded-sm"
                 >
                   <Trash2 className="h-3 w-3 mr-1" />
-                  Putuskan
+                  {isEn ? "Disconnect" : "Putuskan"}
                 </Button>
               </div>
             )}
@@ -507,14 +536,16 @@ export default function SettingsPage() {
             >
               <div>
                 <label className="text-xs font-semibold text-foreground block mb-1">
-                  {profile?.geminiApiKeyMasked ? "Ganti Token Gemini API Key" : "Masukkan Gemini API Key"}
+                  {profile?.geminiApiKeyMasked
+                    ? (isEn ? "Replace Gemini API Key" : "Ganti Token Gemini API Key")
+                    : (isEn ? "Enter Gemini API Key" : "Masukkan Gemini API Key")}
                 </label>
                 <div className="relative">
                   <Input
                     type={showGeminiKey ? "text" : "password"}
                     value={geminiKeyInput}
                     onChange={(e) => setGeminiKeyInput(e.target.value)}
-                    placeholder="Masukkan Gemini API Key (misal: AIzaSy...)"
+                    placeholder={isEn ? "Enter Gemini API Key (e.g. AIzaSy...)" : "Masukkan Gemini API Key (misal: AIzaSy...)"}
                     className="h-9 sm:h-10 text-xs rounded-md pr-10 font-mono"
                     required
                   />
@@ -537,12 +568,12 @@ export default function SettingsPage() {
                   {setGeminiKeyMutation.isPending ? (
                     <>
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Memverifikasi Token...
+                      {isEn ? "Verifying Token..." : "Memverifikasi Token..."}
                     </>
                   ) : (
                     <>
                       <Check className="h-3.5 w-3.5" />
-                      Verifikasi &amp; Sambungkan
+                      {isEn ? "Verify & Connect" : "Verifikasi & Sambungkan"}
                     </>
                   )}
                 </Button>
@@ -552,7 +583,7 @@ export default function SettingsPage() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-[11px] text-[#059669] hover:underline font-medium sm:ml-auto"
                 >
-                  Ambil Key di Google AI Studio
+                  {isEn ? "Get Key from Google AI Studio" : "Ambil Key di Google AI Studio"}
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </div>
@@ -560,7 +591,9 @@ export default function SettingsPage() {
           </div>
 
           <div className="pt-4 border-t mt-4 text-[11px] text-muted-foreground">
-            Model aktif: <span className="font-semibold text-foreground">Gemini 3 Flash & 3.8</span>. Token tersimpan aman di database profil Anda.
+            {isEn
+              ? <>Active models: <span className="font-semibold text-foreground">Gemini 3 Flash &amp; 3.8</span>. Token is securely saved to your account profile.</>
+              : <>Model aktif: <span className="font-semibold text-foreground">Gemini 3 Flash &amp; 3.8</span>. Token tersimpan aman di database profil Anda.</>}
           </div>
         </Card>
 
@@ -574,7 +607,9 @@ export default function SettingsPage() {
               </h3>
             </div>
             <p className="text-xs text-muted-foreground mb-4">
-              Token API untuk menghubungkan Fin.IQ dengan Claude Desktop, Cursor, atau LLM Agent via protokol MCP.
+              {isEn
+                ? "API token to connect Fin.IQ with Claude Desktop, Cursor, or LLM agents via MCP protocol."
+                : "Token API untuk menghubungkan Fin.IQ dengan Claude Desktop, Cursor, atau LLM Agent via protokol MCP."}
             </p>
 
             <form
@@ -587,7 +622,7 @@ export default function SettingsPage() {
             >
               <Input
                 type="text"
-                placeholder="Nama token (misal: Claude Desktop)"
+                placeholder={isEn ? "Token name (e.g. Claude Desktop)" : "Nama token (misal: Claude Desktop)"}
                 value={tokenName}
                 onChange={(e) => setTokenName(e.target.value)}
                 className="h-9 sm:h-10 text-xs rounded-md"
@@ -598,7 +633,7 @@ export default function SettingsPage() {
                 disabled={createTokenMutation.isPending}
                 className="bg-[#059669] hover:bg-[#047857] text-white font-semibold h-9 sm:h-10 px-4 rounded-md shadow-level-1 shrink-0"
               >
-                {createTokenMutation.isPending ? "..." : "Generate"}
+                {createTokenMutation.isPending ? "..." : (isEn ? "Generate" : "Generate")}
               </Button>
             </form>
 
@@ -606,7 +641,7 @@ export default function SettingsPage() {
             {generatedRawToken && (
               <div className="mt-4 p-3 rounded-md bg-amber-50 dark:bg-amber-950/60 border border-amber-300 text-xs">
                 <span className="font-bold text-amber-800 dark:text-amber-300">
-                  Simpan Token Ini (Hanya Muncul Sekali):
+                  {isEn ? "Save This Token (Displayed Only Once):" : "Simpan Token Ini (Hanya Muncul Sekali):"}
                 </span>
                 <div className="flex items-center gap-2 mt-1.5 font-mono text-[11px] bg-background p-2 rounded-sm border">
                   <span className="truncate">{generatedRawToken}</span>
@@ -620,7 +655,7 @@ export default function SettingsPage() {
             {/* Active Tokens List */}
             <div className="mt-4 space-y-2 text-xs">
               <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                Daftar Token Aktif
+                {isEn ? "Active Tokens List" : "Daftar Token Aktif"}
               </div>
               {tokensList?.map((tok) => (
                 <div key={tok.id} className="flex items-center justify-between p-2.5 rounded-sm border bg-muted/30">
@@ -629,13 +664,13 @@ export default function SettingsPage() {
                     <div className="font-mono text-[10px] text-muted-foreground">{tok.prefix}...</div>
                   </div>
                   <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300 rounded-sm">
-                    Aktif
+                    {isEn ? "Active" : "Aktif"}
                   </Badge>
                 </div>
               ))}
               {(!tokensList || tokensList.length === 0) && (
                 <p className="text-[11px] text-muted-foreground italic py-2">
-                  Belum ada PAT yang dibuat.
+                  {isEn ? "No PAT generated yet." : "Belum ada PAT yang dibuat."}
                 </p>
               )}
             </div>
@@ -649,11 +684,11 @@ export default function SettingsPage() {
                   Two-Factor Authentication (2FA)
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Proteksi TOTP (Google Authenticator)
+                  {isEn ? "TOTP protection (Google Authenticator)" : "Proteksi TOTP (Google Authenticator)"}
                 </p>
               </div>
               <Badge variant="outline" className="text-emerald-600 border-emerald-300 text-[10px] rounded-sm">
-                Tersedia
+                {isEn ? "Available" : "Tersedia"}
               </Badge>
             </div>
           </div>
@@ -709,28 +744,30 @@ export default function SettingsPage() {
         <div className="flex items-center gap-2 mb-2">
           <GeometricIcon name="ai" className="h-4 w-4" />
           <h3 className="font-extrabold text-base text-foreground">
-            Audit Log Panggilan AI / MCP
+            {isEn ? "AI / MCP Audit Logs" : "Audit Log Panggilan AI / MCP"}
           </h3>
         </div>
         <p className="text-xs text-muted-foreground mb-4">
-          Riwayat audit saat AI tools membaca atau mencatat transaksi secara otomatis.
+          {isEn
+            ? "Audit history when AI tools read or record transactions automatically."
+            : "Riwayat audit saat AI tools membaca atau mencatat transaksi secara otomatis."}
         </p>
 
         <div className="overflow-x-auto text-xs">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b bg-muted/40 text-muted-foreground font-semibold">
-                <th className="p-2.5 rounded-l-sm">Waktu</th>
+                <th className="p-2.5 rounded-l-sm">{isEn ? "Time" : "Waktu"}</th>
                 <th className="p-2.5">Tool Name</th>
                 <th className="p-2.5">Status</th>
-                <th className="p-2.5 rounded-r-sm">Ringkasan Argumen</th>
+                <th className="p-2.5 rounded-r-sm">{isEn ? "Arguments Summary" : "Ringkasan Argumen"}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {mcpLogs?.map((log) => (
                 <tr key={log.id}>
                   <td className="p-2.5 text-muted-foreground">
-                    {new Date(log.calledAt).toLocaleString("id-ID")}
+                    {new Date(log.calledAt).toLocaleString(isEn ? "en-US" : "id-ID")}
                   </td>
                   <td className="p-2.5 font-mono font-semibold">{log.toolName}</td>
                   <td className="p-2.5">
@@ -744,7 +781,7 @@ export default function SettingsPage() {
               {(!mcpLogs || mcpLogs.length === 0) && (
                 <tr>
                   <td colSpan={4} className="p-6 sm:p-8 text-center text-muted-foreground">
-                    Belum ada riwayat pemanggilan AI tool.
+                    {isEn ? "No AI tool call logs yet." : "Belum ada riwayat pemanggilan AI tool."}
                   </td>
                 </tr>
               )}

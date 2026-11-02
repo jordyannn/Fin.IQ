@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
-import { formatCurrency } from "@/lib/utils";
+import { useTranslation } from "@/i18n";
 import { GeometricIcon } from "@/components/ui/GeometricIcon";
 import { ChevronLeft, ChevronRight, ChevronDown, Calendar as CalendarIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -12,6 +12,8 @@ import { MonthYearPicker } from "@/components/ui/MonthYearPicker";
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+  const { t, locale, formatCurrency } = useTranslation();
+  const isEn = locale === "en";
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -28,7 +30,7 @@ export default function CalendarPage() {
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
-  const monthName = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(currentDate);
+  const monthName = new Intl.DateTimeFormat(isEn ? "en-US" : "id-ID", { month: "long", year: "numeric" }).format(currentDate);
 
   // Group transactions by date string YYYY-MM-DD
   const txByDay = new Map<string, { income: number; expense: number; count: number }>();
@@ -44,7 +46,9 @@ export default function CalendarPage() {
     }
   }
 
-  const daysOfWeek = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+  const daysOfWeek = isEn
+    ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    : ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 
   return (
     <div className="flex flex-col gap-6">
@@ -55,19 +59,19 @@ export default function CalendarPage() {
               type="button"
               onClick={() => setIsMonthPickerOpen((prev) => !prev)}
               className="h-8 w-8 rounded-md bg-[#A7F3D0]/40 hover:bg-[#A7F3D0]/70 flex items-center justify-center text-[#064E3B] shrink-0 transition-colors cursor-pointer"
-              title="Buka Pemilih Bulan & Kalender Langsung"
+              title={isEn ? "Open Month & Calendar Picker" : "Buka Pemilih Bulan & Kalender Langsung"}
             >
               <GeometricIcon name="calendar" className="h-4 w-4" />
             </button>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Kalender Transaksi</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">{t.calendar.title}</h1>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Tinjau rekap pengeluaran dan pemasukan harian dalam tampilan kalender bulanan.
+            {t.calendar.subtitle}
           </p>
         </div>
 
         <div className="relative flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/60 p-1 rounded-md border border-border/60">
-          <Button variant="ghost" size="icon" onClick={prevMonth} className="h-7 w-7 rounded-sm" title="Bulan sebelumnya">
+          <Button variant="ghost" size="icon" onClick={prevMonth} className="h-7 w-7 rounded-sm" title={isEn ? "Previous month" : "Bulan sebelumnya"}>
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
 
@@ -76,14 +80,14 @@ export default function CalendarPage() {
             type="button"
             onClick={() => setIsMonthPickerOpen((prev) => !prev)}
             className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold capitalize rounded-sm hover:bg-background/80 hover:text-primary transition-all text-foreground min-w-32 justify-center cursor-pointer group"
-            title="Klik untuk memilih bulan & tahun langsung"
+            title={isEn ? "Click to select month & year" : "Klik untuk memilih bulan & tahun langsung"}
           >
             <CalendarIcon className="h-3.5 w-3.5 text-primary group-hover:scale-105 transition-transform" />
             <span>{monthName}</span>
             <ChevronDown className="h-3 w-3 opacity-60 group-hover:opacity-100 transition-opacity" />
           </button>
 
-          <Button variant="ghost" size="icon" onClick={nextMonth} className="h-7 w-7 rounded-sm" title="Bulan berikutnya">
+          <Button variant="ghost" size="icon" onClick={nextMonth} className="h-7 w-7 rounded-sm" title={isEn ? "Next month" : "Bulan berikutnya"}>
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
 

@@ -18,12 +18,19 @@ export function computeDateRange(
   preset: DateFilterPreset,
   currentMonth: Date = new Date(),
   customFrom?: string,
-  customTo?: string
+  customTo?: string,
+  locale: "id" | "en" = "id"
 ): DateFilterResult {
   const now = new Date();
+  const isEn = locale === "en";
+  const intlLocale = isEn ? "en-US" : "id-ID";
 
   if (preset === "all") {
-    return { dateFrom: undefined, dateTo: undefined, periodLabel: "Semua Waktu" };
+    return {
+      dateFrom: undefined,
+      dateTo: undefined,
+      periodLabel: isEn ? "All Time" : "Semua Waktu",
+    };
   }
 
   if (preset === "today") {
@@ -32,7 +39,7 @@ export function computeDateRange(
     return {
       dateFrom: start.toISOString(),
       dateTo: end.toISOString(),
-      periodLabel: "Hari Ini",
+      periodLabel: isEn ? "Today" : "Hari Ini",
     };
   }
 
@@ -43,7 +50,7 @@ export function computeDateRange(
     return {
       dateFrom: start.toISOString(),
       dateTo: end.toISOString(),
-      periodLabel: "7 Hari Terakhir",
+      periodLabel: isEn ? "Last 7 Days" : "7 Hari Terakhir",
     };
   }
 
@@ -54,7 +61,7 @@ export function computeDateRange(
     return {
       dateFrom: start.toISOString(),
       dateTo: end.toISOString(),
-      periodLabel: "30 Hari Terakhir",
+      periodLabel: isEn ? "Last 30 Days" : "30 Hari Terakhir",
     };
   }
 
@@ -63,7 +70,7 @@ export function computeDateRange(
     const mo = currentMonth.getMonth();
     const start = new Date(yr, mo, 1, 0, 0, 0);
     const end = new Date(yr, mo + 1, 0, 23, 59, 59, 999);
-    const label = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(currentMonth);
+    const label = new Intl.DateTimeFormat(intlLocale, { month: "long", year: "numeric" }).format(currentMonth);
     return {
       dateFrom: start.toISOString(),
       dateTo: end.toISOString(),
@@ -76,11 +83,11 @@ export function computeDateRange(
     const mo = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
     const start = new Date(yr, mo, 1, 0, 0, 0);
     const end = new Date(yr, mo + 1, 0, 23, 59, 59, 999);
-    const label = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(start);
+    const label = new Intl.DateTimeFormat(intlLocale, { month: "long", year: "numeric" }).format(start);
     return {
       dateFrom: start.toISOString(),
       dateTo: end.toISOString(),
-      periodLabel: `Bulan Lalu (${label})`,
+      periodLabel: isEn ? `Last Month (${label})` : `Bulan Lalu (${label})`,
     };
   }
 
@@ -91,20 +98,20 @@ export function computeDateRange(
     return {
       dateFrom: start.toISOString(),
       dateTo: end.toISOString(),
-      periodLabel: `Tahun ${yr}`,
+      periodLabel: isEn ? `Year ${yr}` : `Tahun ${yr}`,
     };
   }
 
   if (preset === "custom") {
     const start = customFrom ? new Date(`${customFrom}T00:00:00`).toISOString() : undefined;
     const end = customTo ? new Date(`${customTo}T23:59:59.999`).toISOString() : undefined;
-    let label = "Kustom";
+    let label = isEn ? "Custom" : "Kustom";
     if (customFrom && customTo) {
-      label = `${customFrom} s/d ${customTo}`;
+      label = isEn ? `${customFrom} to ${customTo}` : `${customFrom} s/d ${customTo}`;
     } else if (customFrom) {
-      label = `Dari ${customFrom}`;
+      label = isEn ? `From ${customFrom}` : `Dari ${customFrom}`;
     } else if (customTo) {
-      label = `Sampai ${customTo}`;
+      label = isEn ? `Until ${customTo}` : `Sampai ${customTo}`;
     }
     return {
       dateFrom: start,
@@ -113,5 +120,9 @@ export function computeDateRange(
     };
   }
 
-  return { dateFrom: undefined, dateTo: undefined, periodLabel: "Semua Waktu" };
+  return {
+    dateFrom: undefined,
+    dateTo: undefined,
+    periodLabel: isEn ? "All Time" : "Semua Waktu",
+  };
 }

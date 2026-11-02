@@ -36,6 +36,44 @@ export function CommandPalette() {
   } = useUIStore();
   const { theme, setTheme } = useTheme();
   const { t, locale } = useTranslation();
+  const isEn = locale === "en";
+
+  const getNavLabel = (href: string, fallback: string) => {
+    switch (href) {
+      case "/overview": return t.nav.overview;
+      case "/transactions": return t.nav.transactions;
+      case "/ai": return t.nav.aiAdvisor;
+      case "/import": return t.nav.importData;
+      case "/analytics": return t.nav.analytics;
+      case "/calendar": return t.nav.calendar;
+      case "/accounts": return t.nav.accounts;
+      case "/categories": return t.nav.categories;
+      case "/budgets": return t.nav.budgets;
+      case "/ledgers": return t.nav.ledgers;
+      case "/annual-report": return t.nav.annualReport;
+      case "/settings": return t.nav.settings;
+      default: return fallback;
+    }
+  };
+
+  const getNavDescription = (href: string, fallback: string) => {
+    if (!isEn) return fallback;
+    switch (href) {
+      case "/overview": return "Cash flow, spending trends, and primary cash balances";
+      case "/transactions": return "Mutation history of cash inflow and outflow";
+      case "/ai": return "Consultation and financial planning analysis";
+      case "/import": return "Import bank statements from CSV, Excel, and PDF";
+      case "/analytics": return "Spending breakdown charts and financial health ratios";
+      case "/calendar": return "Daily transaction frequency and activity map";
+      case "/accounts": return "Manage bank accounts, e-wallets, and cash wallets";
+      case "/categories": return "Expense and income classification categories";
+      case "/budgets": return "Monthly spending limits per category";
+      case "/ledgers": return "Personal, business, or family bookkeeping ledgers";
+      case "/annual-report": return "Annual recap of cash flow performance";
+      case "/settings": return "Profile, account preferences, and integrations";
+      default: return fallback;
+    }
+  };
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "nav" | "ai" | "action">("all");
@@ -80,13 +118,15 @@ export function CommandPalette() {
     if (!q) return items;
 
     return ALL_NAVIGATION_ITEMS.filter((item) => {
-      const matchLabel = item.label.toLowerCase().includes(q);
-      const matchDesc = item.description.toLowerCase().includes(q);
+      const label = getNavLabel(item.href, item.label).toLowerCase();
+      const desc = getNavDescription(item.href, item.description).toLowerCase();
+      const matchLabel = label.includes(q) || item.label.toLowerCase().includes(q);
+      const matchDesc = desc.includes(q) || item.description.toLowerCase().includes(q);
       const matchHref = item.href.toLowerCase().includes(q);
       const matchKeywords = item.keywords.some((kw) => kw.toLowerCase().includes(q));
       return matchLabel || matchDesc || matchHref || matchKeywords;
     });
-  }, [search, filter]);
+  }, [search, filter, isEn]);
 
   if (!isCommandPaletteOpen) return null;
 
@@ -202,7 +242,7 @@ export function CommandPalette() {
             <div>
               <div className="px-2.5 py-1 font-bold text-emerald-600 dark:text-emerald-400 uppercase text-[10px] tracking-wider flex items-center gap-1.5">
                 <GeometricIcon name="ai" size="xs" active />
-                <span>Konsultasi AI Advisor</span>
+                <span>{isEn ? "AI Advisor Consultation" : "Konsultasi AI Advisor"}</span>
               </div>
               <button
                 onClick={() => navigateTo(`/ai?q=${encodeURIComponent(search.trim())}`)}
@@ -213,14 +253,14 @@ export function CommandPalette() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="text-xs font-bold block truncate text-foreground">
-                    Tanya AI: &quot;{search.trim()}&quot;
+                    {isEn ? `Ask AI: "${search.trim()}"` : `Tanya AI: "${search.trim()}"`}
                   </span>
                   <span className="text-[10px] text-muted-foreground block truncate">
-                    Buka AI Advisor dan minta analisis instan untuk topik ini
+                    {isEn ? "Open AI Advisor and request instant analysis for this topic" : "Buka AI Advisor dan minta analisis instan untuk topik ini"}
                   </span>
                 </div>
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
-                  Tanya <ArrowRight className="h-3 w-3" />
+                  {isEn ? "Ask" : "Tanya"} <ArrowRight className="h-3 w-3" />
                 </span>
               </button>
             </div>
@@ -230,8 +270,8 @@ export function CommandPalette() {
           {(filter === "all" || filter === "nav") && filteredNavItems.length > 0 && (
             <div>
               <div className="px-2.5 py-1 font-bold text-muted-foreground uppercase text-[10px] tracking-wider flex items-center justify-between">
-                <span>{hasSearch ? "Halaman & Menu Ditemukan" : "Menu & Halaman Sidebar"}</span>
-                <span className="font-mono text-[9px] opacity-75">{filteredNavItems.length} menu</span>
+                <span>{hasSearch ? (isEn ? "Found Pages & Menus" : "Halaman & Menu Ditemukan") : (isEn ? "Sidebar Pages & Menus" : "Menu & Halaman Sidebar")}</span>
+                <span className="font-mono text-[9px] opacity-75">{filteredNavItems.length} {isEn ? "menus" : "menu"}</span>
               </div>
 
               <div className="space-y-0.5">
@@ -248,7 +288,7 @@ export function CommandPalette() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-xs text-foreground group-hover:text-primary transition-colors truncate">
-                          {item.label}
+                          {getNavLabel(item.href, item.label)}
                         </span>
                         {item.isAI && (
                           <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-sm bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
@@ -257,7 +297,7 @@ export function CommandPalette() {
                         )}
                       </div>
                       <span className="text-[11px] text-muted-foreground block truncate leading-tight mt-0.5">
-                        {item.description}
+                        {getNavDescription(item.href, item.description)}
                       </span>
                     </div>
 
@@ -275,7 +315,7 @@ export function CommandPalette() {
             <div className="border-t border-border/60 pt-2.5">
               <div className="px-2.5 py-1 font-bold text-emerald-600 dark:text-emerald-400 uppercase text-[10px] tracking-wider flex items-center gap-1.5">
                 <GeometricIcon name="ai" size="xs" active />
-                <span>Fitur Cerdas Fin.IQ AI</span>
+                <span>{isEn ? "Fin.IQ AI Smart Features" : "Fitur Cerdas Fin.IQ AI"}</span>
               </div>
 
               <div className="space-y-0.5">
@@ -296,7 +336,7 @@ export function CommandPalette() {
                       </span>
                     </div>
                     <span className="text-[11px] text-muted-foreground block truncate leading-tight mt-0.5">
-                      Konsultasi keuangan pribadi, audit pengeluaran, dan rekomendasi aksi nyata
+                      {isEn ? "Personal financial consultation, spending audit, and actionable recommendations" : "Konsultasi keuangan pribadi, audit pengeluaran, dan rekomendasi aksi nyata"}
                     </span>
                   </div>
                   <kbd className="ml-auto rounded-sm border border-border/80 bg-background px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
@@ -313,10 +353,10 @@ export function CommandPalette() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="font-bold text-xs text-foreground block truncate">
-                      Status &amp; Token API Key Gemini
+                      {isEn ? "Gemini API Key Token & Status" : "Status & Token API Key Gemini"}
                     </span>
                     <span className="text-[11px] text-muted-foreground block truncate leading-tight">
-                      Kelola token Google Gemini di halaman profil dan pengaturan
+                      {isEn ? "Manage Google Gemini token in profile and settings" : "Kelola token Google Gemini di halaman profil dan pengaturan"}
                     </span>
                   </div>
                   <kbd className="ml-auto rounded-sm border border-border/80 bg-background px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
@@ -331,7 +371,7 @@ export function CommandPalette() {
           {(filter === "all" || filter === "action") && !hasSearch && (
             <div className="border-t border-border/60 pt-2.5">
               <div className="px-2.5 py-1 font-bold text-muted-foreground uppercase text-[10px] tracking-wider">
-                Aksi Cepat
+                {isEn ? "Quick Actions" : "Aksi Cepat"}
               </div>
               <div className="space-y-0.5">
                 <button
@@ -343,10 +383,10 @@ export function CommandPalette() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="font-bold text-xs text-foreground block truncate">
-                      Catat Transaksi Baru
+                      {isEn ? "Record New Transaction" : "Catat Transaksi Baru"}
                     </span>
                     <span className="text-[11px] text-muted-foreground block truncate leading-tight">
-                      Input transaksi manual, transfer antar akun, atau pemasukan
+                      {isEn ? "Manual transaction input, account transfer, or income" : "Input transaksi manual, transfer antar akun, atau pemasukan"}
                     </span>
                   </div>
                   <kbd className="ml-auto rounded-sm border border-border/80 bg-background px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
@@ -367,10 +407,10 @@ export function CommandPalette() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="font-bold text-xs text-foreground block truncate">
-                      Ganti Tema ({theme === "dark" ? "Mode Terang" : "Mode Gelap"})
+                      {isEn ? `Switch Theme (${theme === "dark" ? "Light Mode" : "Dark Mode"})` : `Ganti Tema (${theme === "dark" ? "Mode Terang" : "Mode Gelap"})`}
                     </span>
                     <span className="text-[11px] text-muted-foreground block truncate leading-tight">
-                      Ubah tampilan tema antarmuka aplikasi
+                      {isEn ? "Toggle application interface theme" : "Ubah tampilan tema antarmuka aplikasi"}
                     </span>
                   </div>
                 </button>
@@ -383,7 +423,11 @@ export function CommandPalette() {
             <div className="p-8 text-center text-muted-foreground space-y-2">
               <GeometricIcon name="search" size="lg" className="mx-auto opacity-40" />
               <p className="text-xs font-medium">
-                Tidak ada menu atau halaman yang cocok dengan &quot;<strong className="text-foreground">{search}</strong>&quot;.
+                {isEn ? (
+                  <>No menus or pages match &quot;<strong className="text-foreground">{search}</strong>&quot;.</>
+                ) : (
+                  <>Tidak ada menu atau halaman yang cocok dengan &quot;<strong className="text-foreground">{search}</strong>&quot;.</>
+                )}
               </p>
               <button
                 type="button"
@@ -391,7 +435,7 @@ export function CommandPalette() {
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline pt-1 cursor-pointer"
               >
                 <GeometricIcon name="ai" size="xs" active />
-                <span>Tanyakan kepada AI Advisor</span>
+                <span>{isEn ? "Ask AI Advisor" : "Tanyakan kepada AI Advisor"}</span>
               </button>
             </div>
           )}
@@ -403,11 +447,11 @@ export function CommandPalette() {
         <div className="px-4 py-2 bg-muted/40 border-t border-border/60 text-[10px] text-muted-foreground flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1">
-              <kbd className="px-1 py-0.5 rounded bg-card border border-border font-mono">ESC</kbd> Tutup
+              <kbd className="px-1 py-0.5 rounded bg-card border border-border font-mono">ESC</kbd> {isEn ? "Close" : "Tutup"}
             </span>
             <span>•</span>
             <span className="flex items-center gap-1">
-              <kbd className="px-1 py-0.5 rounded bg-card border border-border font-mono">⌘K</kbd> Buka Cepat
+              <kbd className="px-1 py-0.5 rounded bg-card border border-border font-mono">⌘K</kbd> {isEn ? "Quick Open" : "Buka Cepat"}
             </span>
           </div>
           <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">

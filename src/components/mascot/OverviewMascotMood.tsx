@@ -3,10 +3,10 @@
 
 import React, { useState, useMemo } from "react";
 import Image from "next/image";
-import { formatCurrency } from "@/lib/utils";
 import { mascotSound } from "@/lib/mascot-sound";
-import { Sparkles, MessageCircle, Volume2, VolumeX, RefreshCw } from "lucide-react";
+import { Sparkles, Volume2, VolumeX, RefreshCw } from "lucide-react";
 import { useMascotStore } from "@/store/mascot.store";
+import { useTranslation } from "@/i18n";
 
 interface OverviewMascotMoodProps {
   netCashflow: number;
@@ -15,24 +15,44 @@ interface OverviewMascotMoodProps {
   periodLabel: string;
 }
 
-const CUAN_QUOTES = [
+const CUAN_QUOTES_ID = [
   "Cuan mengalir deras bos! Jangan lupa sisihkan buat dana darurat ya! 🚀",
   "Alhamdulillah surplus! Saatnya perkuat tabungan atau investasi nih. 💰",
   "Arus kas positif! Pengeluaranmu bulan ini terkontrol dengan sangat baik. 🌟",
   "Gaya hidup terkendali, dompet pun berseri-seri! Lanjutkan bos! 👏",
 ];
 
-const DEFICIT_QUOTES = [
+const CUAN_QUOTES_EN = [
+  "Surplus cash flow is rolling in! Don't forget to build up your emergency fund! 🚀",
+  "Great surplus! Excellent time to strengthen savings or investments. 💰",
+  "Positive cash flow! Your expenses this period are well under control. 🌟",
+  "Disciplined spending leads to financial freedom! Keep up the momentum! 👏",
+];
+
+const DEFICIT_QUOTES_ID = [
   "Waduh minus nih bos! Yuk kita evaluasi dan rem jajan kopinya dulu. 💸",
   "Pengeluaran lagi lebih besar dari pemasukan. Cek menu Anggaran ya! 📉",
   "Jangan panik bos! Masih ada waktu buat hemat dan seimbangkan kas. 🛡️",
   "Boncos tipis-tipis? Tenang, Bang Peci siap temani atur strategi hemat! 🧐",
 ];
 
-const STABLE_QUOTES = [
+const DEFICIT_QUOTES_EN = [
+  "Cash flow is in the red. Let's review non-essential expenses and tighten the belt! 💸",
+  "Outflows exceed inflows for this period. Check the Budgets tab! 📉",
+  "Stay calm! There is still time to economize and rebalance the books. 🛡️",
+  "Minor burn? Bang Peci is here to help you formulate a recovery plan! 🧐",
+];
+
+const STABLE_QUOTES_ID = [
   "Arus kas pas seimbang! Pemasukan dan pengeluaran sama kuatnya. ⚖️",
   "Kondisi aman terkendali. Usahakan ada sisa surplus buat tabungan ya! 🛡️",
   "Ritme stabil bos! Tetap disiplin catat setiap transaksi kecil. ✨",
+];
+
+const STABLE_QUOTES_EN = [
+  "Cash flow is perfectly balanced! Inflows match outflows evenly. ⚖️",
+  "Stable conditions. Aim for a small net surplus to fuel savings next month! 🛡️",
+  "Steady rhythm! Keep up the discipline of logging every single transaction. ✨",
 ];
 
 export function OverviewMascotMood({
@@ -42,6 +62,9 @@ export function OverviewMascotMood({
   periodLabel,
 }: OverviewMascotMoodProps) {
   const { isMuted, toggleMute, startTour } = useMascotStore();
+  const { t, locale, formatCurrency } = useTranslation();
+  const isEn = locale === "en";
+
   const [clickCount, setClickCount] = useState(0);
   const [isWiggling, setIsWiggling] = useState(false);
 
@@ -51,40 +74,48 @@ export function OverviewMascotMood({
       return {
         mood: "cuan" as const,
         mascotImg: "/mascot/mascot-cuan.png",
-        badgeText: "Surplus Cuan",
+        badgeText: t.mascotMood.surplusBadge,
         badgeColor: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-        defaultQuote: `Alhamdulillah surplus ${formatCurrency(netCashflow)}! Tabungan makin tebal nih, mantap bos! 🚀`,
+        defaultQuote: isEn
+          ? `Solid surplus of ${formatCurrency(netCashflow)}! Savings reserves are expanding nicely! 🚀`
+          : `Alhamdulillah surplus ${formatCurrency(netCashflow)}! Tabungan makin tebal nih, mantap bos! 🚀`,
         statusEmoji: "🤑",
       };
     } else if (netCashflow < 0) {
-      // Jika defisit sangat dalam (> 50% pengeluaran), pakai ekspresi boncos/marah
       const isSevere = expense > 0 && Math.abs(netCashflow) > expense * 0.5;
       return {
         mood: "deficit" as const,
         mascotImg: isSevere ? "/mascot/mascot-boncos.png" : "/mascot/mascot-sedih.png",
-        badgeText: isSevere ? "Peringatan Boncos" : "Defisit Kas",
+        badgeText: isSevere ? t.mascotMood.warningBadge : t.mascotMood.deficitBadge,
         badgeColor: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
-        defaultQuote: `Waduh arus kas minus ${formatCurrency(Math.abs(netCashflow))}. Yuk rem belanja & jajan dulu ya! 💸`,
+        defaultQuote: isEn
+          ? `Notice: net outflow deficit of ${formatCurrency(Math.abs(netCashflow))}. Time to pause impulsive spendings! 💸`
+          : `Waduh arus kas minus ${formatCurrency(Math.abs(netCashflow))}. Yuk rem belanja & jajan dulu ya! 💸`,
         statusEmoji: isSevere ? "😡" : "🥺",
       };
     } else {
       return {
         mood: "stable" as const,
         mascotImg: "/mascot/mascot-stabil.png",
-        badgeText: "Kas Seimbang",
+        badgeText: t.mascotMood.stableBadge,
         badgeColor: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
-        defaultQuote: `Arus kas imbang seimbang nih bos. Jaga terus ritme dan hindari belanja impulsif ya! ⚖️`,
+        defaultQuote: isEn
+          ? `Cash flow is break-even. Maintain this discipline and avoid impulse purchases! ⚖️`
+          : `Arus kas imbang seimbang nih bos. Jaga terus ritme dan hindari belanja impulsif ya! ⚖️`,
         statusEmoji: "👌",
       };
     }
-  }, [netCashflow, expense]);
+  }, [netCashflow, expense, isEn, formatCurrency, t]);
 
   // Rotasi quote saat maskot diklik
   const activeQuote = useMemo(() => {
     if (clickCount === 0) return defaultQuote;
-    const quotes = mood === "cuan" ? CUAN_QUOTES : mood === "deficit" ? DEFICIT_QUOTES : STABLE_QUOTES;
+    const cuanList = isEn ? CUAN_QUOTES_EN : CUAN_QUOTES_ID;
+    const deficitList = isEn ? DEFICIT_QUOTES_EN : DEFICIT_QUOTES_ID;
+    const stableList = isEn ? STABLE_QUOTES_EN : STABLE_QUOTES_ID;
+    const quotes = mood === "cuan" ? cuanList : mood === "deficit" ? deficitList : stableList;
     return quotes[clickCount % quotes.length];
-  }, [clickCount, defaultQuote, mood]);
+  }, [clickCount, defaultQuote, mood, isEn]);
 
   const handleMascotClick = () => {
     setIsWiggling(true);
@@ -124,13 +155,13 @@ export function OverviewMascotMood({
             className={`relative p-0 transition-transform duration-300 active:scale-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
               isWiggling ? "animate-mascot-wiggle" : "animate-mascot-bounce-playful"
             }`}
-            title="Klik Bang Peci untuk celetukan finansial!"
+            title={isEn ? "Click Bang Peci for financial commentary!" : "Klik Bang Peci untuk celetukan finansial!"}
             aria-label="Bang Peci Fin.IQ"
           >
             <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center">
               <Image
                 src={mascotImg}
-                alt="Bang Peci - Maskot Fin.IQ"
+                alt="Bang Peci - Fin.IQ Mascot"
                 fill
                 sizes="(max-width: 640px) 112px, 128px"
                 className="object-contain drop-shadow-md select-none pointer-events-none"
@@ -149,7 +180,7 @@ export function OverviewMascotMood({
               <span className="font-extrabold text-sm sm:text-base text-foreground tracking-tight flex items-center gap-1.5">
                 Bang Peci
                 <span className="text-[10px] font-medium text-muted-foreground hidden sm:inline">
-                  • Asisten Fin.IQ
+                  • {isEn ? "Fin.IQ Assistant" : "Asisten Fin.IQ"}
                 </span>
               </span>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm border ${badgeColor}`}>
@@ -162,14 +193,14 @@ export function OverviewMascotMood({
               <button
                 onClick={handleMascotClick}
                 className="p-1 rounded-md hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
-                title="Ganti Celetukan"
+                title={isEn ? "Next Quote" : "Ganti Celetukan"}
               >
                 <RefreshCw className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={toggleMute}
                 className="p-1 rounded-md hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
-                title={isMuted ? "Aktifkan Suara Maskot" : "Bisukan Suara Maskot"}
+                title={isMuted ? (isEn ? "Unmute Mascot" : "Aktifkan Suara Maskot") : (isEn ? "Mute Mascot" : "Bisukan Suara Maskot")}
               >
                 {isMuted ? <VolumeX className="h-3.5 w-3.5 text-muted-foreground" /> : <Volume2 className="h-3.5 w-3.5 text-primary" />}
               </button>
@@ -186,14 +217,15 @@ export function OverviewMascotMood({
           {/* Quick Footer: Context & Tour Trigger */}
           <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
             <span className="truncate">
-              Evaluasi kas periode: <span className="font-semibold text-foreground">{periodLabel}</span>
+              {isEn ? "Cash evaluation for period: " : "Evaluasi kas periode: "}
+              <span className="font-semibold text-foreground">{periodLabel}</span>
             </span>
             <button
               onClick={() => startTour("basic")}
               className="text-primary hover:underline font-semibold shrink-0 ml-2 flex items-center gap-1 text-[11px]"
             >
               <Sparkles className="h-3 w-3" />
-              Panduan Pemula
+              {isEn ? "Quick Tour" : "Panduan Pemula"}
             </button>
           </div>
         </div>

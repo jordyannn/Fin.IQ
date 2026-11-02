@@ -42,6 +42,7 @@ export interface TranslationDictionary {
     toAccount: string;
     total: string;
     balance: string;
+    manage: string;
   };
   nav: {
     mainMenu: string;
@@ -75,6 +76,9 @@ export interface TranslationDictionary {
     lightMode: string;
     darkMode: string;
     logout: string;
+    mobileNav: string;
+    activeAccount: string;
+    defaultUser: string;
   };
   topbar: {
     searchPlaceholder: string;
@@ -97,6 +101,30 @@ export interface TranslationDictionary {
     budgetStatus: string;
     noRecentTransactions: string;
     ledgerSwitchPrompt: string;
+    walletsAndAccounts: string;
+    emptyAccounts: string;
+    cashFlowCurve: string;
+    starting: string;
+    endingPosition: string;
+    emptyTransactionsPeriod: string;
+    emptyPeriodInstruction: string;
+    importPromoBadge: string;
+    importPromoTitle: string;
+    importPromoDesc: string;
+    importPromoMutasi: string;
+    importPromoExcel: string;
+    importPromoReceipt: string;
+    importPromoBtn: string;
+    importPromoSupported: string;
+    avgExpense: string;
+    perDay: string;
+    recordFrequency: string;
+    txPerDay: string;
+    recordConsistency: string;
+    daysRunning: string;
+    assetAllocationTitle: string;
+    totalAccountBalance: string;
+    accountsRegistered: string;
   };
   transactions: {
     title: string;
@@ -136,6 +164,125 @@ export interface TranslationDictionary {
     saving: string;
     successMessage: string;
   };
+  catHouse: {
+    title: string;
+    readyStatus: string;
+    sleepingStatus: string;
+    dropHereStatus: string;
+    descReady: string;
+    descSleeping: string;
+    descDrop: string;
+    wakeUp: string;
+    wakeUpFull: string;
+    putToSleep: string;
+    putToSleepFull: string;
+    dropTooltip: string;
+    sleepingTooltip: string;
+    readyTooltip: string;
+  };
+  mascotMood: {
+    surplusBadge: string;
+    warningBadge: string;
+    deficitBadge: string;
+    stableBadge: string;
+    surplusQuote: string;
+    deficitQuote: string;
+    stableQuote: string;
+  };
+  import: {
+    title: string;
+    subtitle: string;
+    downloadTemplate: string;
+    tabFile: string;
+    tabPhoto: string;
+    tabFormat: string;
+    guideTitle: string;
+    guideDesc: string;
+    guideBtn: string;
+    dropTitle: string;
+    dropDesc: string;
+    autoDetect: string;
+    uploadBtn: string;
+    chooseFile: string;
+  };
+  analytics: {
+    title: string;
+    subtitle: string;
+    trendTitle: string;
+    last6Months: string;
+    netDiff: string;
+    expenseTab: string;
+    incomeTab: string;
+    income: string;
+    expense: string;
+    categoryTitle: string;
+    topCategories: string;
+    noData: string;
+  };
+  integrity: {
+    title: string;
+    subtitle: string;
+    dbStatusTitle: string;
+    dbStatusDesc: string;
+    runAuditBtn: string;
+    runningAudit: string;
+    lastAudit: string;
+    balanceConsistency: string;
+    categoryIntegrity: string;
+    zeroDiscrepancyBadge: string;
+    normalStatus: string;
+  };
+  annualReport: {
+    title: string;
+    subtitle: string;
+    kpiIncome: string;
+    kpiExpense: string;
+    kpiNet: string;
+    kpiIncomeDesc: string;
+    kpiExpenseDesc: string;
+    kpiNetDesc: string;
+    monthlyBreakdown: string;
+  };
+  calendar: {
+    title: string;
+    subtitle: string;
+    monthYearTitle: string;
+    prevYear: string;
+    nextYear: string;
+    thisMonth: string;
+    lastMonth: string;
+    fullCalendar: string;
+  };
+  ledgers: {
+    title: string;
+    subtitle: string;
+    collaborativeTitle: string;
+    collaborativeDesc: string;
+    createNew: string;
+    ledgerNamePlaceholder: string;
+    createBtn: string;
+    inviteCodeLabel: string;
+    joinBtn: string;
+    joinPlaceholder: string;
+    joinedSuccess: string;
+    activeBooks: string;
+    periodStart: string;
+    inviteMember: string;
+    inviteCodeTitle: string;
+    inviteCodeDesc: string;
+    verifying: string;
+  };
+  dateFilter: {
+    thisMonth: string;
+    today: string;
+    last7Days: string;
+    last30Days: string;
+    lastMonth: string;
+    thisYear: string;
+    allTime: string;
+    all: string;
+    custom: string;
+  };
   ai: {
     title: string;
     subtitle: string;
@@ -164,6 +311,11 @@ export interface TranslationDictionary {
     accountName: string;
     accountGroup: string;
     currentBalance: string;
+    filterAll: string;
+    filterActive: string;
+    filterHidden: string;
+    adjustBalance: string;
+    searchPlaceholder: string;
   };
   categories: {
     title: string;
@@ -172,6 +324,8 @@ export interface TranslationDictionary {
     expenseCategories: string;
     incomeCategories: string;
     parentCategory: string;
+    addSubcategory: string;
+    searchPlaceholder: string;
   };
   budgets: {
     title: string;
@@ -183,6 +337,7 @@ export interface TranslationDictionary {
     statusHealthy: string;
     statusWarning: string;
     statusOver: string;
+    allocateBudget: string;
   };
   settings: {
     title: string;

@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { deduplicateTranscript } from "@/lib/nlp-parser";
+
+export { deduplicateTranscript };
 
 /**
  * Parse angka dari teks bahasa Indonesia, termasuk angka lisan formal dan slang sehari-hari.
@@ -13,7 +16,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
  */
 export function parseSpokenNumber(text: string): number | null {
   if (!text) return null;
-  const lower = text.toLowerCase().trim();
+  const cleanText = deduplicateTranscript(text);
+  const lower = cleanText.toLowerCase().trim();
 
   // 1. Indonesian slang currency terms
   const slangMap: Record<string, number> = {
@@ -118,6 +122,7 @@ export function parseSpokenNumber(text: string): number | null {
 export interface UseVoiceInputOptions {
   silenceDelayMs?: number; // Waktu jeda hening sebelum otomatis selesai bicara (default: 2000ms)
   processDelayMs?: number; // Waktu pemrosesan halus sebelum mengeksekusi hasil (default: 400ms)
+  continuous?: boolean;    // Mode continuous listening (default: false untuk dictation transaksi cepat & anti-redundansi)
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -165,6 +170,7 @@ export function useVoiceInput(
 
   const isProcessingRef = useRef(false);
   const isListeningRef = useRef(false);
+  const isFinishingRef = useRef(false);
 
   const clearSilenceTimer = () => {
     if (silenceTimerRef.current) {
@@ -214,8 +220,17 @@ export function useVoiceInput(
   }, []);
 
   const handleFinishSpeech = useCallback(async () => {
+    if (isFinishingRef.current) return;
+    isFinishingRef.current = true;
     clearSilenceTimer();
-    const textToProcess = finalTranscriptRef.current.trim();
+
+    const rawText = finalTranscriptRef.current.trim();
+    const textToProcess = deduplicateTranscript(rawText);
+    finalTranscriptRef.current = textToProcess;
+    setTranscript(textToProcess);
+
+    setIsListening(false);
+    isListeningRef.current = false;
 
     if (recognitionRef.current) {
       try {
@@ -223,9 +238,6 @@ export function useVoiceInput(
       } catch {}
       recognitionRef.current = null;
     }
-
-    setIsListening(false);
-    isListeningRef.current = false;
 
     // Hentikan rekaman audio jika fallback MediaRecorder aktif
     const { audioBase64, mimeType } = await stopMediaStreamAndRecorder();
@@ -236,6 +248,7 @@ export function useVoiceInput(
       setTimeout(() => {
         setIsProcessing(false);
         isProcessingRef.current = false;
+        isFinishingRef.current = false;
         if (onResultRef.current) {
           onResultRef.current(textToProcess, audioBase64, mimeType);
         }
@@ -243,6 +256,7 @@ export function useVoiceInput(
     } else {
       setIsProcessing(false);
       isProcessingRef.current = false;
+      isFinishingRef.current = false;
     }
   }, [stopMediaStreamAndRecorder]);
 
@@ -319,6 +333,7 @@ export function useVoiceInput(
     setTranscript("");
     setIsProcessing(false);
     isProcessingRef.current = false;
+    isFinishingRef.current = false;
     audioChunksRef.current = [];
 
     // Hentikan sesi lama jika masih menggantung
@@ -342,31 +357,78 @@ export function useVoiceInput(
     if (SpeechRecognition) {
       try {
         const recognition = new SpeechRecognition();
-        recognition.continuous = true;
+        const isContinuous = options?.continuous ?? false;
+        recognition.continuous = isContinuous;
         recognition.interimResults = true;
         recognition.lang = "id-ID";
         recognition.maxAlternatives = 1;
 
+        let finalTrans = "";
+        let lastFinalPiece = "";
+
         recognition.onstart = () => {
           setIsListening(true);
           isListeningRef.current = true;
+          isFinishingRef.current = false;
           setError(null);
         };
 
         recognition.onresult = (event: any) => {
-          let fullText = "";
-          for (let i = 0; i < event.results.length; i++) {
-            fullText += event.results[i][0].transcript + " ";
+          let interimTrans = "";
+          let newlyFinalized = "";
+
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const result = event.results[i];
+            const transcriptPiece = (result[0]?.transcript || "").trim();
+            if (!transcriptPiece) continue;
+
+            if (result.isFinal) {
+              const lowerPiece = transcriptPiece.toLowerCase();
+              // Hindari bug Chromium Android yang mengulang segmen final identik secara beruntun
+              if (lowerPiece !== lastFinalPiece.toLowerCase()) {
+                newlyFinalized += (newlyFinalized ? " " : "") + transcriptPiece;
+                lastFinalPiece = transcriptPiece;
+              }
+            } else {
+              interimTrans += (interimTrans ? " " : "") + transcriptPiece;
+            }
           }
-          const cleanText = fullText.trim();
+
+          if (newlyFinalized) {
+            finalTrans = finalTrans ? `${finalTrans} ${newlyFinalized}` : newlyFinalized;
+          }
+
+          const rawCombined = finalTrans
+            ? interimTrans
+              ? `${finalTrans} ${interimTrans}`
+              : finalTrans
+            : interimTrans;
+
+          // Bersihkan pengulangan kata/frasa redundan seketika secara real-time
+          const cleanText = deduplicateTranscript(rawCombined);
+
+          // Cek apakah transkrip ada perubahan substantif
+          const hasChanged = cleanText !== finalTranscriptRef.current;
           finalTranscriptRef.current = cleanText;
           setTranscript(cleanText);
 
-          // Reset jeda timer hening setiap ada kata baru
-          clearSilenceTimer();
-          silenceTimerRef.current = setTimeout(() => {
-            handleFinishSpeechRef.current();
-          }, silenceDelayRef.current);
+          // Reset jeda timer hening hanya jika ada konten baru
+          if (hasChanged) {
+            clearSilenceTimer();
+            silenceTimerRef.current = setTimeout(() => {
+              handleFinishSpeechRef.current();
+            }, silenceDelayRef.current);
+          }
+        };
+
+        recognition.onspeechend = () => {
+          // Ketika user selesai berbicara, jika bukan mode continuous, jadwalkan stop cepat
+          if (!isContinuous) {
+            clearSilenceTimer();
+            silenceTimerRef.current = setTimeout(() => {
+              handleFinishSpeechRef.current();
+            }, 600);
+          }
         };
 
         recognition.onerror = (event: any) => {
@@ -401,7 +463,7 @@ export function useVoiceInput(
 
         recognition.onend = () => {
           clearSilenceTimer();
-          if (isListeningRef.current) {
+          if (isListeningRef.current && !isFinishingRef.current) {
             if (finalTranscriptRef.current.trim()) {
               handleFinishSpeechRef.current();
             } else {

@@ -63,10 +63,18 @@ export const MONTHS_SHORT_ID = [
  * Format tanggal standar Fin.IQ: DD/MMM/YYYY
  * Contoh: 15/OKT/2026, 01/JAN/2026
  */
-export function formatDate(date: string | Date | null | undefined): string {
+export function formatDate(date: string | Date | null | undefined, locale?: string): string {
   if (!date) return "-";
   const d = typeof date === "string" ? new Date(date) : date;
   if (isNaN(d.getTime())) return "-";
+
+  if (locale === "en-US") {
+    const day = String(d.getDate()).padStart(2, "0");
+    const monthsEn = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const month = monthsEn[d.getMonth()] || "JAN";
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
 
   const day = String(d.getDate()).padStart(2, "0");
   const month = MONTHS_SHORT_ID[d.getMonth()] || "JAN";

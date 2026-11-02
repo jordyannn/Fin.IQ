@@ -3,6 +3,7 @@
 import React, { useEffect } from "react";
 import { Mic, MicOff, Loader2 } from "lucide-react";
 import { useVoiceInput } from "@/hooks/use-voice-input";
+import { useTranslation } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 interface VoiceMicButtonProps {
@@ -20,8 +21,12 @@ export function VoiceMicButton({
   onResult,
   size = "xs",
   className,
-  title = "Input suara",
+  title,
 }: VoiceMicButtonProps) {
+  const { locale } = useTranslation();
+  const isEn = locale === "en";
+  const defaultTitle = isEn ? "Voice Input" : "Input suara";
+  const effectiveTitle = title || defaultTitle;
   const { isListening, isProcessing, error, startListening, stopListening } = useVoiceInput(onResult);
 
   useEffect(() => {
@@ -51,12 +56,12 @@ export function VoiceMicButton({
       disabled={isProcessing}
       title={
         error
-          ? `Gagal: ${error}`
+          ? (isEn ? `Failed: ${error}` : `Gagal: ${error}`)
           : isListening
-          ? "Sedang mendengarkan... Klik untuk berhenti"
+          ? (isEn ? "Listening... Click to stop" : "Sedang mendengarkan... Klik untuk berhenti")
           : isProcessing
-          ? "Sedang memproses suara..."
-          : title
+          ? (isEn ? "Processing audio..." : "Sedang memproses suara...")
+          : effectiveTitle
       }
       className={cn(
         "inline-flex items-center justify-center border transition-all shrink-0 cursor-pointer active:scale-95 shadow-2xs",

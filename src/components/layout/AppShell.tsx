@@ -12,12 +12,15 @@ import { MascotNavigator } from "@/components/mascot/MascotNavigator";
 import { AIAdvisorDrawer } from "@/components/ai/AIAdvisorDrawer";
 import { useUIStore } from "@/store/ui.store";
 import { useMascotStore } from "@/store/mascot.store";
+import { useTranslation } from "@/i18n";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { isSidebarOpen, setSidebarOpen } = useUIStore();
   const { isTourActive } = useMascotStore();
+  const { locale } = useTranslation();
+  const isEn = locale === "en";
 
   return (
     <div
@@ -38,12 +41,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex items-center justify-between pb-4 border-b">
               <div>
                 <span className="font-extrabold text-base tracking-tight text-foreground">Fin.IQ</span>
-                <p className="text-[10px] text-muted-foreground">Navigasi Seluler</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {isEn ? "Mobile Navigation" : "Navigasi Seluler"}
+                </p>
               </div>
               <button
                 onClick={() => setSidebarOpen(false)}
                 className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted"
-                aria-label="Tutup Menu"
+                aria-label={isEn ? "Close Menu" : "Tutup Menu"}
               >
                 <X className="h-5 w-5" />
               </button>

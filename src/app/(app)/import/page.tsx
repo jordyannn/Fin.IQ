@@ -4,6 +4,7 @@ import React, { useState, useRef, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
+import { useTranslation } from "@/i18n";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { detectCategory } from "@/lib/nlp-parser";
 import Papa from "papaparse";
@@ -495,6 +496,8 @@ export default function ImportPage() {
   const utils = trpc.useUtils();
   const alert = useAlert();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { t, locale } = useTranslation();
+  const isEn = locale === "en";
 
   // Tab state
   const [activeTab, setActiveTab] = useState<"file" | "screenshot" | "tutorial">("file");
@@ -1441,12 +1444,12 @@ export default function ImportPage() {
                 <div className="h-8 w-8 rounded-lg bg-[#A7F3D0]/40 flex items-center justify-center text-[#064E3B] shrink-0">
                   <GeometricIcon name="import" className="h-4 w-4" />
                 </div>
-                <h1 className="text-2xl font-bold tracking-tight text-foreground">Impor Transaksi</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-foreground">{t.import.title}</h1>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {activeTab === "file"
-                  ? "Impor mutasi dari file CSV, Excel, atau e-statement PDF."
-                  : "Pindai transaksi dari tangkapan layar mutasi atau foto struk."}
+                  ? (isEn ? "Import transactions from CSV, Excel, or PDF e-statements." : "Impor mutasi dari file CSV, Excel, atau e-statement PDF.")
+                  : (isEn ? "Scan transactions from bank statement screenshots or receipts." : "Pindai transaksi dari tangkapan layar mutasi atau foto struk.")}
               </p>
             </div>
           </div>
@@ -1459,7 +1462,7 @@ export default function ImportPage() {
               className="text-xs gap-1.5 self-start sm:self-auto rounded-[10px] font-semibold border-border/80 hover:bg-slate-50 dark:hover:bg-slate-800"
             >
               <Download className="h-3.5 w-3.5 text-[#059669]" />
-              Unduh Template CSV
+              {t.import.downloadTemplate}
             </Button>
           )}
         </div>
@@ -1476,7 +1479,7 @@ export default function ImportPage() {
             }`}
           >
             <GeometricIcon name="import" className="h-3.5 w-3.5" />
-            File (CSV / Excel / PDF)
+            {t.import.tabFile}
           </button>
           <button
             type="button"
@@ -1488,7 +1491,7 @@ export default function ImportPage() {
             }`}
           >
             <Camera className="h-3.5 w-3.5 text-[#059669]" />
-            Foto / Tangkapan Layar
+            {t.import.tabPhoto}
           </button>
           <button
             type="button"
@@ -1500,7 +1503,7 @@ export default function ImportPage() {
             }`}
           >
             <BookOpen className="h-3.5 w-3.5 text-[#059669]" />
-            Panduan Format
+            {t.import.tabFormat}
           </button>
         </div>
 
@@ -1513,10 +1516,10 @@ export default function ImportPage() {
               </div>
               <div>
                 <span className="font-bold text-foreground">
-                  Panduan unduh mutasi bank (BCA, Mandiri, BRI, BNI)
+                  {isEn ? "Bank statement download guide (BCA, Mandiri, BRI, BNI)" : "Panduan unduh mutasi bank (BCA, Mandiri, BRI, BNI)"}
                 </span>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Lihat cara unduh mutasi dari m-banking atau internet banking.
+                  {isEn ? "See how to download statements from mobile banking or internet banking." : "Lihat cara unduh mutasi dari m-banking atau internet banking."}
                 </p>
               </div>
             </div>
@@ -1528,7 +1531,7 @@ export default function ImportPage() {
               className="text-xs font-bold text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/15 self-start sm:self-auto rounded-md gap-1.5"
             >
               <HelpCircle className="h-3.5 w-3.5" />
-              Lihat Panduan
+              {isEn ? "View Guide" : "Lihat Panduan"}
             </Button>
           </div>
         )}
@@ -1558,13 +1561,10 @@ export default function ImportPage() {
                 <UploadCloud className="h-8 w-8" />
               </div>
               <h3 className="text-base font-bold text-foreground">
-                Pilih atau tarik dokumen ke sini
+                {t.import.dropTitle}
               </h3>
               <p className="text-xs text-muted-foreground mt-1 max-w-lg">
-                Mendukung file <span className="font-semibold text-foreground">.CSV</span>,{" "}
-                <span className="font-semibold text-foreground">.XLSX / .XLS</span>,{" "}
-                <span className="font-semibold text-foreground">.TXT</span>, atau{" "}
-                <span className="font-semibold text-foreground">.PDF</span> e-statement. Kolom mutasi akan disesuaikan secara otomatis.
+                {t.import.dropDesc}
               </p>
 
               <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
@@ -1578,7 +1578,7 @@ export default function ImportPage() {
                   <Smartphone className="h-3 w-3 text-emerald-500" /> E-Wallet (GoPay, OVO, DANA)
                 </span>
                 <span className="px-2.5 py-1 rounded-sm text-[11px] font-medium bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 font-semibold">
-                  <Sparkles className="h-3 w-3" /> Deteksi Kolom Otomatis
+                  <Sparkles className="h-3 w-3" /> {isEn ? "Auto Column Detection" : "Deteksi Kolom Otomatis"}
                 </span>
               </div>
             </CardContent>
@@ -1639,7 +1639,7 @@ export default function ImportPage() {
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3" /> Format berhasil dikonversi ke template sistem ({fileTxs.length} transaksi)
+                      <CheckCircle2 className="h-3 w-3" /> {isEn ? `Format successfully converted to system template (${fileTxs.length} transactions)` : `Format berhasil dikonversi ke template sistem (${fileTxs.length} transaksi)`}
                     </span>
                   </div>
                 </div>
@@ -1660,10 +1660,10 @@ export default function ImportPage() {
                     }
                     disabled={isConvertingWithAi}
                     className="text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/5"
-                    title="Jalankan ulang analisis cerdas dengan Gemini AI untuk akurasi maksimal"
+                    title={isEn ? "Rerun smart analysis with Gemini AI for maximum accuracy" : "Jalankan ulang analisis cerdas dengan Gemini AI untuk akurasi maksimal"}
                   >
                     <Sparkles className="h-3.5 w-3.5" />
-                    Tingkatkan dengan AI
+                    {isEn ? "Enhance with AI" : "Tingkatkan dengan AI"}
                   </Button>
                 )}
                 {rawRows2D.length > 0 && (
@@ -1674,7 +1674,7 @@ export default function ImportPage() {
                     className="text-xs gap-1.5"
                   >
                     <Pencil className="h-3.5 w-3.5" />
-                    Pemetaan Kolom
+                    {isEn ? "Column Mapping" : "Pemetaan Kolom"}
                   </Button>
                 )}
                 <Button
@@ -1690,7 +1690,7 @@ export default function ImportPage() {
                   }}
                   className="text-xs text-muted-foreground hover:text-foreground"
                 >
-                  Ganti File
+                  {isEn ? "Change File" : "Ganti File"}
                 </Button>
               </div>
             </div>
@@ -1700,31 +1700,33 @@ export default function ImportPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Card className="p-4">
               <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
-                Total Baris Transaksi
+                {isEn ? "Total Transaction Rows" : "Total Baris Transaksi"}
               </div>
               <div className="text-2xl font-extrabold text-foreground mt-1">
                 {stats.totalRows}
               </div>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Baris data valid ditemukan di file
+                {isEn ? "Valid data rows found in file" : "Baris data valid ditemukan di file"}
               </p>
             </Card>
 
             <Card className="p-4">
               <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
-                Rentang Waktu
+                {isEn ? "Time Range" : "Rentang Waktu"}
               </div>
               <div className="text-sm font-bold text-foreground mt-1 truncate">
                 {stats.timeRangeStart && stats.timeRangeEnd
-                  ? `${formatDate(stats.timeRangeStart)} s/d ${formatDate(stats.timeRangeEnd)}`
+                  ? `${formatDate(stats.timeRangeStart, isEn ? "en-US" : "id-ID")} ${isEn ? "to" : "s/d"} ${formatDate(stats.timeRangeEnd, isEn ? "en-US" : "id-ID")}`
                   : "-"}
               </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Periode transaksi tercatat</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {isEn ? "Recorded transaction period" : "Periode transaksi tercatat"}
+              </p>
             </Card>
 
             <Card className="p-4">
               <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
-                Total Nominal Bersih
+                {isEn ? "Net Total Amount" : "Total Nominal Bersih"}
               </div>
               <div
                 className={`text-xl font-extrabold mt-1 ${
@@ -1735,7 +1737,7 @@ export default function ImportPage() {
                 {formatCurrency(stats.totalSignedAmount)}
               </div>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Selisih pemasukan - pengeluaran
+                {isEn ? "Income - expense spread" : "Selisih pemasukan - pengeluaran"}
               </p>
             </Card>
           </div>
@@ -1744,13 +1746,13 @@ export default function ImportPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card className="p-5">
               <CardTitle className="text-xs uppercase font-semibold text-muted-foreground tracking-wider mb-3">
-                Rincian Arus Kas
+                {isEn ? "Cash Flow Breakdown" : "Rincian Arus Kas"}
               </CardTitle>
               <div className="space-y-2.5 text-xs">
                 <div className="flex items-center justify-between pb-2 border-b">
                   <span className="flex items-center gap-1.5 text-rose-600 font-medium">
                     <span className="h-2 w-2 rounded-full bg-rose-500" />
-                    Pengeluaran ({stats.byType.expenseCount}x)
+                    {isEn ? "Expense" : "Pengeluaran"} ({stats.byType.expenseCount}x)
                   </span>
                   <span className="font-bold text-foreground">
                     {formatCurrency(stats.byType.expenseTotal)}
@@ -1759,7 +1761,7 @@ export default function ImportPage() {
                 <div className="flex items-center justify-between pb-2 border-b">
                   <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
                     <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                    Pemasukan ({stats.byType.incomeCount}x)
+                    {isEn ? "Income" : "Pemasukan"} ({stats.byType.incomeCount}x)
                   </span>
                   <span className="font-bold text-foreground">
                     {formatCurrency(stats.byType.incomeTotal)}
@@ -1768,10 +1770,10 @@ export default function ImportPage() {
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1.5 text-sky-600 font-medium">
                     <span className="h-2 w-2 rounded-full bg-sky-500" />
-                    Transfer Antar-Akun
+                    {isEn ? "Inter-Account Transfer" : "Transfer Antar-Akun"}
                   </span>
                   <span className="font-bold text-foreground">
-                    {stats.byType.transferCount}x transaksi
+                    {stats.byType.transferCount}x {isEn ? "transactions" : "transaksi"}
                   </span>
                 </div>
               </div>
@@ -1779,14 +1781,15 @@ export default function ImportPage() {
 
             <Card className="p-5">
               <CardTitle className="text-xs uppercase font-semibold text-muted-foreground tracking-wider mb-3">
-                Entitas Finansial yang Ditemukan
+                {isEn ? "Financial Entities Found" : "Entitas Finansial yang Ditemukan"}
               </CardTitle>
               <div className="space-y-3 text-xs">
                 <div>
                   <div className="flex items-center justify-between text-muted-foreground mb-1">
-                    <span>Akun / Rekening</span>
+                    <span>{isEn ? "Accounts / Wallets" : "Akun / Rekening"}</span>
                     <span className="text-[11px]">
-                      {stats.accounts.matchedNames.length} cocok, {stats.accounts.newNames.length} baru
+                      {stats.accounts.matchedNames.length} {isEn ? "matched" : "cocok"},{" "}
+                      {stats.accounts.newNames.length} {isEn ? "new" : "baru"}
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -1801,7 +1804,7 @@ export default function ImportPage() {
                         variant="outline"
                         className="text-[10px] text-primary border-primary"
                       >
-                        + Buat Baru: {name}
+                        + {isEn ? "Create New" : "Buat Baru"}: {name}
                       </Badge>
                     ))}
                   </div>
@@ -1809,10 +1812,10 @@ export default function ImportPage() {
 
                 <div className="pt-2 border-t">
                   <div className="flex items-center justify-between text-muted-foreground mb-1">
-                    <span>Kategori Transaksi</span>
+                    <span>{isEn ? "Transaction Categories" : "Kategori Transaksi"}</span>
                     <span className="text-[11px]">
-                      {stats.categories.matchedNames.length} cocok,{" "}
-                      {stats.categories.newNames.length} baru
+                      {stats.categories.matchedNames.length} {isEn ? "matched" : "cocok"},{" "}
+                      {stats.categories.newNames.length} {isEn ? "new" : "baru"}
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -1823,7 +1826,7 @@ export default function ImportPage() {
                     ))}
                     {stats.categories.matchedNames.length > 6 && (
                       <span className="text-[10px] text-muted-foreground self-center">
-                        +{stats.categories.matchedNames.length - 6} lainnya
+                        +{stats.categories.matchedNames.length - 6} {isEn ? "others" : "lainnya"}
                       </span>
                     )}
                     {stats.categories.newNames.slice(0, 4).map((name: string) => (
@@ -1858,8 +1861,8 @@ export default function ImportPage() {
             defaultCategoryName={
               categoriesData?.find((c) => c.id === fallbackCategoryId)?.name
             }
-            title="Pratinjau & Edit Transaksi Hasil Konversi"
-            subtitle="Semua transaksi telah diselaraskan ke template sistem. Anda dapat menambah, mengedit, menghapus baris transaksi, serta menghapus/mengatur kolom termasuk Deskripsi Transaksi."
+            title={isEn ? "Preview & Edit Converted Transactions" : "Pratinjau & Edit Transaksi Hasil Konversi"}
+            subtitle={isEn ? "All transactions aligned to system template. You can add, edit, delete rows, as well as customize columns." : "Semua transaksi telah diselaraskan ke template sistem. Anda dapat menambah, mengedit, menghapus baris transaksi, serta menghapus/mengatur kolom termasuk Deskripsi Transaksi."}
             variant="file"
             onVisibleColumnsChange={setFileVisibleColumns}
           />
@@ -1867,17 +1870,17 @@ export default function ImportPage() {
           {/* Step 3: Execution Settings Card */}
           <Card className="p-6 bg-card border shadow-sm">
             <h3 className="text-sm font-bold text-foreground mb-4">
-              Pengaturan Impor & Eksekusi
+              {isEn ? "Import & Execution Settings" : "Pengaturan Impor & Eksekusi"}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
               <div>
-                <label className="font-semibold text-foreground">Buku Kas Tujuan</label>
+                <label className="font-semibold text-foreground">{isEn ? "Target Ledger" : "Buku Kas Tujuan"}</label>
                 <select
                   value={targetLedgerId}
                   onChange={(e) => setTargetLedgerId(e.target.value)}
                   className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
-                  <option value="">Buku Kas Utama (Default)</option>
+                  <option value="">{isEn ? "Main Ledger (Default)" : "Buku Kas Utama (Default)"}</option>
                   {(Array.isArray(ledgersData) ? ledgersData : (ledgersData as any)?.ledgers)?.map(
                     (l: any) => (
                       <option key={l.id} value={l.id}>
@@ -1890,14 +1893,14 @@ export default function ImportPage() {
 
               <div>
                 <label className="font-semibold text-foreground">
-                  Akun Cadangan (Fallback)
+                  {isEn ? "Fallback Account" : "Akun Cadangan (Fallback)"}
                 </label>
                 <select
                   value={defaultAccountId}
                   onChange={(e) => setDefaultAccountId(e.target.value)}
                   className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
-                  <option value="">Otomatis dari data file</option>
+                  <option value="">{isEn ? "Automatic from file data" : "Otomatis dari data file"}</option>
                   {accountsData?.accounts?.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name} ({a.group})
@@ -1905,43 +1908,43 @@ export default function ImportPage() {
                   ))}
                 </select>
                 <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                  Digunakan jika baris transaksi tidak mencantumkan nama akun.
+                  {isEn ? "Used if a transaction row does not specify an account name." : "Digunakan jika baris transaksi tidak mencantumkan nama akun."}
                 </span>
               </div>
 
               <div>
                 <label className="font-semibold text-foreground">
-                  Kategori Cadangan (Fallback)
+                  {isEn ? "Fallback Category" : "Kategori Cadangan (Fallback)"}
                 </label>
                 <select
                   value={fallbackCategoryId}
                   onChange={(e) => setFallbackCategoryId(e.target.value)}
                   className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
-                  <option value="">Otomatis (Umum / Deteksi NLP)</option>
+                  <option value="">{isEn ? "Automatic (General / NLP Detection)" : "Otomatis (Umum / Deteksi NLP)"}</option>
                   {categoriesData?.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} ({c.kind === "income" ? "Pemasukan" : "Pengeluaran"})
+                      {c.name} ({c.kind === "income" ? (isEn ? "Income" : "Pemasukan") : (isEn ? "Expense" : "Pengeluaran")})
                     </option>
                   ))}
                 </select>
                 <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                  Digunakan jika transaksi tidak memiliki kategori dan gagal dideteksi NLP.
+                  {isEn ? "Used if a transaction has no category and NLP detection fails." : "Digunakan jika transaksi tidak memiliki kategori dan gagal dideteksi NLP."}
                 </span>
               </div>
 
               <div>
-                <label className="font-semibold text-foreground">Strategi Duplikasi</label>
+                <label className="font-semibold text-foreground">{isEn ? "Deduplication Strategy" : "Strategi Duplikasi"}</label>
                 <select
                   value={dedupStrategy}
                   onChange={(e) => setDedupStrategy(e.target.value as any)}
                   className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
-                  <option value="skip_duplicates">Lewati Transaksi Duplikat (Dianjurkan)</option>
-                  <option value="insert_all">Impor Semua (Tanpa Cek Duplikat)</option>
+                  <option value="skip_duplicates">{isEn ? "Skip Duplicate Transactions (Recommended)" : "Lewati Transaksi Duplikat (Dianjurkan)"}</option>
+                  <option value="insert_all">{isEn ? "Import All (No Duplicate Check)" : "Impor Semua (Tanpa Cek Duplikat)"}</option>
                 </select>
                 <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                  Mencegah pencatatan ganda jika file diimpor berulang kali.
+                  {isEn ? "Prevents duplicate records if file is imported multiple times." : "Mencegah pencatatan ganda jika file diimpor berulang kali."}
                 </span>
               </div>
             </div>
@@ -1950,7 +1953,7 @@ export default function ImportPage() {
               <div className="w-full sm:w-72">
                 <Input
                   type="text"
-                  placeholder="Tambahkan tag otomatis (contoh: impor-maret)"
+                  placeholder={isEn ? "Add auto tag (e.g. march-import)" : "Tambahkan tag otomatis (contoh: impor-maret)"}
                   value={autoTag}
                   onChange={(e) => setAutoTag(e.target.value)}
                   className="h-9 text-xs"
@@ -1968,7 +1971,7 @@ export default function ImportPage() {
                   }}
                   className="w-1/2 sm:w-auto text-xs"
                 >
-                  Batal
+                  {t.common.cancel}
                 </Button>
                 <Button
                   onClick={handleExecuteImport}
@@ -1978,9 +1981,9 @@ export default function ImportPage() {
                   <CheckCircle2 className="h-4 w-4" />
                   {isProcessing
                     ? importProgress
-                      ? `Mengimpor ${importProgress.done} / ${importProgress.total}...`
-                      : "Sedang Memproses..."
-                    : `Mulai Impor ${stats?.totalRows || fileTxs.length} Transaksi`}
+                      ? (isEn ? `Importing ${importProgress.done} / ${importProgress.total}...` : `Mengimpor ${importProgress.done} / ${importProgress.total}...`)
+                      : (isEn ? "Processing..." : "Sedang Memproses...")
+                    : (isEn ? `Start Importing ${stats?.totalRows || fileTxs.length} Transactions` : `Mulai Impor ${stats?.totalRows || fileTxs.length} Transaksi`)}
                 </Button>
               </div>
             </div>
@@ -2024,24 +2027,26 @@ export default function ImportPage() {
                       <ImagePlus className="h-8 w-8" />
                     </div>
                     <h3 className="text-base font-bold text-foreground">
-                      Pilih atau seret screenshot mutasi / struk ke sini
+                      {isEn ? "Select or drag statement screenshots / receipts here" : "Pilih atau seret screenshot mutasi / struk ke sini"}
                     </h3>
                     <p className="text-xs text-muted-foreground mt-1 max-w-lg">
-                      Mendukung screenshot riwayat bank (blu, BCA, Mandiri, BRI, BNI), e-wallet (GoPay, OVO, DANA, ShopeePay), bukti transfer, atau foto struk kasir belanja fisik. AI Vision akan otomatis membaca nominal, tanggal, dan keterangannya.
+                      {isEn
+                        ? "Supports bank history screenshots (blu, BCA, Mandiri, BRI, BNI), e-wallets (GoPay, OVO, DANA, ShopeePay), transfer slips, or physical receipt photos. AI Vision will automatically read amount, date, and description."
+                        : "Mendukung screenshot riwayat bank (blu, BCA, Mandiri, BRI, BNI), e-wallet (GoPay, OVO, DANA, ShopeePay), bukti transfer, atau foto struk kasir belanja fisik. AI Vision akan otomatis membaca nominal, tanggal, dan keterangannya."}
                     </p>
 
                     <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
                       <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
-                        <Camera className="h-3 w-3 text-emerald-500" /> Screenshot Bank (blu, BCA, Mandiri)
+                        <Camera className="h-3 w-3 text-emerald-500" /> {isEn ? "Bank Screenshots (blu, BCA, Mandiri)" : "Screenshot Bank (blu, BCA, Mandiri)"}
                       </span>
                       <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
-                        <Receipt className="h-3 w-3 text-emerald-500" /> Struk Belanja & Kasir Fisik
+                        <Receipt className="h-3 w-3 text-emerald-500" /> {isEn ? "Shopping & Cashier Receipts" : "Struk Belanja & Kasir Fisik"}
                       </span>
                       <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted text-muted-foreground flex items-center gap-1">
-                        <Sparkles className="h-3 w-3 text-emerald-500" /> E-Wallet & QRIS
+                        <Sparkles className="h-3 w-3 text-emerald-500" /> {isEn ? "E-Wallet & QRIS" : "E-Wallet & QRIS"}
                       </span>
                       <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted text-muted-foreground">
-                        Maksimal 10 gambar sekaligus
+                        {isEn ? "Up to 10 images at once" : "Maksimal 10 gambar sekaligus"}
                       </span>
                     </div>
                   </CardContent>
@@ -2056,10 +2061,10 @@ export default function ImportPage() {
                       <div>
                         <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
                           <Camera className="h-4 w-4 text-emerald-500" />
-                          Screenshot Terpilih ({screenshotFiles.length} Gambar)
+                          {isEn ? "Selected Screenshots" : "Screenshot Terpilih"} ({screenshotFiles.length} {isEn ? "Images" : "Gambar"})
                         </h3>
                         <p className="text-[11px] text-muted-foreground">
-                          Pastikan gambar riwayat transaksi atau struk terlihat jelas dan angka nominal terbaca.
+                          {isEn ? "Ensure transaction history or receipts are clearly visible and legible." : "Pastikan gambar riwayat transaksi atau struk terlihat jelas dan angka nominal terbaca."}
                         </p>
                       </div>
 
@@ -2073,7 +2078,7 @@ export default function ImportPage() {
                             className="text-xs gap-1.5"
                           >
                             <Plus className="h-3.5 w-3.5" />
-                            Tambah Gambar
+                            {isEn ? "Add Image" : "Tambah Gambar"}
                           </Button>
                         )}
                         <Button
@@ -2083,7 +2088,7 @@ export default function ImportPage() {
                           disabled={isParsingScreenshot}
                           className="text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
                         >
-                          Hapus Semua
+                          {isEn ? "Remove All" : "Hapus Semua"}
                         </Button>
                       </div>
                     </div>
@@ -2107,7 +2112,7 @@ export default function ImportPage() {
                                 type="button"
                                 onClick={() => handleRemoveScreenshot(idx)}
                                 className="absolute top-1.5 right-1.5 h-6 w-6 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-rose-600 transition-colors shadow-sm cursor-pointer"
-                                title="Hapus gambar ini"
+                                title={isEn ? "Remove this image" : "Hapus gambar ini"}
                               >
                                 <X className="h-3.5 w-3.5" />
                               </button>
@@ -2115,7 +2120,7 @@ export default function ImportPage() {
                           </div>
                           <div className="p-2 text-[10px]">
                             <div className="font-medium truncate text-foreground">
-                              {screenshotFiles[idx]?.name || `Gambar ${idx + 1}`}
+                              {screenshotFiles[idx]?.name || (isEn ? `Image ${idx + 1}` : `Gambar ${idx + 1}`)}
                             </div>
                             <div className="text-muted-foreground text-[9px]">
                               {((screenshotFiles[idx]?.size || 0) / 1024).toFixed(0)} KB
@@ -2131,10 +2136,12 @@ export default function ImportPage() {
                     <Card className="p-8 bg-emerald-500/5 border border-emerald-500/20 text-center space-y-3">
                       <Loader2 className="h-9 w-9 animate-spin text-emerald-600 mx-auto" />
                       <h4 className="text-sm font-bold text-foreground">
-                        {screenshotParseProgress || "Gemini AI Vision sedang menganalisis gambar..."}
+                        {screenshotParseProgress || (isEn ? "Gemini AI Vision is analyzing images..." : "Gemini AI Vision sedang menganalisis gambar...")}
                       </h4>
                       <p className="text-xs text-muted-foreground max-w-md mx-auto">
-                        Membaca mutasi tanggal, nominal, jenis debit/kredit, nama bank/merchant, dan mencocokkan akun Anda secara otomatis.
+                        {isEn
+                          ? "Reading transaction dates, amounts, debit/credit types, merchant/bank names, and matching accounts automatically."
+                          : "Membaca mutasi tanggal, nominal, jenis debit/kredit, nama bank/merchant, dan mencocokkan akun Anda secara otomatis."}
                       </p>
                     </Card>
                   )}
@@ -2144,7 +2151,7 @@ export default function ImportPage() {
                     <div className="p-4 bg-rose-500/10 border border-rose-200 dark:border-rose-900 rounded-xl flex items-start gap-3">
                       <AlertTriangle className="h-5 w-5 text-rose-500 shrink-0 mt-0.5" />
                       <div className="text-xs flex-1">
-                        <p className="font-semibold text-rose-600">Gagal Membaca Screenshot</p>
+                        <p className="font-semibold text-rose-600">{isEn ? "Failed to Read Screenshot" : "Gagal Membaca Screenshot"}</p>
                         <p className="text-muted-foreground mt-0.5">{screenshotError}</p>
                       </div>
                     </div>
@@ -2158,14 +2165,14 @@ export default function ImportPage() {
                         onClick={handleResetScreenshot}
                         className="text-xs"
                       >
-                        Batal
+                        {t.common.cancel}
                       </Button>
                       <Button
                         onClick={handleProcessScreenshots}
                         className="bg-primary hover:bg-primary/90 text-white font-semibold text-xs shadow-md gap-2"
                       >
                         <Sparkles className="h-4 w-4 text-emerald-200" />
-                        Baca Transaksi dengan AI Vision ({screenshotFiles.length} Gambar)
+                        {isEn ? `Read Transactions with AI Vision (${screenshotFiles.length} Images)` : `Baca Transaksi dengan AI Vision (${screenshotFiles.length} Gambar)`}
                       </Button>
                     </div>
                   )}
@@ -2187,14 +2194,14 @@ export default function ImportPage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-foreground">
-                          {screenshotTxs.length} Transaksi Terdeteksi oleh AI
+                          {screenshotTxs.length} {isEn ? "Transactions Detected by AI" : "Transaksi Terdeteksi oleh AI"}
                         </span>
                         <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-                          {screenshotFiles.length} Gambar
+                          {screenshotFiles.length} {isEn ? "Images" : "Gambar"}
                         </Badge>
                       </div>
                       <span className="text-[11px] text-muted-foreground">
-                        Data telah diekstrak. Anda dapat memeriksa, mengedit nominal, kategori, atau menghapus baris sebelum disimpan.
+                        {isEn ? "Data extracted. You can review, edit amounts, categories, or delete rows before saving." : "Data telah diekstrak. Anda dapat memeriksa, mengedit nominal, kategori, atau menghapus baris sebelum disimpan."}
                       </span>
                     </div>
                   </div>
@@ -2205,7 +2212,7 @@ export default function ImportPage() {
                     onClick={handleResetScreenshot}
                     className="text-xs text-muted-foreground hover:text-foreground"
                   >
-                    Upload Gambar Lain
+                    {isEn ? "Upload Other Images" : "Upload Gambar Lain"}
                   </Button>
                 </div>
               </Card>
@@ -2214,43 +2221,43 @@ export default function ImportPage() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Card className="p-4 bg-card shadow-sm">
                   <span className="text-[11px] text-muted-foreground font-medium">
-                    Total Transaksi
+                    {isEn ? "Total Transactions" : "Total Transaksi"}
                   </span>
                   <div className="text-xl font-bold mt-1 text-foreground">
                     {screenshotStats.totalCount}
                   </div>
                   <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                    Siap diimpor ke buku kas
+                    {isEn ? "Ready to import to ledger" : "Siap diimpor ke buku kas"}
                   </span>
                 </Card>
 
                 <Card className="p-4 bg-card shadow-sm">
-                  <span className="text-[11px] text-rose-600 font-medium">Pengeluaran</span>
+                  <span className="text-[11px] text-rose-600 font-medium">{isEn ? "Expense" : "Pengeluaran"}</span>
                   <div className="text-xl font-bold mt-1 text-rose-600">
                     -{formatCurrency(screenshotStats.expenseTotal)}
                   </div>
                   <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                    {screenshotStats.expenseCount} transaksi
+                    {screenshotStats.expenseCount} {isEn ? "transactions" : "transaksi"}
                   </span>
                 </Card>
 
                 <Card className="p-4 bg-card shadow-sm">
-                  <span className="text-[11px] text-emerald-600 font-medium">Pemasukan</span>
+                  <span className="text-[11px] text-emerald-600 font-medium">{isEn ? "Income" : "Pemasukan"}</span>
                   <div className="text-xl font-bold mt-1 text-emerald-600">
                     +{formatCurrency(screenshotStats.incomeTotal)}
                   </div>
                   <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                    {screenshotStats.incomeCount} transaksi
+                    {screenshotStats.incomeCount} {isEn ? "transactions" : "transaksi"}
                   </span>
                 </Card>
 
                 <Card className="p-4 bg-card shadow-sm">
-                  <span className="text-[11px] text-sky-600 font-medium">Transfer</span>
+                  <span className="text-[11px] text-sky-600 font-medium">{isEn ? "Transfer" : "Transfer"}</span>
                   <div className="text-xl font-bold mt-1 text-sky-600">
                     {screenshotStats.transferCount}
                   </div>
                   <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                    Perpindahan saldo
+                    {isEn ? "Balance transfer" : "Perpindahan saldo"}
                   </span>
                 </Card>
               </div>
@@ -2267,8 +2274,8 @@ export default function ImportPage() {
                 isNlpAvailable={false}
                 defaultAccountName={accountsData?.accounts?.[0]?.name}
                 defaultCategoryName={categoriesData?.[0]?.name}
-                title="Pratinjau & Edit Transaksi Hasil Pembacaan AI"
-                subtitle="Klik pada kolom untuk mengoreksi nominal, kategori, akun, atau deskripsi transaksi secara langsung. Anda juga dapat menghapus kolom atau menambah baris."
+                title={isEn ? "Preview & Edit AI-Read Transactions" : "Pratinjau & Edit Transaksi Hasil Pembacaan AI"}
+                subtitle={isEn ? "Click cells to correct amounts, categories, accounts, or descriptions directly. You can also hide columns or add rows." : "Klik pada kolom untuk mengoreksi nominal, kategori, akun, atau deskripsi transaksi secara langsung. Anda juga dapat menghapus kolom atau menambah baris."}
                 variant="screenshot"
                 onVisibleColumnsChange={setScreenshotVisibleColumns}
               />
@@ -2276,17 +2283,17 @@ export default function ImportPage() {
               {/* Execution Settings Card */}
               <Card className="p-6 bg-card border shadow-sm">
                 <h3 className="text-sm font-bold text-foreground mb-4">
-                  Pengaturan Impor & Eksekusi
+                  {isEn ? "Import & Execution Settings" : "Pengaturan Impor & Eksekusi"}
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                   <div>
-                    <label className="font-semibold text-foreground">Buku Kas Tujuan</label>
+                    <label className="font-semibold text-foreground">{isEn ? "Target Ledger" : "Buku Kas Tujuan"}</label>
                     <select
                       value={targetLedgerId}
                       onChange={(e) => setTargetLedgerId(e.target.value)}
                       className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     >
-                      <option value="">Buku Kas Utama (Default)</option>
+                      <option value="">{isEn ? "Main Ledger (Default)" : "Buku Kas Utama (Default)"}</option>
                       {(Array.isArray(ledgersData) ? ledgersData : (ledgersData as any)?.ledgers)?.map(
                         (l: any) => (
                           <option key={l.id} value={l.id}>
@@ -2299,14 +2306,14 @@ export default function ImportPage() {
 
                   <div>
                     <label className="font-semibold text-foreground">
-                      Akun Cadangan (Fallback)
+                      {isEn ? "Fallback Account" : "Akun Cadangan (Fallback)"}
                     </label>
                     <select
                       value={defaultAccountId}
                       onChange={(e) => setDefaultAccountId(e.target.value)}
                       className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     >
-                      <option value="">Otomatis dari data transaksi</option>
+                      <option value="">{isEn ? "Automatic from transaction data" : "Otomatis dari data transaksi"}</option>
                       {accountsData?.accounts?.map((a) => (
                         <option key={a.id} value={a.id}>
                           {a.name} ({a.group})
@@ -2314,22 +2321,22 @@ export default function ImportPage() {
                       ))}
                     </select>
                     <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                      Digunakan jika transaksi tidak mencantumkan nama akun.
+                      {isEn ? "Used if transactions do not specify an account name." : "Digunakan jika transaksi tidak mencantumkan nama akun."}
                     </span>
                   </div>
 
                   <div>
-                    <label className="font-semibold text-foreground">Strategi Duplikasi</label>
+                    <label className="font-semibold text-foreground">{isEn ? "Deduplication Strategy" : "Strategi Duplikasi"}</label>
                     <select
                       value={dedupStrategy}
                       onChange={(e) => setDedupStrategy(e.target.value as any)}
                       className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     >
-                      <option value="skip_duplicates">Lewati Transaksi Duplikat (Dianjurkan)</option>
-                      <option value="insert_all">Impor Semua (Tanpa Cek Duplikat)</option>
+                      <option value="skip_duplicates">{isEn ? "Skip Duplicate Transactions (Recommended)" : "Lewati Transaksi Duplikat (Dianjurkan)"}</option>
+                      <option value="insert_all">{isEn ? "Import All (No Duplicate Check)" : "Impor Semua (Tanpa Cek Duplikat)"}</option>
                     </select>
                     <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                      Mencegah pencatatan ganda jika screenshot diproses ulang.
+                      {isEn ? "Prevents duplicate records if screenshots are reprocessed." : "Mencegah pencatatan ganda jika screenshot diproses ulang."}
                     </span>
                   </div>
                 </div>
@@ -2338,7 +2345,7 @@ export default function ImportPage() {
                   <div className="w-full sm:w-72">
                     <Input
                       type="text"
-                      placeholder="Tambahkan tag otomatis (contoh: impor-ocr)"
+                      placeholder={isEn ? "Add auto tag (e.g. ocr-import)" : "Tambahkan tag otomatis (contoh: impor-ocr)"}
                       value={autoTag}
                       onChange={(e) => setAutoTag(e.target.value)}
                       className="h-9 text-xs"
@@ -2351,7 +2358,7 @@ export default function ImportPage() {
                       onClick={handleResetScreenshot}
                       className="w-1/2 sm:w-auto text-xs"
                     >
-                      Batal
+                      {t.common.cancel}
                     </Button>
                     <Button
                       onClick={handleExecuteScreenshotImport}
@@ -2361,9 +2368,9 @@ export default function ImportPage() {
                       <CheckCircle2 className="h-4 w-4" />
                       {isProcessing
                         ? importProgress
-                          ? `Mengimpor ${importProgress.done} / ${importProgress.total}...`
-                          : "Sedang Memproses..."
-                        : `Mulai Impor ${screenshotTxs.length} Transaksi`}
+                          ? (isEn ? `Importing ${importProgress.done} / ${importProgress.total}...` : `Mengimpor ${importProgress.done} / ${importProgress.total}...`)
+                          : (isEn ? "Processing..." : "Sedang Memproses...")
+                        : (isEn ? `Start Importing ${screenshotTxs.length} Transactions` : `Mulai Impor ${screenshotTxs.length} Transaksi`)}
                     </Button>
                   </div>
                 </div>
@@ -2381,9 +2388,9 @@ export default function ImportPage() {
           <div className="relative w-full max-w-xl rounded-2xl bg-card border shadow-2xl p-6 text-card-foreground max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <div>
-                <h2 className="text-base font-bold">Sesuaikan Pemetaan Kolom</h2>
+                <h2 className="text-base font-bold">{isEn ? "Customize Column Mapping" : "Sesuaikan Pemetaan Kolom"}</h2>
                 <p className="text-[11px] text-muted-foreground">
-                  Cocokkan nama kolom di file Anda dengan data transaksi Fin.IQ.
+                  {isEn ? "Match column names in your file with Fin.IQ transaction fields." : "Cocokkan nama kolom di file Anda dengan data transaksi Fin.IQ."}
                 </p>
               </div>
               <button
@@ -2396,14 +2403,17 @@ export default function ImportPage() {
 
             <div className="space-y-3 text-xs">
               <div className="p-3 bg-muted/40 rounded-xl text-[11px] text-muted-foreground">
-                Tanda bintang (<span className="text-rose-500 font-bold">*</span>) wajib ditentukan
-                agar transaksi dapat diproses dengan benar.
+                {isEn ? (
+                  <>Asterisk (<span className="text-rose-500 font-bold">*</span>) fields are required for transactions to process properly.</>
+                ) : (
+                  <>Tanda bintang (<span className="text-rose-500 font-bold">*</span>) wajib ditentukan agar transaksi dapat diproses dengan benar.</>
+                )}
               </div>
 
               <div className="space-y-3 pt-1">
                 <div className="grid grid-cols-[160px_1fr] items-center gap-2">
                   <label className="font-semibold text-foreground">
-                    Jenis Transaksi <span className="text-rose-500">*</span>
+                    {isEn ? "Transaction Type" : "Jenis Transaksi"} <span className="text-rose-500">*</span>
                   </label>
                   <select
                     value={mappingDraft.tx_type || ""}
@@ -2412,7 +2422,7 @@ export default function ImportPage() {
                     }
                     className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
-                    <option value="">-- Tidak Dipetakan --</option>
+                    <option value="">{isEn ? "-- Not Mapped --" : "-- Tidak Dipetakan --"}</option>
                     {headers.map((h) => (
                       <option key={h} value={h}>
                         {h}
@@ -2423,7 +2433,7 @@ export default function ImportPage() {
 
                 <div className="grid grid-cols-[160px_1fr] items-center gap-2">
                   <label className="font-semibold text-foreground">
-                    Nominal / Jumlah <span className="text-rose-500">*</span>
+                    {isEn ? "Amount / Sum" : "Nominal / Jumlah"} <span className="text-rose-500">*</span>
                   </label>
                   <select
                     value={mappingDraft.amount || ""}
@@ -2432,7 +2442,7 @@ export default function ImportPage() {
                     }
                     className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
-                    <option value="">-- Tidak Dipetakan --</option>
+                    <option value="">{isEn ? "-- Not Mapped --" : "-- Tidak Dipetakan --"}</option>
                     {headers.map((h) => (
                       <option key={h} value={h}>
                         {h}
@@ -2443,7 +2453,7 @@ export default function ImportPage() {
 
                 <div className="grid grid-cols-[160px_1fr] items-center gap-2">
                   <label className="font-semibold text-foreground">
-                    Tanggal & Waktu <span className="text-rose-500">*</span>
+                    {isEn ? "Date & Time" : "Tanggal & Waktu"} <span className="text-rose-500">*</span>
                   </label>
                   <select
                     value={mappingDraft.happened_at || ""}
@@ -2452,7 +2462,7 @@ export default function ImportPage() {
                     }
                     className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
-                    <option value="">-- Tidak Dipetakan --</option>
+                    <option value="">{isEn ? "-- Not Mapped --" : "-- Tidak Dipetakan --"}</option>
                     {headers.map((h) => (
                       <option key={h} value={h}>
                         {h}
@@ -2462,7 +2472,7 @@ export default function ImportPage() {
                 </div>
 
                 <div className="grid grid-cols-[160px_1fr] items-center gap-2">
-                  <label className="font-semibold text-foreground">Kategori Utama</label>
+                  <label className="font-semibold text-foreground">{isEn ? "Primary Category" : "Kategori Utama"}</label>
                   <select
                     value={mappingDraft.category_name || ""}
                     onChange={(e) =>
@@ -2470,7 +2480,7 @@ export default function ImportPage() {
                     }
                     className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
-                    <option value="">-- Tidak Dipetakan (Pakai Umum) --</option>
+                    <option value="">{isEn ? "-- Not Mapped (Use General) --" : "-- Tidak Dipetakan (Pakai Umum) --"}</option>
                     {headers.map((h) => (
                       <option key={h} value={h}>
                         {h}
@@ -2480,7 +2490,7 @@ export default function ImportPage() {
                 </div>
 
                 <div className="grid grid-cols-[160px_1fr] items-center gap-2">
-                  <label className="font-semibold text-foreground">Subkategori (Opsional)</label>
+                  <label className="font-semibold text-foreground">{isEn ? "Subcategory (Optional)" : "Subkategori (Opsional)"}</label>
                   <select
                     value={mappingDraft.subcategory_name || ""}
                     onChange={(e) =>
@@ -2488,7 +2498,7 @@ export default function ImportPage() {
                     }
                     className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
-                    <option value="">-- Tidak Dipetakan --</option>
+                    <option value="">{isEn ? "-- Not Mapped --" : "-- Tidak Dipetakan --"}</option>
                     {headers.map((h) => (
                       <option key={h} value={h}>
                         {h}
@@ -2498,7 +2508,7 @@ export default function ImportPage() {
                 </div>
 
                 <div className="grid grid-cols-[160px_1fr] items-center gap-2">
-                  <label className="font-semibold text-foreground">Akun / Rekening</label>
+                  <label className="font-semibold text-foreground">{isEn ? "Account / Wallet" : "Akun / Rekening"}</label>
                   <select
                     value={mappingDraft.account_name || ""}
                     onChange={(e) =>
@@ -2506,7 +2516,7 @@ export default function ImportPage() {
                     }
                     className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
-                    <option value="">-- Tidak Dipetakan (Pakai Akun Default) --</option>
+                    <option value="">{isEn ? "-- Not Mapped (Use Default Account) --" : "-- Tidak Dipetakan (Pakai Akun Default) --"}</option>
                     {headers.map((h) => (
                       <option key={h} value={h}>
                         {h}
@@ -2516,7 +2526,7 @@ export default function ImportPage() {
                 </div>
 
                 <div className="grid grid-cols-[160px_1fr] items-center gap-2">
-                  <label className="font-semibold text-foreground">Akun Tujuan Transfer</label>
+                  <label className="font-semibold text-foreground">{isEn ? "Transfer Destination Account" : "Akun Tujuan Transfer"}</label>
                   <select
                     value={mappingDraft.to_account_name || ""}
                     onChange={(e) =>
@@ -2524,7 +2534,7 @@ export default function ImportPage() {
                     }
                     className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
-                    <option value="">-- Tidak Dipetakan --</option>
+                    <option value="">{isEn ? "-- Not Mapped --" : "-- Tidak Dipetakan --"}</option>
                     {headers.map((h) => (
                       <option key={h} value={h}>
                         {h}
@@ -2534,7 +2544,7 @@ export default function ImportPage() {
                 </div>
 
                 <div className="grid grid-cols-[160px_1fr] items-center gap-2">
-                  <label className="font-semibold text-foreground">Catatan / Deskripsi</label>
+                  <label className="font-semibold text-foreground">{isEn ? "Notes / Description" : "Catatan / Deskripsi"}</label>
                   <select
                     value={mappingDraft.note || ""}
                     onChange={(e) =>
@@ -2542,7 +2552,7 @@ export default function ImportPage() {
                     }
                     className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
-                    <option value="">-- Tidak Dipetakan --</option>
+                    <option value="">{isEn ? "-- Not Mapped --" : "-- Tidak Dipetakan --"}</option>
                     {headers.map((h) => (
                       <option key={h} value={h}>
                         {h}
@@ -2552,7 +2562,7 @@ export default function ImportPage() {
                 </div>
 
                 <div className="grid grid-cols-[160px_1fr] items-center gap-2">
-                  <label className="font-semibold text-foreground">Tag / Label</label>
+                  <label className="font-semibold text-foreground">{isEn ? "Tags / Labels" : "Tag / Label"}</label>
                   <select
                     value={mappingDraft.tags || ""}
                     onChange={(e) =>
@@ -2560,7 +2570,7 @@ export default function ImportPage() {
                     }
                     className="h-8 rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
-                    <option value="">-- Tidak Dipetakan --</option>
+                    <option value="">{isEn ? "-- Not Mapped --" : "-- Tidak Dipetakan --"}</option>
                     {headers.map((h) => (
                       <option key={h} value={h}>
                         {h}
@@ -2579,18 +2589,18 @@ export default function ImportPage() {
                 className="text-xs text-muted-foreground gap-1"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                Reset ke Rekomendasi
+                {isEn ? "Reset to Recommended" : "Reset ke Rekomendasi"}
               </Button>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => setIsMappingOpen(false)}>
-                  Batal
+                  {t.common.cancel}
                 </Button>
                 <Button
                   size="sm"
                   onClick={handleApplyMapping}
                   className="bg-primary text-white font-semibold text-xs"
                 >
-                  Terapkan & Perbarui
+                  {isEn ? "Apply & Update" : "Terapkan & Perbarui"}
                 </Button>
               </div>
             </div>
@@ -2611,10 +2621,10 @@ export default function ImportPage() {
               </div>
               <div>
                 <h2 className="text-lg sm:text-xl font-black text-foreground tracking-tight">
-                  Panduan & Tutorial Impor E-Statement Bank & CSV
+                  {isEn ? "Bank E-Statement & CSV Import Guide" : "Panduan & Tutorial Impor E-Statement Bank & CSV"}
                 </h2>
                 <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-                  Langkah mudah mengambil mutasi transaksi dari m-Banking, e-wallet, atau Excel ke Fin.IQ
+                  {isEn ? "Easy steps to extract transaction statements from m-Banking, e-wallet, or Excel into Fin.IQ" : "Langkah mudah mengambil mutasi transaksi dari m-Banking, e-wallet, atau Excel ke Fin.IQ"}
                 </p>
               </div>
             </div>
@@ -2627,7 +2637,7 @@ export default function ImportPage() {
                 className="rounded-xl border-border bg-background text-xs font-semibold gap-1.5"
               >
                 <Download className="h-3.5 w-3.5" />
-                Unduh Template CSV
+                {isEn ? "Download CSV Template" : "Unduh Template CSV"}
               </Button>
               <Button
                 type="button"
@@ -2638,7 +2648,7 @@ export default function ImportPage() {
                 className="rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-bold gap-2 shadow-sm shadow-primary/25"
               >
                 <UploadCloud className="h-4 w-4" />
-                Mulai Impor File
+                {isEn ? "Start Importing File" : "Mulai Impor File"}
               </Button>
             </div>
           </div>
@@ -2649,10 +2659,10 @@ export default function ImportPage() {
               <span className="h-6 w-6 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-black">
                 1
               </span>
-              <span>Cara Mengunduh Mutasi / E-Statement dari Bank & E-Wallet</span>
+              <span>{isEn ? "How to Download Statements from Banks & E-Wallets" : "Cara Mengunduh Mutasi / E-Statement dari Bank & E-Wallet"}</span>
             </div>
             <p className="text-xs text-muted-foreground pl-8">
-              Sebagian besar bank di Indonesia menyediakan fitur unduh mutasi rekening dalam format CSV, Excel (.xlsx), atau teks:
+              {isEn ? "Most banks in Indonesia provide an option to download account statements in CSV, Excel (.xlsx), or text format:" : "Sebagian besar bank di Indonesia menyediakan fitur unduh mutasi rekening dalam format CSV, Excel (.xlsx), atau teks:"}
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pl-8 pt-1">
@@ -2668,11 +2678,11 @@ export default function ImportPage() {
                   </div>
                 </div>
                 <ol className="text-[11px] text-muted-foreground space-y-1 list-decimal list-inside leading-relaxed pt-1">
-                  <li>Login ke <strong>KlikBCA</strong> atau aplikasi <strong>myBCA</strong>.</li>
-                  <li>Buka menu <strong>Informasi Rekening</strong> &gt; <strong>Mutasi Rekening</strong>.</li>
-                  <li>Pilih rentang tanggal transaksi yang ingin diekspor (misal 1 bulan terakhir).</li>
-                  <li>Pilih jenis download <strong>CSV</strong> (atau cetak teks), lalu simpan file ke perangkat.</li>
-                  <li>Upload file ke Fin.IQ pada tab <strong>File CSV / Excel</strong>.</li>
+                  <li>{isEn ? "Log in to KlikBCA or myBCA mobile application." : "Login ke KlikBCA atau aplikasi myBCA."}</li>
+                  <li>{isEn ? "Open Account Information > Account Statement." : "Buka menu Informasi Rekening > Mutasi Rekening."}</li>
+                  <li>{isEn ? "Select the date range of transactions you want to export." : "Pilih rentang tanggal transaksi yang ingin diekspor (misal 1 bulan terakhir)."}</li>
+                  <li>{isEn ? "Choose CSV download format and save file to device." : "Pilih jenis download CSV (atau cetak teks), lalu simpan file ke perangkat."}</li>
+                  <li>{isEn ? "Upload file to Fin.IQ in File CSV / Excel tab." : "Upload file ke Fin.IQ pada tab File CSV / Excel."}</li>
                 </ol>
               </div>
 
@@ -2688,11 +2698,11 @@ export default function ImportPage() {
                   </div>
                 </div>
                 <ol className="text-[11px] text-muted-foreground space-y-1 list-decimal list-inside leading-relaxed pt-1">
-                  <li>Buka aplikasi <strong>Livin' by Mandiri</strong> di ponsel Anda.</li>
-                  <li>Pilih rekening tabungan yang ingin dilihat mutasinya.</li>
-                  <li>Klik tombol <strong>E-Statement / Unduh Mutasi</strong>.</li>
-                  <li>Pilih bulan yang ingin diekspor lalu unduh file CSV atau PDF.</li>
-                  <li>Jika formatnya CSV/Excel, upload ke tab File; jika tangkapan layar, gunakan tab <strong>Screenshot</strong>.</li>
+                  <li>{isEn ? "Open Livin' by Mandiri app on your mobile phone." : "Buka aplikasi Livin' by Mandiri di ponsel Anda."}</li>
+                  <li>{isEn ? "Select savings account to view statement." : "Pilih rekening tabungan yang ingin dilihat mutasinya."}</li>
+                  <li>{isEn ? "Tap E-Statement / Download Statement button." : "Klik tombol E-Statement / Unduh Mutasi."}</li>
+                  <li>{isEn ? "Select month to export and download CSV or PDF file." : "Pilih bulan yang ingin diekspor lalu unduh file CSV atau PDF."}</li>
+                  <li>{isEn ? "If CSV/Excel, upload to File tab; if screenshot, use Screenshot tab." : "Jika formatnya CSV/Excel, upload ke tab File; jika tangkapan layar, gunakan tab Screenshot."}</li>
                 </ol>
               </div>
 
@@ -2708,11 +2718,11 @@ export default function ImportPage() {
                   </div>
                 </div>
                 <ol className="text-[11px] text-muted-foreground space-y-1 list-decimal list-inside leading-relaxed pt-1">
-                  <li>Buka aplikasi <strong>BRImo</strong> atau <strong>BNI Mobile Banking</strong>.</li>
-                  <li>Masuk ke menu <strong>Mutasi</strong> atau <strong>Rekeningku</strong>.</li>
-                  <li>Pilih menu <strong>E-Statement</strong> dan tentukan bulan/periode mutasi.</li>
-                  <li>Unduh file mutasi rekening ke ponsel atau kirim ke email Anda.</li>
-                  <li>Upload file langsung ke Fin.IQ tanpa perlu mengubah struktur kolom.</li>
+                  <li>{isEn ? "Open BRImo or BNI Mobile Banking app." : "Buka aplikasi BRImo atau BNI Mobile Banking."}</li>
+                  <li>{isEn ? "Navigate to Statements or My Account." : "Masuk ke menu Mutasi atau Rekeningku."}</li>
+                  <li>{isEn ? "Choose E-Statement and specify period." : "Pilih menu E-Statement dan tentukan bulan/periode mutasi."}</li>
+                  <li>{isEn ? "Download statement file to your phone or send to email." : "Unduh file mutasi rekening ke ponsel atau kirim ke email Anda."}</li>
+                  <li>{isEn ? "Upload file directly into Fin.IQ without altering columns." : "Upload file langsung ke Fin.IQ tanpa perlu mengubah struktur kolom."}</li>
                 </ol>
               </div>
 
@@ -2724,14 +2734,14 @@ export default function ImportPage() {
                   </div>
                   <div>
                     <h4 className="font-bold text-xs text-foreground">E-Wallet (GoPay, OVO, DANA, ShopeePay)</h4>
-                    <span className="text-[10px] text-muted-foreground">Riwayat transaksi & AI Vision</span>
+                    <span className="text-[10px] text-muted-foreground">{isEn ? "Transaction history & AI Vision" : "Riwayat transaksi & AI Vision"}</span>
                   </div>
                 </div>
                 <ol className="text-[11px] text-muted-foreground space-y-1 list-decimal list-inside leading-relaxed pt-1">
-                  <li>Buka riwayat transaksi pada aplikasi GoPay, OVO, atau DANA.</li>
-                  <li>Pilih opsi unduh <strong>Rekap Mutasi Bulanan</strong> yang dikirim via email.</li>
-                  <li>Atau cukup <strong>Screenshot (tangkapan layar)</strong> mutasi / struk QRIS Anda di HP.</li>
-                  <li>Gunakan tab <strong>Screenshot / AI Vision</strong> untuk membaca nominal dan tanggal otomatis!</li>
+                  <li>{isEn ? "Open transaction history in GoPay, OVO, or DANA app." : "Buka riwayat transaksi pada aplikasi GoPay, OVO, atau DANA."}</li>
+                  <li>{isEn ? "Download Monthly Summary Statement sent via email." : "Pilih opsi unduh Rekap Mutasi Bulanan yang dikirim via email."}</li>
+                  <li>{isEn ? "Or simply take a screenshot of transaction receipt on phone." : "Atau cukup Screenshot (tangkapan layar) mutasi / struk QRIS Anda di HP."}</li>
+                  <li>{isEn ? "Use Screenshot / AI Vision tab to parse amounts and dates automatically!" : "Gunakan tab Screenshot / AI Vision untuk membaca nominal dan tanggal otomatis!"}</li>
                 </ol>
               </div>
             </div>
@@ -2743,32 +2753,32 @@ export default function ImportPage() {
               <span className="h-6 w-6 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-black">
                 2
               </span>
-              <span>Format Kolom Fleksibel & Cerdas Fin.IQ</span>
+              <span>{isEn ? "Fin.IQ Flexible & Intelligent Column Format" : "Format Kolom Fleksibel & Cerdas Fin.IQ"}</span>
             </div>
             <p className="text-xs text-muted-foreground pl-8">
-              Fin.IQ dilengkapi parser pintar berbasis NLP yang otomatis mengenali nama kolom dalam Bahasa Indonesia maupun Inggris:
+              {isEn ? "Fin.IQ is equipped with an NLP-based smart parser that automatically recognizes column names in both Indonesian and English:" : "Fin.IQ dilengkapi parser pintar berbasis NLP yang otomatis mengenali nama kolom dalam Bahasa Indonesia maupun Inggris:"}
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-8 pt-1">
               <div className="p-4 rounded-2xl bg-muted/40 border border-border/60">
                 <div className="font-bold text-foreground text-xs flex items-center gap-1.5 mb-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Kolom Wajib
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" /> {isEn ? "Required Columns" : "Kolom Wajib"}
                 </div>
                 <ul className="text-[11px] text-muted-foreground space-y-1.5 list-disc list-inside">
-                  <li><strong>Tanggal</strong> (Format YYYY-MM-DD, DD/MM/YYYY, atau tanggal teks seperti 15 Okt 2026)</li>
-                  <li><strong>Nominal / Jumlah</strong> (Contoh: 50000, 50.000, atau Rp 50,000)</li>
-                  <li><strong>Tipe / Jenis</strong> (Pemasukan / Pengeluaran, debit / kredit, atau otomatis dari tanda +/-)</li>
+                  <li><strong>{isEn ? "Date" : "Tanggal"}</strong> ({isEn ? "Format YYYY-MM-DD, DD/MM/YYYY, or text like 15 Oct 2026" : "Format YYYY-MM-DD, DD/MM/YYYY, atau tanggal teks seperti 15 Okt 2026"})</li>
+                  <li><strong>{isEn ? "Amount / Sum" : "Nominal / Jumlah"}</strong> ({isEn ? "e.g. 50000, 50,000, or $50.00" : "Contoh: 50000, 50.000, atau Rp 50,000"})</li>
+                  <li><strong>{isEn ? "Type / Kind" : "Tipe / Jenis"}</strong> ({isEn ? "Income / Expense, debit / credit, or automatic from +/- sign" : "Pemasukan / Pengeluaran, debit / kredit, atau otomatis dari tanda +/-"})</li>
                 </ul>
               </div>
 
               <div className="p-4 rounded-2xl bg-muted/40 border border-border/60">
                 <div className="font-bold text-foreground text-xs flex items-center gap-1.5 mb-1.5">
-                  <Sparkles className="h-4 w-4 text-primary" /> Kolom Otomatis & Opsional
+                  <Sparkles className="h-4 w-4 text-primary" /> {isEn ? "Automatic & Optional Columns" : "Kolom Otomatis & Opsional"}
                 </div>
                 <ul className="text-[11px] text-muted-foreground space-y-1.5 list-disc list-inside">
-                  <li><strong>Kategori</strong> (Jika kolom ini kosong, AI Fin.IQ otomatis mendeteksi kategori dari keterangan!)</li>
-                  <li><strong>Akun / Rekening</strong> (BCA, Mandiri, Cash, GoPay. Jika belum ada, dibuat otomatis)</li>
-                  <li><strong>Keterangan / Catatan</strong> (Nama merchant, rincian transfer, atau catatan belanja)</li>
+                  <li><strong>{isEn ? "Category" : "Kategori"}</strong> ({isEn ? "If empty, Fin.IQ AI auto-detects from description!" : "Jika kolom ini kosong, AI Fin.IQ otomatis mendeteksi kategori dari keterangan!"})</li>
+                  <li><strong>{isEn ? "Account / Wallet" : "Akun / Rekening"}</strong> ({isEn ? "BCA, Mandiri, Cash, GoPay. Created automatically if missing" : "BCA, Mandiri, Cash, GoPay. Jika belum ada, dibuat otomatis"})</li>
+                  <li><strong>{isEn ? "Note / Description" : "Keterangan / Catatan"}</strong> ({isEn ? "Merchant name, transfer details, or shopping notes" : "Nama merchant, rincian transfer, atau catatan belanja"})</li>
                 </ul>
               </div>
             </div>
@@ -2781,7 +2791,7 @@ export default function ImportPage() {
                 <span className="h-6 w-6 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-black">
                   3
                 </span>
-                <span>Contoh Format Data CSV yang Siap Diimpor</span>
+                <span>{isEn ? "Example of Ready-to-Import CSV Data Format" : "Contoh Format Data CSV yang Siap Diimpor"}</span>
               </div>
               <div className="flex items-center gap-2 pl-8 sm:pl-0">
                 <Button
@@ -2792,7 +2802,7 @@ export default function ImportPage() {
                   className="h-7 text-xs gap-1.5 px-2.5 text-muted-foreground hover:text-foreground rounded-lg"
                 >
                   {copiedTutorialSample ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                  <span>{copiedTutorialSample ? "Tersalin!" : "Salin Contoh"}</span>
+                  <span>{copiedTutorialSample ? (isEn ? "Copied!" : "Tersalin!") : (isEn ? "Copy Example" : "Salin Contoh")}</span>
                 </Button>
                 <Button
                   type="button"
@@ -2801,7 +2811,7 @@ export default function ImportPage() {
                   className="h-7 text-xs font-bold bg-primary hover:bg-primary/90 text-white gap-1.5 px-3 rounded-lg shadow-xs"
                 >
                   <Download className="h-3.5 w-3.5" />
-                  <span>Download Template CSV</span>
+                  <span>{isEn ? "Download CSV Template" : "Download Template CSV"}</span>
                 </Button>
               </div>
             </div>
@@ -2811,46 +2821,46 @@ export default function ImportPage() {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-muted/60 text-muted-foreground font-bold border-b border-border/60">
                     <tr>
-                      <th className="py-2.5 px-3.5">Tanggal</th>
-                      <th className="py-2.5 px-3.5">Jenis</th>
-                      <th className="py-2.5 px-3.5">Nominal</th>
-                      <th className="py-2.5 px-3.5">Kategori</th>
-                      <th className="py-2.5 px-3.5">Akun</th>
-                      <th className="py-2.5 px-3.5">Keterangan</th>
+                      <th className="py-2.5 px-3.5">{isEn ? "Date" : "Tanggal"}</th>
+                      <th className="py-2.5 px-3.5">{isEn ? "Type" : "Jenis"}</th>
+                      <th className="py-2.5 px-3.5">{isEn ? "Amount" : "Nominal"}</th>
+                      <th className="py-2.5 px-3.5">{isEn ? "Category" : "Kategori"}</th>
+                      <th className="py-2.5 px-3.5">{isEn ? "Account" : "Akun"}</th>
+                      <th className="py-2.5 px-3.5">{isEn ? "Description" : "Keterangan"}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/40 font-medium">
                     <tr className="hover:bg-muted/30">
-                      <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold">15/OKT/2026</td>
+                      <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold">15/OCT/2026</td>
                       <td className="py-2.5 px-3.5 text-rose-600 font-bold">expense</td>
                       <td className="py-2.5 px-3.5 font-bold">45.000</td>
-                      <td className="py-2.5 px-3.5">Makanan & Minuman</td>
+                      <td className="py-2.5 px-3.5">{isEn ? "Food & Drinks" : "Makanan & Minuman"}</td>
                       <td className="py-2.5 px-3.5">Cash</td>
-                      <td className="py-2.5 px-3.5 text-muted-foreground">Kopi & Makan Siang</td>
+                      <td className="py-2.5 px-3.5 text-muted-foreground">{isEn ? "Coffee & Lunch" : "Kopi & Makan Siang"}</td>
                     </tr>
                     <tr className="hover:bg-muted/30">
-                      <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold">15/OKT/2026</td>
+                      <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold">15/OCT/2026</td>
                       <td className="py-2.5 px-3.5 text-emerald-600 font-bold">income</td>
                       <td className="py-2.5 px-3.5 font-bold">10.000.000</td>
-                      <td className="py-2.5 px-3.5">Gaji & Pendapatan</td>
+                      <td className="py-2.5 px-3.5">{isEn ? "Salary & Income" : "Gaji & Pendapatan"}</td>
                       <td className="py-2.5 px-3.5">BCA</td>
-                      <td className="py-2.5 px-3.5 text-muted-foreground">Gaji Bulanan</td>
+                      <td className="py-2.5 px-3.5 text-muted-foreground">{isEn ? "Monthly Salary" : "Gaji Bulanan"}</td>
                     </tr>
                     <tr className="hover:bg-muted/30">
-                      <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold">14/OKT/2026</td>
+                      <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold">14/OCT/2026</td>
                       <td className="py-2.5 px-3.5 text-rose-600 font-bold">expense</td>
                       <td className="py-2.5 px-3.5 font-bold">25.000</td>
-                      <td className="py-2.5 px-3.5">Transportasi</td>
+                      <td className="py-2.5 px-3.5">{isEn ? "Transportation" : "Transportasi"}</td>
                       <td className="py-2.5 px-3.5">GoPay</td>
-                      <td className="py-2.5 px-3.5 text-muted-foreground">Ongkos Ojek Online</td>
+                      <td className="py-2.5 px-3.5 text-muted-foreground">{isEn ? "Ride Hailing Fare" : "Ongkos Ojek Online"}</td>
                     </tr>
                     <tr className="hover:bg-muted/30">
-                      <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold">13/OKT/2026</td>
+                      <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold">13/OCT/2026</td>
                       <td className="py-2.5 px-3.5 text-rose-600 font-bold">expense</td>
                       <td className="py-2.5 px-3.5 font-bold">150.000</td>
-                      <td className="py-2.5 px-3.5">Belanja</td>
+                      <td className="py-2.5 px-3.5">{isEn ? "Shopping" : "Belanja"}</td>
                       <td className="py-2.5 px-3.5">Mandiri</td>
-                      <td className="py-2.5 px-3.5 text-muted-foreground">Kebutuhan Rumah Tangga</td>
+                      <td className="py-2.5 px-3.5 text-muted-foreground">{isEn ? "Household Essentials" : "Kebutuhan Rumah Tangga"}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -2861,7 +2871,7 @@ export default function ImportPage() {
           {/* Bottom Action Footer */}
           <div className="pt-4 border-t border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <p className="text-xs text-muted-foreground">
-              Sudah memiliki file CSV atau screenshot mutasi? Klik tombol di samping untuk mulai mengimpor.
+              {isEn ? "Already have a CSV file or statement screenshot? Click the buttons to start importing." : "Sudah memiliki file CSV atau screenshot mutasi? Klik tombol di samping untuk mulai mengimpor."}
             </p>
             <div className="flex items-center gap-2.5 self-start sm:self-auto">
               <Button
@@ -2871,7 +2881,7 @@ export default function ImportPage() {
                 className="rounded-xl text-xs font-semibold gap-1.5"
               >
                 <Camera className="h-3.5 w-3.5 text-emerald-500" />
-                Gunakan AI Screenshot
+                {isEn ? "Use AI Screenshot" : "Gunakan AI Screenshot"}
               </Button>
               <Button
                 type="button"
@@ -2882,7 +2892,7 @@ export default function ImportPage() {
                 className="rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-bold gap-2 shadow-sm shadow-primary/25"
               >
                 <UploadCloud className="h-4 w-4" />
-                Unggah File Sekarang
+                {isEn ? "Upload File Now" : "Unggah File Sekarang"}
               </Button>
             </div>
           </div>
@@ -2899,27 +2909,27 @@ export default function ImportPage() {
               <CheckCircle2 className="h-8 w-8" />
             </div>
 
-            <h2 className="text-lg font-bold text-foreground">Impor Transaksi Selesai</h2>
+            <h2 className="text-lg font-bold text-foreground">{isEn ? "Transaction Import Completed" : "Impor Transaksi Selesai"}</h2>
             <p className="text-xs text-muted-foreground mt-1">
-              Data transaksi dari file telah berhasil dimasukkan ke dalam buku kas Fin.IQ Anda.
+              {isEn ? "Transaction data from file has been successfully imported into your Fin.IQ ledger." : "Data transaksi dari file telah berhasil dimasukkan ke dalam buku kas Fin.IQ Anda."}
             </p>
 
             <div className="my-5 p-4 bg-muted/40 rounded-xl space-y-2 text-xs text-left">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Transaksi Ditambahkan:</span>
+                <span className="text-muted-foreground">{isEn ? "Transactions Added:" : "Transaksi Ditambahkan:"}</span>
                 <span className="font-bold text-emerald-600">
-                  {importResult.createdCount} transaksi
+                  {importResult.createdCount} {isEn ? "transactions" : "transaksi"}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Dilewati (Duplikat):</span>
+                <span className="text-muted-foreground">{isEn ? "Skipped (Duplicates):" : "Dilewati (Duplikat):"}</span>
                 <span className="font-semibold text-muted-foreground">
-                  {importResult.skippedCount} transaksi
+                  {importResult.skippedCount} {isEn ? "transactions" : "transaksi"}
                 </span>
               </div>
               {importResult.accountsCreated?.length > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Akun Baru Dibuat:</span>
+                  <span className="text-muted-foreground">{isEn ? "New Accounts Created:" : "Akun Baru Dibuat:"}</span>
                   <span className="font-semibold text-foreground">
                     {importResult.accountsCreated.join(", ")}
                   </span>
@@ -2927,7 +2937,7 @@ export default function ImportPage() {
               )}
               {importResult.categoriesCreated?.length > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Kategori Baru Dibuat:</span>
+                  <span className="text-muted-foreground">{isEn ? "New Categories Created:" : "Kategori Baru Dibuat:"}</span>
                   <span className="font-semibold text-foreground">
                     {importResult.categoriesCreated.join(", ")}
                   </span>
@@ -2941,13 +2951,13 @@ export default function ImportPage() {
                 className="w-1/2 text-xs"
                 onClick={() => router.push("/overview")}
               >
-                Lihat Dashboard
+                {isEn ? "View Dashboard" : "Lihat Dashboard"}
               </Button>
               <Button
                 className="w-1/2 bg-primary text-white text-xs font-semibold"
                 onClick={() => router.push("/transactions")}
               >
-                Buka Transaksi
+                {isEn ? "Open Transactions" : "Buka Transaksi"}
               </Button>
             </div>
           </div>

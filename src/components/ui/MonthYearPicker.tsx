@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Calendar as CalendarIcon,
   Check,
   RotateCcw,
@@ -14,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/i18n";
 
 export const MONTHS_ID = [
   { index: 0, short: "Jan", name: "Januari" },
@@ -28,6 +28,21 @@ export const MONTHS_ID = [
   { index: 9, short: "Okt", name: "Oktober" },
   { index: 10, short: "Nov", name: "November" },
   { index: 11, short: "Des", name: "Desember" },
+];
+
+export const MONTHS_EN = [
+  { index: 0, short: "Jan", name: "January" },
+  { index: 1, short: "Feb", name: "February" },
+  { index: 2, short: "Mar", name: "March" },
+  { index: 3, short: "Apr", name: "April" },
+  { index: 4, short: "May", name: "May" },
+  { index: 5, short: "Jun", name: "June" },
+  { index: 6, short: "Jul", name: "July" },
+  { index: 7, short: "Aug", name: "August" },
+  { index: 8, short: "Sep", name: "September" },
+  { index: 9, short: "Oct", name: "October" },
+  { index: 10, short: "Nov", name: "November" },
+  { index: 11, short: "Dec", name: "December" },
 ];
 
 export interface MonthYearPickerProps {
@@ -47,6 +62,10 @@ export function MonthYearPicker({
   align = "left",
   showFullCalendarLink = true,
 }: MonthYearPickerProps) {
+  const { locale, t } = useTranslation();
+  const isEn = locale === "en";
+  const monthsList = isEn ? MONTHS_EN : MONTHS_ID;
+
   const containerRef = useRef<HTMLDivElement>(null);
   const now = new Date();
   const currentYearNow = now.getFullYear();
@@ -54,12 +73,10 @@ export function MonthYearPicker({
 
   const [viewYear, setViewYear] = useState<number>(currentDate.getFullYear());
 
-  // Sinkronisasi viewYear saat currentDate berubah
   useEffect(() => {
     setViewYear(currentDate.getFullYear());
   }, [currentDate]);
 
-  // Click outside & Escape key listeners
   useEffect(() => {
     if (!isOpen) return;
 
@@ -86,7 +103,6 @@ export function MonthYearPicker({
 
   if (!isOpen) return null;
 
-  // Generate daftar tahun (rentang 10 tahun sekitar tahun sekarang)
   const availableYears = Array.from({ length: 11 }, (_, i) => currentYearNow - 5 + i);
 
   const handlePrevYear = (e: React.MouseEvent) => {
@@ -136,14 +152,15 @@ export function MonthYearPicker({
       )}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Header Bar: Navigasi Tahun Langsung */}
+      {/* Header Bar */}
       <div className="flex items-center justify-between gap-2 pb-3 mb-2.5 border-b border-border/60">
         <div className="flex items-center gap-1.5">
           <CalendarIcon className="h-4 w-4 text-primary shrink-0" />
-          <span className="text-xs font-bold text-foreground">Pilih Bulan &amp; Tahun</span>
+          <span className="text-xs font-bold text-foreground">
+            {t.calendar.monthYearTitle}
+          </span>
         </div>
 
-        {/* Pemilih Tahun Cepat */}
         <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-md border border-border/50">
           <Button
             type="button"
@@ -151,7 +168,7 @@ export function MonthYearPicker({
             size="icon"
             onClick={handlePrevYear}
             className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground hover:bg-background/80"
-            title="Tahun sebelumnya"
+            title={t.calendar.prevYear}
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </Button>
@@ -174,16 +191,16 @@ export function MonthYearPicker({
             size="icon"
             onClick={handleNextYear}
             className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground hover:bg-background/80"
-            title="Tahun berikutnya"
+            title={t.calendar.nextYear}
           >
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
 
-      {/* Grid 12 Bulan: Langsung Klik Bulan yang Diinginkan */}
+      {/* Grid 12 Months */}
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        {MONTHS_ID.map((m) => {
+        {monthsList.map((m) => {
           const isSelected =
             currentDate.getFullYear() === viewYear &&
             currentDate.getMonth() === m.index;
@@ -203,14 +220,12 @@ export function MonthYearPicker({
                   ? "border-primary/50 bg-primary/5 text-foreground font-bold hover:bg-primary/10 hover:border-primary"
                   : "border-border/60 bg-card/60 text-foreground hover:bg-muted/80 hover:border-border font-medium"
               )}
-              title={`Pilih ${m.name} ${viewYear}`}
+              title={`${m.name} ${viewYear}`}
             >
-              {/* Indikator Titik Hijau untuk Bulan Sekarang */}
               {isRealCurrentMonth && !isSelected && (
                 <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-primary" />
               )}
 
-              {/* Checkmark jika sedang terpilih */}
               {isSelected && (
                 <span className="absolute top-1 right-1 text-white">
                   <Check className="h-3 w-3 stroke-[3]" />
@@ -230,26 +245,26 @@ export function MonthYearPicker({
         })}
       </div>
 
-      {/* Baris Tombol Aksi Cepat (Bulan Ini, Bulan Lalu) */}
+      {/* Action Buttons */}
       <div className="flex items-center justify-between gap-1.5 pt-2.5 mt-2.5 border-t border-border/60 text-[11px]">
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={handleJumpToCurrentMonth}
             className="flex items-center gap-1 px-2 py-1 rounded-md font-semibold text-primary hover:bg-primary/10 transition-colors"
-            title="Lompat ke bulan ini"
+            title={t.calendar.thisMonth}
           >
             <Sparkles className="h-3 w-3 shrink-0" />
-            Bulan Ini
+            {t.calendar.thisMonth}
           </button>
           <button
             type="button"
             onClick={handleJumpToLastMonth}
             className="flex items-center gap-1 px-2 py-1 rounded-md font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-            title="Lompat ke bulan lalu"
+            title={t.calendar.lastMonth}
           >
             <RotateCcw className="h-3 w-3 shrink-0" />
-            Bulan Lalu
+            {t.calendar.lastMonth}
           </button>
         </div>
 
@@ -258,9 +273,9 @@ export function MonthYearPicker({
             href="/calendar"
             onClick={onClose}
             className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-primary transition-colors py-1 px-1.5 rounded-md hover:bg-muted/60"
-            title="Buka Kalender Transaksi Lengkap"
+            title={t.calendar.fullCalendar}
           >
-            <span>Kalender</span>
+            <span>{t.nav.calendar}</span>
             <ExternalLink className="h-3 w-3" />
           </Link>
         )}

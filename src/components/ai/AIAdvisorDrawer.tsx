@@ -146,6 +146,7 @@ export function AIAdvisorDrawer() {
     askAssistantMutation.mutate({
       question: text,
       lang: "id",
+      clientTime: new Date().toISOString(),
     });
   };
 

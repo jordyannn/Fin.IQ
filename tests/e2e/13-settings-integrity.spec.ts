@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("13. Fitur Halaman Pengaturan & Kesehatan Data UI", () => {
+test.describe("13. Fitur Halaman Pengaturan UI", () => {
   test("halaman pengaturan memuat profil pengguna, ganti password, dan Gemini key", async ({ page }) => {
     await page.goto("/settings");
     await page.waitForLoadState("domcontentloaded");
@@ -20,19 +20,5 @@ test.describe("13. Fitur Halaman Pengaturan & Kesehatan Data UI", () => {
     // Kolom input nama pengguna dapat menerima perubahan teks
     await displayNameInput.fill("Test FinIQ User");
     await expect(displayNameInput).toHaveValue("Test FinIQ User");
-  });
-
-  test("halaman kesehatan data memuat audit integritas saldo rekening dan status audit", async ({ page }) => {
-    await page.goto("/integrity");
-    await page.waitForLoadState("domcontentloaded");
-
-    await expect(page).toHaveURL(/.*integrity.*/);
-
-    // Judul Integritas
-    await expect(page.locator("text=/Kesehatan Data|Integritas|Audit Saldo/i").first()).toBeVisible({ timeout: 10000 });
-
-    // Verifikasi tabel atau kartu audit status saldo
-    const statusCard = page.locator("text=/Status Kesehatan Database|Konsistensi Saldo/i").first();
-    await expect(statusCard).toBeVisible({ timeout: 8000 });
   });
 });

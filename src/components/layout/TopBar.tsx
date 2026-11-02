@@ -12,7 +12,8 @@ import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 export function TopBar() {
   const pathname = usePathname();
   const { toggleCommandPalette, toggleSidebar } = useUIStore();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const isEn = locale === "en";
 
   const getRouteLabel = () => {
     if (pathname === "/overview" || pathname === "/") return t.nav.overview;
@@ -27,7 +28,6 @@ export function TopBar() {
     if (pathname.startsWith("/ledgers")) return t.nav.ledgers;
     if (pathname.startsWith("/annual-report")) return t.nav.annualReport;
     if (pathname.startsWith("/settings")) return t.nav.settings;
-    if (pathname.startsWith("/integrity")) return t.nav.integrity;
     return t.common.appName;
   };
 
@@ -43,9 +43,9 @@ export function TopBar() {
         {/* Tombol Buka Sidebar Mobile */}
         <button
           onClick={toggleSidebar}
-          aria-label="Buka Menu Navigasi"
+          aria-label={isEn ? "Open Navigation Menu" : "Buka Menu Navigasi"}
           data-tour="mobile-sidebar-toggle"
-          className="flex lg:hidden h-10 w-10 sm:h-9 sm:w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:text-foreground hover:border-primary/40 active:scale-95 transition-all shadow-2xs cursor-pointer touch-manipulation"
+          className="flex lg:hidden h-11 w-11 min-h-[44px] min-w-[44px] sm:h-9 sm:w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:text-foreground hover:border-primary/40 active:scale-95 transition-all shadow-2xs cursor-pointer touch-manipulation"
         >
           <Menu className="h-4 w-4" />
         </button>
@@ -73,7 +73,7 @@ export function TopBar() {
         {/* Mobile Search Icon Button (Min touch target 44px) */}
         <button
           onClick={toggleCommandPalette}
-          className="flex lg:hidden h-10 w-10 sm:h-9 sm:w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:text-foreground hover:border-primary/40 active:scale-95 transition-all shadow-2xs cursor-pointer touch-manipulation"
+          className="flex lg:hidden h-11 w-11 min-h-[44px] min-w-[44px] sm:h-9 sm:w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:text-foreground hover:border-primary/40 active:scale-95 transition-all shadow-2xs cursor-pointer touch-manipulation"
           aria-label={t.topbar.searchPlaceholder}
         >
           <GeometricIcon name="search" size="xs" active />

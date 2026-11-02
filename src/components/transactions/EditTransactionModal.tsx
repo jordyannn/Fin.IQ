@@ -14,7 +14,9 @@ import {
   Save,
   Sparkles,
   Plus,
+  ChevronDown,
 } from "lucide-react";
+import { useBottomSheetDrag } from "@/hooks/use-bottom-sheet-drag";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, formatInputIDR, parseInputIDR } from "@/lib/utils";
@@ -26,8 +28,10 @@ import {
   detectCategory,
   detectAccount,
   isConfidentDatasetMatch,
+  deduplicateTranscript,
 } from "@/lib/nlp-parser";
 import { useConfirm, useAlert } from "@/store/confirm.store";
+import { useTranslation } from "@/i18n";
 import { CategorySelect } from "./CategorySelect";
 import { AccountSelect } from "./AccountSelect";
 
@@ -57,6 +61,8 @@ export function EditTransactionModal({
   transaction,
 }: EditTransactionModalProps) {
   const utils = trpc.useUtils();
+  const { t, locale } = useTranslation();
+  const isEn = locale === "en";
 
   const [txType, setTxType] = useState<"expense" | "income" | "transfer">("expense");
   const [amount, setAmount] = useState("");
@@ -81,7 +87,7 @@ export function EditTransactionModal({
       const newTotal = updated.reduce((sum, it) => sum + it.amount, 0);
       setAmount(formatInputIDR(String(newTotal)));
       const newNote = updated
-        .map((it) => `${it.qty && it.qty > 1 ? `${it.qty}x ` : ""}${it.name} (Rp ${it.formattedAmount})`)
+        .map((it) => `${it.qty && it.qty > 1 ? `${it.qty}x ` : ""}${it.name} (${isEn ? "IDR" : "Rp"} ${it.formattedAmount})`)
         .join(", ");
       setNote(newNote);
     } else {
@@ -106,8 +112,8 @@ export function EditTransactionModal({
     },
     onError: (err) => {
       alert({
-        title: "Gagal Membuat Kategori",
-        description: err.message || "Terjadi kesalahan saat membuat kategori.",
+        title: isEn ? "Failed to Create Category" : "Gagal Membuat Kategori",
+        description: err.message || (isEn ? "An error occurred while creating category." : "Terjadi kesalahan saat membuat kategori."),
         variant: "destructive",
         icon: "alert",
       });
@@ -116,10 +122,12 @@ export function EditTransactionModal({
 
   const handleCreateRecommendedCategory = async (name: string, kind: "expense" | "income") => {
     const isApproved = await confirm({
-      title: "Buat Kategori Rekomendasi?",
-      description: `Kategori "${name}" belum ada di daftar kategori Anda. Apakah Anda ingin membuat kategori baru ini dan menyetujuinya untuk digunakan pada transaksi ini?`,
-      confirmText: "Ya, Buat & Gunakan",
-      cancelText: "Batal",
+      title: isEn ? "Create Recommended Category?" : "Buat Kategori Rekomendasi?",
+      description: isEn
+        ? `Category "${name}" is not in your category list yet. Would you like to create this new category and use it for this transaction?`
+        : `Kategori "${name}" belum ada di daftar kategori Anda. Apakah Anda ingin membuat kategori baru ini dan menyetujuinya untuk digunakan pada transaksi ini?`,
+      confirmText: isEn ? "Yes, Create & Use" : "Ya, Buat & Gunakan",
+      cancelText: t.common.cancel,
       variant: "warning",
       icon: "alert",
     });
@@ -179,7 +187,7 @@ export function EditTransactionModal({
       onClose();
     },
     onError: (err) => {
-      setErrorMessage(err.message || "Gagal memperbarui transaksi.");
+      setErrorMessage(err.message || (isEn ? "Failed to update transaction." : "Gagal memperbarui transaksi."));
     },
   });
 
@@ -280,7 +288,10 @@ export function EditTransactionModal({
     audioBase64?: string,
     mimeType?: string
   ) => {
-    const result = smartParseIndonesianTransaction(transcript, {
+    const cleanText = deduplicateTranscript((transcript || "").trim());
+    if (!cleanText && !audioBase64) return;
+
+    const result = smartParseIndonesianTransaction(cleanText, {
       accounts: accountsData?.accounts,
       categories: categoriesList,
     });
@@ -292,11 +303,22 @@ export function EditTransactionModal({
       parseAudioMutation.mutate({
         audioBase64: audioBase64 || undefined,
         mimeType: mimeType || "audio/webm",
-        transcript: transcript || undefined,
+        transcript: cleanText || undefined,
         clientTime: new Date().toISOString(),
       });
     }
   };
+
+  // Gesture slide / swipe kebawah untuk menutup modal di mobile ("slider nyala")
+  const {
+    dragY,
+    isDragging,
+    dragHandleProps,
+    modalStyle,
+    backdropStyle,
+  } = useBottomSheetDrag({
+    onClose,
+  });
 
   if (!isOpen || !transaction) return null;
 
@@ -306,22 +328,22 @@ export function EditTransactionModal({
 
     const numAmount = parseInputIDR(amount);
     if (!numAmount || numAmount <= 0) {
-      setErrorMessage("Nominal transaksi harus lebih dari 0.");
+      setErrorMessage(isEn ? "Transaction amount must be greater than 0." : "Nominal transaksi harus lebih dari 0.");
       return;
     }
 
     if (!accountId) {
-      setErrorMessage("Harap pilih akun transaksi.");
+      setErrorMessage(isEn ? "Please select a transaction account." : "Harap pilih akun transaksi.");
       return;
     }
 
     if (txType === "transfer" && !toAccountId) {
-      setErrorMessage("Harap pilih akun tujuan untuk transfer.");
+      setErrorMessage(isEn ? "Please select a destination account for transfer." : "Harap pilih akun tujuan untuk transfer.");
       return;
     }
 
     if (txType === "transfer" && accountId === toAccountId) {
-      setErrorMessage("Akun asal dan akun tujuan tidak boleh sama.");
+      setErrorMessage(isEn ? "Source and destination accounts cannot be identical." : "Akun asal dan akun tujuan tidak boleh sama.");
       return;
     }
 
@@ -349,26 +371,69 @@ export function EditTransactionModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200">
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200"
+      style={backdropStyle}
+      onClick={onClose}
+    >
       <form
+        onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
+        style={modalStyle}
         className="relative w-full max-w-lg max-h-[90vh] sm:max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-2xl bg-card border-t sm:border border-border/80 shadow-2xl overflow-hidden text-card-foreground animate-in slide-in-from-bottom-5 sm:zoom-in-95 duration-200"
       >
-        {/* Mobile Drag Indicator Bar */}
-        <div className="sm:hidden pt-2.5 pb-1 flex justify-center shrink-0 bg-card select-none">
-          <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
+        {/* Mobile Drag Indicator Bar (Slider Aktif / Geser ke Bawah untuk Menutup) */}
+        <div
+          {...dragHandleProps}
+          className={cn(
+            "sm:hidden pt-3 pb-1.5 px-4 flex flex-col items-center justify-center shrink-0 bg-card select-none touch-none cursor-grab active:cursor-grabbing transition-colors",
+            isDragging && "bg-muted/40"
+          )}
+          title={isEn ? "Swipe down to close" : "Geser ke bawah untuk menutup"}
+        >
+          <div className="relative flex items-center justify-center py-0.5">
+            <div
+              className={cn(
+                "rounded-full transition-all duration-200",
+                isDragging
+                  ? "h-2 w-16 bg-primary shadow-md ring-4 ring-primary/20 scale-105"
+                  : "h-1.5 w-12 bg-muted-foreground/35 hover:bg-muted-foreground/60 hover:w-14"
+              )}
+            />
+          </div>
+          {/* Micro-hint teks saat digeser */}
+          <div
+            className={cn(
+              "overflow-hidden transition-all duration-200 text-center flex items-center justify-center",
+              isDragging && dragY > 15 ? "max-h-5 opacity-100 mt-1" : "max-h-0 opacity-0"
+            )}
+          >
+            <span className="text-[10px] font-semibold text-primary flex items-center gap-1">
+              <ChevronDown className="h-3 w-3 animate-bounce" />
+              {dragY > 80 ? (isEn ? "Release to close" : "Lepaskan untuk menutup") : (isEn ? "Swipe down to close" : "Geser ke bawah untuk menutup")}
+            </span>
+          </div>
         </div>
 
-        {/* Header - Fixed & Pinned at Top */}
-        <div className="flex items-center justify-between border-b border-border/70 px-5 sm:px-6 py-3.5 shrink-0 bg-card z-10">
+        {/* Header - Fixed & Pinned at Top (Mendukung drag di mobile) */}
+        <div
+          {...dragHandleProps}
+          className={cn(
+            "flex items-center justify-between border-b border-border/70 px-5 sm:px-6 py-3.5 shrink-0 bg-card z-10 select-none",
+            "touch-none cursor-grab active:cursor-grabbing sm:cursor-default"
+          )}
+        >
           <div>
-            <h2 className="text-base font-bold text-foreground tracking-tight">Ubah Transaksi</h2>
+            <h2 className="text-base font-bold text-foreground tracking-tight">{isEn ? "Edit Transaction" : "Ubah Transaksi"}</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Perbarui rincian, akun, atau nominal transaksi ini
+              {isEn ? "Update details, account, or amount for this transaction" : "Perbarui rincian, akun, atau nominal transaksi ini"}
             </p>
           </div>
           <button
             type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
             onClick={onClose}
             className="h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer active:scale-95 touch-manipulation"
           >
@@ -400,15 +465,15 @@ export function EditTransactionModal({
               <Sparkles className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-foreground">Dikte Suara Cerdas</p>
+              <p className="text-xs font-semibold text-foreground">{isEn ? "Smart Voice Dictation" : "Dikte Suara Cerdas"}</p>
               <p className="text-[10px] text-muted-foreground">
-                Ubah transaksi lewat suara (misal: &ldquo;Beli kopi 30rb pakai blu&rdquo;)
+                {isEn ? 'Edit transaction via voice (e.g. "Coffee $4 with cash")' : 'Ubah transaksi lewat suara (misal: "Beli kopi 30rb pakai blu")'}
               </p>
             </div>
           </div>
           <VoiceMicButton
             size="sm"
-            title="Dikte transaksi cerdas"
+            title={isEn ? "Smart voice dictation" : "Dikte transaksi cerdas"}
             onResult={(text) => applySmartSpeechParse(text)}
           />
         </div>
@@ -427,7 +492,7 @@ export function EditTransactionModal({
               )}
             >
               <ArrowDownLeft className="h-3.5 w-3.5" />
-              <span>Pengeluaran</span>
+              <span>{t.quickAdd.tabExpense}</span>
             </button>
             <button
               type="button"
@@ -440,7 +505,7 @@ export function EditTransactionModal({
               )}
             >
               <ArrowUpRight className="h-3.5 w-3.5" />
-              <span>Pemasukan</span>
+              <span>{t.quickAdd.tabIncome}</span>
             </button>
             <button
               type="button"
@@ -453,7 +518,7 @@ export function EditTransactionModal({
               )}
             >
               <ArrowRightLeft className="h-3.5 w-3.5" />
-              <span>Transfer</span>
+              <span>{t.quickAdd.tabTransfer}</span>
             </button>
           </div>
 
@@ -461,11 +526,11 @@ export function EditTransactionModal({
           <div>
             <div className="flex items-center justify-between h-6 mb-1.5">
               <label className="text-xs font-medium text-foreground/80">
-                Nominal ({transaction.currency || "IDR"})
+                {isEn ? "Amount" : "Nominal"} ({transaction.currency || "IDR"})
               </label>
               <VoiceMicButton
                 size="xs"
-                title="Dikte nominal (misal: lima puluh ribu)"
+                title={isEn ? "Dictate amount (e.g. fifty thousand)" : "Dikte nominal (misal: lima puluh ribu)"}
                 onResult={(text) => {
                   const num = parseSpokenNumber(text);
                   if (num) {
@@ -476,7 +541,7 @@ export function EditTransactionModal({
             </div>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground select-none">
-                Rp
+                {locale === "en" ? "IDR" : "Rp"}
               </span>
               <Input
                 type="text"
@@ -497,11 +562,11 @@ export function EditTransactionModal({
                   <div className="flex items-center gap-1.5">
                     <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     <span className="text-xs font-bold text-foreground">
-                      {detectedItems.length} Item Terdeteksi (Dijumlahkan Otomatis)
+                      {detectedItems.length} {isEn ? "Items Detected (Auto Summed)" : "Item Terdeteksi (Dijumlahkan Otomatis)"}
                     </span>
                   </div>
                   <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 border border-emerald-500/25 px-2 py-0.5 rounded-full font-mono shrink-0">
-                    Total: Rp {amount}
+                    Total: {locale === "en" ? "IDR" : "Rp"} {amount}
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 pt-0.5">
@@ -512,13 +577,13 @@ export function EditTransactionModal({
                     >
                       <span className="font-semibold">{item.qty && item.qty > 1 ? `${item.qty}x ` : ""}{item.name}:</span>
                       <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-                        Rp {item.formattedAmount}
+                        {isEn ? "IDR" : "Rp"} {item.formattedAmount}
                       </span>
                       <button
                         type="button"
                         onClick={() => handleRemoveDetectedItem(idx)}
                         className="text-muted-foreground hover:text-rose-500 ml-0.5 p-0.5 rounded hover:bg-muted cursor-pointer active:scale-95 transition-colors"
-                        title={`Hapus ${item.name} dari penjumlahan`}
+                        title={isEn ? `Remove ${item.name} from sum` : `Hapus ${item.name} dari penjumlahan`}
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -534,11 +599,11 @@ export function EditTransactionModal({
             <div className="flex items-center justify-between h-6 mb-1.5">
               <label className="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                Waktu Transaksi
+                {isEn ? "Transaction Time" : "Waktu Transaksi"}
               </label>
               <VoiceMicButton
                 size="xs"
-                title="Dikte waktu (misal: saat ini, kemarin sore, 25 agustus)"
+                title={isEn ? "Dictate time (e.g. now, yesterday, 25 August)" : "Dikte waktu (misal: saat ini, kemarin sore, 25 agustus)"}
                 onResult={(text) => {
                   const { happenedAtFormatted } = extractDateTimeFromText(text);
                   if (happenedAtFormatted) {
@@ -565,10 +630,10 @@ export function EditTransactionModal({
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                    Rekomendasi Kategori NLP
+                    {isEn ? "NLP Category Suggestion" : "Rekomendasi Kategori NLP"}
                   </span>
                   <span className="text-xs font-bold text-foreground truncate">
-                    &ldquo;{nlpRecommendedCategory.name}&rdquo; (Belum Ada)
+                    &ldquo;{nlpRecommendedCategory.name}&rdquo; ({isEn ? "New" : "Belum Ada"})
                   </span>
                 </div>
               </div>
@@ -584,7 +649,7 @@ export function EditTransactionModal({
                 className="h-8 px-3 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 gap-1.5 shadow-xs cursor-pointer transition-all active:scale-[0.98]"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Buat Kategori
+                {isEn ? "Create Category" : "Buat Kategori"}
               </Button>
             </div>
           )}
@@ -596,11 +661,11 @@ export function EditTransactionModal({
               <div className="flex items-center justify-between h-6 mb-1.5">
                 <label className="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
                   <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
-                  {txType === "transfer" ? "Dari Akun" : "Akun Keuangan"}
+                  {txType === "transfer" ? (isEn ? "From Account" : "Dari Akun") : (isEn ? "Financial Account" : "Akun Keuangan")}
                 </label>
                 <VoiceMicButton
                   size="xs"
-                  title="Sebut akun (misal: Blu, Cash, BCA)"
+                  title={isEn ? "Say account name (e.g. Cash, Checking)" : "Sebut akun (misal: Blu, Cash, BCA)"}
                   onResult={(text) => {
                     if (accountsData?.accounts) {
                       const detected = detectAccount(text, accountsData.accounts);
@@ -615,7 +680,7 @@ export function EditTransactionModal({
                 accounts={accountsData?.accounts || []}
                 value={accountId}
                 onChange={setAccountId}
-                placeholder="Pilih Akun..."
+                placeholder={isEn ? "Select Account..." : "Pilih Akun..."}
                 align="left"
               />
             </div>
@@ -626,11 +691,11 @@ export function EditTransactionModal({
                 <div className="flex items-center justify-between h-6 mb-1.5">
                   <label className="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
                     <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
-                    Ke Akun Tujuan
+                    {isEn ? "To Destination Account" : "Ke Akun Tujuan"}
                   </label>
                   <VoiceMicButton
                     size="xs"
-                    title="Sebut akun tujuan"
+                    title={isEn ? "Say destination account" : "Sebut akun tujuan"}
                     onResult={(text) => {
                       if (accountsData?.accounts) {
                         const targetAccounts = accountsData.accounts.filter((a) => a.id !== accountId);
@@ -646,7 +711,7 @@ export function EditTransactionModal({
                   accounts={(accountsData?.accounts || []).filter((a) => a.id !== accountId)}
                   value={toAccountId}
                   onChange={setToAccountId}
-                  placeholder="Pilih Akun Tujuan..."
+                  placeholder={isEn ? "Select Destination Account..." : "Pilih Akun Tujuan..."}
                   align="right"
                 />
               </div>
@@ -655,11 +720,11 @@ export function EditTransactionModal({
                 <div className="flex items-center justify-between h-6 mb-1.5">
                   <label className="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
                     <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-                    Kategori
+                    {isEn ? "Category" : "Kategori"}
                   </label>
                   <VoiceMicButton
                     size="xs"
-                    title="Sebut kategori (misal: Kopi, Bensin, Gaji, Belanja)"
+                    title={isEn ? "Say category (e.g. Coffee, Fuel, Groceries)" : "Sebut kategori (misal: Kopi, Bensin, Gaji, Belanja)"}
                     onResult={(text) => {
                       if (categoriesList) {
                         const detected = detectCategory(text, txType, categoriesList);
@@ -684,7 +749,7 @@ export function EditTransactionModal({
                     setNlpRecommendedCategory(null);
                   }}
                   txType={txType}
-                  placeholder="Pilih Kategori..."
+                  placeholder={isEn ? "Select Category..." : "Pilih Kategori..."}
                   recommendedCategory={nlpRecommendedCategory}
                   onCreateRecommended={(name, kind) => handleCreateRecommendedCategory(name, kind)}
                   align="right"
@@ -698,11 +763,11 @@ export function EditTransactionModal({
             <div className="flex items-center justify-between h-6 mb-1.5">
               <label className="text-xs font-medium text-foreground/80 flex items-center gap-1.5">
                 <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                Catatan / Keterangan
+                {isEn ? "Note / Description" : "Catatan / Keterangan"}
               </label>
               <VoiceMicButton
                 size="xs"
-                title="Dikte transaksi cerdas (otomatis isi seluruh form)"
+                title={isEn ? "Smart voice dictation (autofills entire form)" : "Dikte transaksi cerdas (otomatis isi seluruh form)"}
                 onResult={(text, audioBase64, mimeType) => {
                   applySmartSpeechParse(text, audioBase64, mimeType);
                 }}
@@ -710,7 +775,7 @@ export function EditTransactionModal({
             </div>
             <Input
               type="text"
-              placeholder="Contoh: Belanja bulanan, isi bensin, makan siang..."
+              placeholder={isEn ? "e.g. Monthly groceries, fuel, lunch..." : "Contoh: Belanja bulanan, isi bensin, makan siang..."}
               value={note}
               onChange={(e) => {
                 const val = e.target.value;
@@ -739,7 +804,7 @@ export function EditTransactionModal({
           disabled={updateMutation.isPending}
           className="text-xs h-9 px-3.5 rounded-lg cursor-pointer transition-all active:scale-[0.98]"
         >
-          Batal
+          {t.common.cancel}
         </Button>
         <Button
           type="submit"
@@ -748,7 +813,7 @@ export function EditTransactionModal({
           className="bg-primary hover:bg-primary/90 text-white text-xs h-9 px-4 rounded-lg font-bold gap-1.5 shadow-xs cursor-pointer transition-all active:scale-[0.98]"
         >
           <Save className="h-3.5 w-3.5" />
-          {updateMutation.isPending ? "Menyimpan..." : "Simpan Perubahan"}
+          {updateMutation.isPending ? (isEn ? "Saving..." : "Menyimpan...") : (isEn ? "Save Changes" : "Simpan Perubahan")}
         </Button>
       </div>
     </form>

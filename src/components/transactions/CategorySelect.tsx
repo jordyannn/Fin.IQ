@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CategoryIcon } from "@/components/categories/CategoryIcon";
+import { useTranslation } from "@/i18n";
 
 export interface CategoryOption {
   id: string;
@@ -52,13 +53,18 @@ export function CategorySelect({
   value,
   onChange,
   txType = "expense",
-  placeholder = "Pilih Kategori...",
+  placeholder,
   recommendedCategory,
   onCreateRecommended,
   className,
   disabled = false,
   align = "auto",
 }: CategorySelectProps) {
+  const { locale } = useTranslation();
+  const isEn = locale === "en";
+  const defaultPlaceholder = isEn ? "Select Category..." : "Pilih Kategori...";
+  const displayPlaceholder = placeholder || defaultPlaceholder;
+
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -324,15 +330,15 @@ export function CategorySelect({
 
           <div className="flex flex-col min-w-0 text-left justify-center">
             <span className="truncate text-xs text-foreground font-semibold leading-tight">
-              {selectedCat ? selectedCat.name : placeholder}
+              {selectedCat ? selectedCat.name : displayPlaceholder}
             </span>
             {selectedCat ? (
               <span className="text-[10px] text-muted-foreground leading-none mt-0.5 truncate">
-                {selectedParent ? selectedParent.name : txType === "income" ? "Pemasukan" : "Pengeluaran"}
+                {selectedParent ? selectedParent.name : txType === "income" ? (isEn ? "Income" : "Pemasukan") : (isEn ? "Expense" : "Pengeluaran")}
               </span>
             ) : (
               <span className="text-[10px] text-muted-foreground/60 leading-none mt-0.5">
-                Klasifikasi pos
+                {isEn ? "Classification" : "Klasifikasi pos"}
               </span>
             )}
           </div>
@@ -340,7 +346,7 @@ export function CategorySelect({
 
         <div className="flex items-center gap-1.5 shrink-0 ml-1.5">
           {recommendedCategory && !isRecommendedAlreadyInList && !selectedCat && (
-            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" title="Ada rekomendasi NLP" />
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" title={isEn ? "NLP recommendation available" : "Ada rekomendasi NLP"} />
           )}
           <ChevronDown
             className={cn(
@@ -376,7 +382,7 @@ export function CategorySelect({
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                    Rekomendasi NLP
+                    {isEn ? "NLP Recommendation" : "Rekomendasi NLP"}
                   </span>
                   <span className="text-xs font-bold text-foreground truncate">
                     &quot;{recommendedCategory.name}&quot;
@@ -395,7 +401,7 @@ export function CategorySelect({
                 className="h-7 px-2.5 text-[11px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 flex items-center gap-1 shadow-xs cursor-pointer transition-colors"
               >
                 <Plus className="h-3 w-3" />
-                Buat
+                {isEn ? "Create" : "Buat"}
               </button>
             </div>
           )}
@@ -409,7 +415,7 @@ export function CategorySelect({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleSearchKeyDown}
-              placeholder="Cari kategori (kopi, makan, gaji...)"
+              placeholder={isEn ? "Search category (coffee, food, salary...)" : "Cari kategori (kopi, makan, gaji...)"}
               className="h-9 w-full rounded-lg bg-muted/40 pl-9 pr-9 text-xs font-sans text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary border border-border transition-colors"
             />
             {search && (
@@ -417,7 +423,7 @@ export function CategorySelect({
                 type="button"
                 onClick={() => setSearch("")}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-md transition-colors active:scale-95 cursor-pointer"
-                title="Hapus kata kunci pencarian"
+                title={isEn ? "Clear search keywords" : "Hapus kata kunci pencarian"}
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -440,8 +446,8 @@ export function CategorySelect({
               searchResults.length > 0 ? (
                 <div className="space-y-1">
                   <div className="px-1 py-0.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
-                    <span>Hasil Pencarian ({searchResults.length})</span>
-                    <span className="text-[9px] lowercase font-normal">Tekan Enter untuk memilih</span>
+                    <span>{isEn ? `Search Results (${searchResults.length})` : `Hasil Pencarian (${searchResults.length})`}</span>
+                    <span className="text-[9px] lowercase font-normal">{isEn ? "Press Enter to select" : "Tekan Enter untuk memilih"}</span>
                   </div>
                   {searchResults.map((item, idx) => {
                     const isSelected = value === item.id;
@@ -485,12 +491,12 @@ export function CategorySelect({
                             </span>
                             {item.parentName && (
                               <span className="text-[10px] text-muted-foreground truncate">
-                                Induk: {item.parentName}
+                                {isEn ? `Parent: ${item.parentName}` : `Induk: ${item.parentName}`}
                               </span>
                             )}
                             {item.isParent && (
                               <span className="text-[10px] text-muted-foreground/80">
-                                Kategori Utama {item.subCount ? `(${item.subCount} sub)` : ""}
+                                {isEn ? `Main Category ${item.subCount ? `(${item.subCount} sub)` : ""}` : `Kategori Utama ${item.subCount ? `(${item.subCount} sub)` : ""}`}
                               </span>
                             )}
                           </div>
@@ -503,7 +509,7 @@ export function CategorySelect({
               ) : (
                 /* No Results Found: Inline Create Option */
                 <div className="py-5 text-center text-xs text-muted-foreground flex flex-col items-center gap-2">
-                  <span>Tidak ada kategori &quot;{search}&quot;</span>
+                  <span>{isEn ? `No category found for "${search}"` : `Tidak ada kategori "${search}"`}</span>
                   {onCreateRecommended && search.trim() && (
                     <button
                       type="button"
@@ -518,7 +524,7 @@ export function CategorySelect({
                       className="text-xs font-bold text-primary hover:bg-primary/20 flex items-center gap-1 cursor-pointer bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/25 transition-all shadow-xs"
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      Buat Kategori Baru &quot;{search.trim()}&quot;
+                      {isEn ? `Create New Category "${search.trim()}"` : `Buat Kategori Baru "${search.trim()}"`}
                     </button>
                   )}
                 </div>
@@ -615,8 +621,8 @@ export function CategorySelect({
 
           {/* Bottom helper */}
           <div className="pt-1.5 border-t border-border/50 px-1 flex items-center justify-between text-[10px] text-muted-foreground">
-            <span>{relevantCategories.length} kategori tersedia</span>
-            <span>Tekan Esc untuk tutup</span>
+            <span>{isEn ? `${relevantCategories.length} categories available` : `${relevantCategories.length} kategori tersedia`}</span>
+            <span>{isEn ? "Press Esc to close" : "Tekan Esc untuk tutup"}</span>
           </div>
         </div>
       )}

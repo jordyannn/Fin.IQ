@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { MascotWalkingSprite, FinancialStatusType } from "./MascotWalkingSprite";
 import { useMascotStore } from "@/store/mascot.store";
 import { mascotSound } from "@/lib/mascot-sound";
+import { useTranslation } from "@/i18n";
 
 interface MascotRoamingStageProps {
   financialStatus: FinancialStatusType;
@@ -13,8 +14,8 @@ interface MascotRoamingStageProps {
   expense: number;
 }
 
-// Koleksi celetukan kontekstual Bang Peci saat patroli RPG 2D
-const SURPLUS_ROAM_QUOTES = [
+// Koleksi celetukan kontekstual Bang Peci saat patroli RPG 2D (ID)
+const SURPLUS_ROAM_QUOTES_ID = [
   "Alhamdulillah surplus! Tabungan makin tebal nih, mantap bos! 🚀",
   "Arus kas positif! Pengeluaran bulan ini terkontrol rapi. 💰",
   "Cuan mengalir stabil! Jangan lupa sisihkan dana darurat ya. ✨",
@@ -22,18 +23,41 @@ const SURPLUS_ROAM_QUOTES = [
   "Patroli aman! Keuanganmu berada di jalur yang sangat baik. 🛡️",
 ];
 
-const WARNING_ROAM_QUOTES = [
+const WARNING_ROAM_QUOTES_ID = [
   "Arus kas pas seimbang! Jaga terus ritme belanja harianmu. ⚖️",
   "Kondisi aman terkendali, hindari belanja impulsif dulu ya! 🛡️",
   "Tetap disiplin catat transaksi, pos penting harus tetap aman. 🧐",
   "Patroli mendeteksi kas seimbang. Yuk perkuat pos tabungan! 💡",
 ];
 
-const CRITICAL_ROAM_QUOTES = [
+const CRITICAL_ROAM_QUOTES_ID = [
   "Waduh minus nih bos! Ekor Bang Peci tegang waspada! 💸",
   "Pengeluaran lagi lebih besar dari pemasukan. Cek menu Anggaran ya! 📉",
   "Boncos tipis-tipis? Tenang, klik aku buat tanya strategi hemat ke AI! 🛡️",
   "Bang Peci siap temani bedah pos pengeluaran yang bocor halus! 🧐",
+];
+
+// Contextual roaming quotes (EN)
+const SURPLUS_ROAM_QUOTES_EN = [
+  "Surplus confirmed! Savings are getting thicker, excellent work! 🚀",
+  "Positive cash flow! Expenses this month are well in check. 💰",
+  "Stable funds flowing in! Don't forget to set aside an emergency fund. ✨",
+  "Healthy financial habits, happy wallet! Keep it up! 👏",
+  "Patrol all clear! Your personal finances are in great shape. 🛡️",
+];
+
+const WARNING_ROAM_QUOTES_EN = [
+  "Cash flow is balanced! Keep pacing your daily spending carefully. ⚖️",
+  "Safe and steady conditions, avoid impulsive spending for now! 🛡️",
+  "Stay disciplined logging expenses, protect your core categories. 🧐",
+  "Patrol detects balanced cash. Let's strengthen your savings cushion! 💡",
+];
+
+const CRITICAL_ROAM_QUOTES_EN = [
+  "Cash flow is running negative! Bang Peci's tail is on high alert! 💸",
+  "Expenses are currently exceeding income. Check the Budgets page! 📉",
+  "Slightly over budget? Don't worry, click me to ask AI for savings advice! 🛡️",
+  "Bang Peci is ready to help audit which categories are leaking funds! 🧐",
 ];
 
 export function MascotRoamingStage({
@@ -42,6 +66,9 @@ export function MascotRoamingStage({
   income,
   expense,
 }: MascotRoamingStageProps) {
+  const { locale } = useTranslation();
+  const isEn = locale === "en";
+
   const {
     isRoamingActive,
     setAIDrawerOpen,
@@ -86,13 +113,18 @@ export function MascotRoamingStage({
     hasMoved: false,
   });
 
-  // Quotes pool based on status
-  const quotes =
-    financialStatus === "surplus"
-      ? SURPLUS_ROAM_QUOTES
+  // Quotes pool based on status and locale
+  const quotes = isEn
+    ? financialStatus === "surplus"
+      ? SURPLUS_ROAM_QUOTES_EN
       : financialStatus === "critical"
-      ? CRITICAL_ROAM_QUOTES
-      : WARNING_ROAM_QUOTES;
+      ? CRITICAL_ROAM_QUOTES_EN
+      : WARNING_ROAM_QUOTES_EN
+    : financialStatus === "surplus"
+      ? SURPLUS_ROAM_QUOTES_ID
+      : financialStatus === "critical"
+      ? CRITICAL_ROAM_QUOTES_ID
+      : WARNING_ROAM_QUOTES_ID;
 
   // Deteksi posisi Kasur Bulat Rumah Kucing di DOM relatif terhadap container
   const getCatHouseBedPos = useCallback(() => {

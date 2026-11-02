@@ -11,6 +11,7 @@ import {
   Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/i18n";
 
 export interface AccountOption {
   id: string;
@@ -34,11 +35,16 @@ export function AccountSelect({
   accounts,
   value,
   onChange,
-  placeholder = "Pilih Akun...",
+  placeholder,
   className,
   disabled = false,
   align = "auto",
 }: AccountSelectProps) {
+  const { locale } = useTranslation();
+  const isEn = locale === "en";
+  const defaultPlaceholder = isEn ? "Select Account..." : "Pilih Akun...";
+  const displayPlaceholder = placeholder || defaultPlaceholder;
+
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -203,15 +209,15 @@ export function AccountSelect({
 
           <div className="flex flex-col min-w-0 text-left justify-center">
             <span className="truncate text-xs text-foreground font-semibold leading-tight">
-              {selectedAcc ? selectedAcc.name : placeholder}
+              {selectedAcc ? selectedAcc.name : displayPlaceholder}
             </span>
             {selectedAcc ? (
               <span className="text-[10px] text-muted-foreground font-mono leading-none mt-0.5 tabular-nums">
-                Rp {(selectedAcc.balance ?? 0).toLocaleString("id-ID")}
+                {isEn ? `IDR ${(selectedAcc.balance ?? 0).toLocaleString("en-US")}` : `Rp ${(selectedAcc.balance ?? 0).toLocaleString("id-ID")}`}
               </span>
             ) : (
               <span className="text-[10px] text-muted-foreground/60 leading-none mt-0.5">
-                Pilih sumber dana
+                {isEn ? "Select source of funds" : "Pilih sumber dana"}
               </span>
             )}
           </div>
@@ -251,7 +257,7 @@ export function AccountSelect({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
-                placeholder="Cari nama akun..."
+                placeholder={isEn ? "Search account name..." : "Cari nama akun..."}
                 className="h-9 w-full rounded-lg bg-muted/40 pl-9 pr-9 text-xs font-sans text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary border border-border transition-colors"
               />
               {search && (
@@ -259,7 +265,7 @@ export function AccountSelect({
                   type="button"
                   onClick={() => setSearch("")}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-md transition-colors active:scale-95 cursor-pointer"
-                  title="Hapus pencarian"
+                  title={isEn ? "Clear search" : "Hapus pencarian"}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -312,7 +318,7 @@ export function AccountSelect({
                       <div className="flex flex-col min-w-0">
                         <span className="truncate font-semibold">{acc.name.toUpperCase()}</span>
                         <span className="text-[10px] text-muted-foreground font-mono">
-                          Rp {(acc.balance ?? 0).toLocaleString("id-ID")}
+                          {isEn ? `IDR ${(acc.balance ?? 0).toLocaleString("en-US")}` : `Rp ${(acc.balance ?? 0).toLocaleString("id-ID")}`}
                         </span>
                       </div>
                     </div>
@@ -322,15 +328,15 @@ export function AccountSelect({
               })
             ) : (
               <div className="py-4 text-center text-xs text-muted-foreground">
-                Akun &quot;{search}&quot; tidak ditemukan.
+                {isEn ? `Account "${search}" not found.` : `Akun "${search}" tidak ditemukan.`}
               </div>
             )}
           </div>
 
           {/* Bottom helper */}
           <div className="pt-1.5 border-t border-border/50 px-1 flex items-center justify-between text-[10px] text-muted-foreground">
-            <span>{accounts.length} akun terdaftar</span>
-            <span>Tekan Esc untuk tutup</span>
+            <span>{isEn ? `${accounts.length} registered accounts` : `${accounts.length} akun terdaftar`}</span>
+            <span>{isEn ? "Press Esc to close" : "Tekan Esc untuk tutup"}</span>
           </div>
         </div>
       )}

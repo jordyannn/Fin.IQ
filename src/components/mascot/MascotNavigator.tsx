@@ -13,6 +13,8 @@ import {
 } from "@/store/mascot.store";
 import { useUIStore } from "@/store/ui.store";
 import { mascotSound } from "@/lib/mascot-sound";
+import { trpc } from "@/lib/trpc/client";
+import { cn } from "@/lib/utils";
 import {
   Sparkles,
   X,
@@ -30,9 +32,13 @@ import {
   Minus,
   Menu,
   Footprints,
+  ArrowDown,
+  ArrowUp,
+  Plus,
 } from "lucide-react";
+import { useTranslation } from "@/i18n";
 
-const RANDOM_TIPS = [
+const RANDOM_TIPS_ID = [
   "Aturan 50/30/20: 50% kebutuhan, 30% keinginan, 20% tabungan.",
   "Catat belanja langsung setelah transaksi biar tidak terlewat.",
   "Punya struk fisik? Scan lewat tombol Catat Transaksi.",
@@ -40,10 +46,24 @@ const RANDOM_TIPS = [
   "Siapkan dana darurat minimal 3 bulan biaya hidup rutin.",
 ];
 
+const RANDOM_TIPS_EN = [
+  "50/30/20 Rule: 50% needs, 30% wants, 20% savings.",
+  "Record expenses right after spending so nothing slips through.",
+  "Have a paper receipt? Scan it via the Quick Add button.",
+  "Set budget limits at the start of the month for high-spending categories.",
+  "Prepare an emergency fund of at least 3 months of regular living expenses.",
+];
+
 export function MascotNavigator() {
   const router = useRouter();
   const pathname = usePathname();
   const [, startTransition] = useTransition();
+  const { t, locale } = useTranslation();
+  const isEn = locale === "en";
+
+  const { data: profile } = trpc.user.getProfile.useQuery(undefined, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   const {
     isTourActive,
@@ -54,6 +74,11 @@ export function MascotNavigator() {
     isBubbleOpen,
     isWelcomePromptOpen,
     isContinuationPromptOpen,
+    isMiddleCheckpointOpen,
+    hasPassedMiddleCheckpoint,
+    continueFromMiddleCheckpoint,
+    openMiddleCheckpoint,
+    closeMiddleCheckpoint,
     isMuted,
     mascotOutfit,
     isTransforming,
@@ -240,10 +265,32 @@ export function MascotNavigator() {
     }
   }, [isQuickAddOpen, isTourActive, activeTourType, currentStepIndex, startTransactionTour]);
 
-  // Check first-time visit on mount
+  // Check demo login trigger & first-time visit on mount
   useEffect(() => {
     setMounted(true);
     try {
+      const isDemoTrigger = sessionStorage.getItem("finiq_demo_tour_trigger");
+      if (isDemoTrigger === "true") {
+        sessionStorage.removeItem("finiq_demo_tour_trigger");
+        sessionStorage.setItem("finiq_demo_session_welcomed", "true");
+        const timer = setTimeout(() => {
+          setWelcomePromptOpen(true);
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+
+      // If user is logged in as demo account and hasn't been welcomed in this session
+      if (profile?.email === "owner@finiq.app") {
+        const sessionWelcomed = sessionStorage.getItem("finiq_demo_session_welcomed");
+        if (!sessionWelcomed) {
+          sessionStorage.setItem("finiq_demo_session_welcomed", "true");
+          const timer = setTimeout(() => {
+            setWelcomePromptOpen(true);
+          }, 800);
+          return () => clearTimeout(timer);
+        }
+      }
+
       const tourCompleted = localStorage.getItem("finiq_tour_completed");
       const tourWelcomed = localStorage.getItem("finiq_tour_welcomed");
       if (!tourCompleted && !tourWelcomed) {
@@ -254,7 +301,7 @@ export function MascotNavigator() {
         return () => clearTimeout(timer);
       }
     } catch {}
-  }, [setWelcomePromptOpen]);
+  }, [setWelcomePromptOpen, profile?.email]);
 
   // Otomatis kenakan outfit kacamata saat masuk ke halaman /analytics
   useEffect(() => {
@@ -287,21 +334,31 @@ export function MascotNavigator() {
     currentStep.id === "ai-studio" || currentStep.id === "sidebar-nav";
   const needsMobileSidebarClick = isMobileScreen && isSidebarStep && !isSidebarOpen;
 
+  const stepTitle = isEn && currentStep.titleEn ? currentStep.titleEn : currentStep.title;
+  const stepDescription = isEn && currentStep.descriptionEn ? currentStep.descriptionEn : currentStep.description;
+  const stepQuote = isEn && currentStep.speechQuoteEn ? currentStep.speechQuoteEn : currentStep.speechQuote;
+
   const effectiveTitle = hasJustAddedTourTransaction && activeTourType === "basic" && currentStepIndex === 2
-    ? "3. Filter Periode (Transaksi Berhasil!)"
+    ? (isEn ? "3. Period Filter (Transaction Recorded!)" : "3. Filter Periode (Transaksi Berhasil!)")
     : needsMobileSidebarClick
-    ? "Buka Bilah Menu Sidebar"
-    : currentStep.title;
+    ? (isEn ? "Open Sidebar Menu Bar" : "Buka Bilah Menu Sidebar")
+    : stepTitle;
+
   const effectiveDescription = hasJustAddedTourTransaction && activeTourType === "basic" && currentStepIndex === 2
-    ? "🎉 Hebat! Transaksi pertamamu sudah berhasil dicatat dan saldo kas langsung terupdate. Sekarang, kamu bisa gunakan Filter Periode untuk melihat transaksi per hari, bulan, atau tahun."
+    ? (isEn
+        ? "🎉 Awesome! Your first transaction is saved and cash balance is updated in real time. Now, use the Period Filter to inspect transactions by day, month, or year."
+        : "🎉 Hebat! Transaksi pertamamu sudah berhasil dicatat dan saldo kas langsung terupdate. Sekarang, kamu bisa gunakan Filter Periode untuk melihat transaksi per hari, bulan, atau tahun.")
     : needsMobileSidebarClick
-    ? "Fitur ini berada di bilah menu navigasi. Klik tombol Menu / Sidebar untuk membuka dan menampilkan menu navigasi terlebih dahulu."
-    : currentStep.description;
+    ? (isEn
+        ? "This feature is located in the sidebar navigation bar. Click the Menu / Sidebar button to open the navigation panel first."
+        : "Fitur ini berada di bilah menu navigasi. Klik tombol Menu / Sidebar untuk membuka dan menampilkan menu navigasi terlebih dahulu.")
+    : stepDescription;
+
   const effectiveQuote = hasJustAddedTourTransaction && activeTourType === "basic" && currentStepIndex === 2
-    ? "Mantap! Transaksi pertamamu sudah masuk ke kas."
+    ? (isEn ? "Great! Your first transaction is safely in the ledger." : "Mantap! Transaksi pertamamu sudah masuk ke kas.")
     : needsMobileSidebarClick
-    ? "Klik tombol Menu untuk buka sidebar!"
-    : currentStep.speechQuote;
+    ? (isEn ? "Click the Menu button to open the sidebar!" : "Klik tombol Menu untuk buka sidebar!")
+    : stepQuote;
 
   const handlePrevStep = () => {
     if (isMobileScreen && isSidebarStep && isSidebarOpen) {
@@ -324,27 +381,91 @@ export function MascotNavigator() {
     endTour();
   };
 
+  // Helper to reliably find the visible element for a tour step across responsive breakpoints
+  const getVisibleTourTarget = (
+    step: TourStep,
+    isMobile: boolean,
+    needsSidebar: boolean
+  ): HTMLElement | null => {
+    if (typeof document === "undefined") return null;
+
+    if (needsSidebar) {
+      const toggles = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          "[data-tour='mobile-sidebar-toggle'], [data-tour='topbar-sidebar-toggle'], [data-tour='bottom-menu-toggle']"
+        )
+      );
+      for (const el of toggles) {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0 && window.getComputedStyle(el).display !== "none") {
+          return el;
+        }
+      }
+    }
+
+    // On mobile, if step is quick-add, explicitly prioritize the mobile bottom navigation center plus button!
+    if (isMobile && step.targetAttr.includes("quick-add")) {
+      const bottomNavBtn = document.querySelector<HTMLElement>("nav [data-tour='quick-add']");
+      if (bottomNavBtn) {
+        const r = bottomNavBtn.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0 && window.getComputedStyle(bottomNavBtn).display !== "none") {
+          return bottomNavBtn;
+        }
+      }
+    }
+
+    // If step targets quick-add inside modal (transaction tour)
+    if (activeTourType === "transaction") {
+      const modalTarget = document.querySelector<HTMLElement>(
+        `[data-tour-modal='quick-add'] [${step.targetAttr}], [${step.targetAttr}]`
+      );
+      if (modalTarget) {
+        const r = modalTarget.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0 && window.getComputedStyle(modalTarget).display !== "none") {
+          return modalTarget;
+        }
+      }
+    }
+
+    const selector = `[${step.targetAttr}]`;
+    const allMatches = Array.from(document.querySelectorAll<HTMLElement>(selector));
+    if (allMatches.length === 0) return null;
+
+    // Return the first visible element with non-zero dimensions
+    for (const el of allMatches) {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) {
+        const style = window.getComputedStyle(el);
+        if (style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0") {
+          return el;
+        }
+      }
+    }
+
+    return null;
+  };
+
   // 1. Initial scroll to target when step changes
   useEffect(() => {
     if (!isTourActive) return;
 
-    let selector = `[${currentStep.targetAttr}]`;
-    if (needsMobileSidebarClick) {
-      selector = "[data-tour='topbar-sidebar-toggle'], [data-tour='bottom-menu-toggle']";
-    }
-
     const timer = setTimeout(() => {
-      const el = document.querySelector(selector);
+      const el = getVisibleTourTarget(currentStep, isMobileScreen, needsMobileSidebarClick);
       if (el) {
         if (activeTourType === "transaction") {
           el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
         } else if (isMobileScreen) {
           if (!isSidebarStep) {
-            const elTop = el.getBoundingClientRect().top + window.scrollY;
-            window.scrollTo({
-              top: Math.max(0, elTop - 76),
-              behavior: "smooth",
-            });
+            const isFixed =
+              window.getComputedStyle(el).position === "fixed" ||
+              !!el.closest("nav.fixed, header.fixed, [data-tour='quick-add']");
+            if (!isFixed) {
+              const elTop = el.getBoundingClientRect().top + window.scrollY;
+              window.scrollTo({
+                top: Math.max(0, elTop - 76),
+                behavior: "smooth",
+              });
+            }
           }
         } else {
           // Desktop smart scrolling: ensure sufficient space for guidance card without obscuring target
@@ -386,13 +507,14 @@ export function MascotNavigator() {
     }
 
     const updateRect = () => {
-      let selector = `[${currentStep.targetAttr}]`;
-      if (needsMobileSidebarClick) {
-        selector = "[data-tour='topbar-sidebar-toggle'], [data-tour='bottom-menu-toggle']";
-      }
-      const el = document.querySelector(selector);
+      const el = getVisibleTourTarget(currentStep, isMobileScreen, needsMobileSidebarClick);
       if (el) {
-        setTargetRect(el.getBoundingClientRect());
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          setTargetRect(rect);
+        } else {
+          setTargetRect(null);
+        }
       } else {
         setTargetRect(null);
       }
@@ -408,7 +530,7 @@ export function MascotNavigator() {
       window.removeEventListener("scroll", updateRect, true);
       clearTimeout(timer);
     };
-  }, [isTourActive, currentStepIndex, currentStep, needsMobileSidebarClick]);
+  }, [isTourActive, currentStepIndex, currentStep, isMobileScreen, needsMobileSidebarClick]);
 
   // Helper to calculate card position so it NEVER covers the target element
   const getCardPositionStyle = (): React.CSSProperties => {
@@ -588,58 +710,79 @@ export function MascotNavigator() {
 
   if (!mounted) return null;
 
+  const randomTips = isEn ? RANDOM_TIPS_EN : RANDOM_TIPS_ID;
+
   const nextTip = () => {
     mascotSound.playPop();
-    setTipIndex((prev) => (prev + 1) % RANDOM_TIPS.length);
+    setTipIndex((prev) => (prev + 1) % randomTips.length);
   };
+
+  const isCircularTarget =
+    (currentStep.targetAttr.includes("quick-add") && isMobileScreen) ||
+    (targetRect ? Math.abs(targetRect.width - targetRect.height) <= 8 && targetRect.width <= 56 : false);
 
   return (
     <>
       {/* =========================================================================
-          1. FIRST TIME WELCOME MODAL POPUP
+          1. FIRST TIME & DEMO WELCOME MODAL POPUP (BANG PECI ANIMASI HALO & PERKENALAN)
       ========================================================================= */}
       {isWelcomePromptOpen && (
-        <div className="fixed inset-0 z-[120] print:hidden flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="relative w-full max-w-md overflow-hidden rounded-md border border-primary/30 bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-            {/* Background Glow */}
-            <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+        <div className="fixed inset-0 z-[120] print:hidden flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-primary/30 bg-card p-6 sm:p-7 shadow-2xl animate-in zoom-in-95 duration-200">
+            {/* Ambient Background Glow */}
+            <div className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-primary/25 blur-3xl pointer-events-none" />
+            <div className="absolute -left-10 -bottom-10 h-36 w-36 rounded-full bg-emerald-500/15 blur-3xl pointer-events-none" />
 
             <button
               onClick={() => {
                 markWelcomeAsSeen();
                 mascotSound.playPop();
               }}
-              className="absolute right-4 top-4 p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors"
-              aria-label="Tutup"
+              className="absolute right-4 top-4 p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
+              aria-label={isEn ? "Close" : "Tutup"}
             >
               <X className="h-4 w-4" />
             </button>
 
             <div className="flex flex-col items-center text-center">
-              {/* Mascot Animated Character */}
-              <div className="relative w-36 h-32 my-1 animate-mascot-bounce-playful">
-                <Image
-                  src="/mascot/mascot-halo.png"
-                  alt="Bang Peci Menyapa"
-                  fill
-                  sizes="144px"
-                  className="object-contain drop-shadow-md"
-                  priority
-                  unoptimized
-                />
+              {/* Mascot Animated Character with Waving Halo Animation */}
+              <div className="relative w-36 h-36 my-1 flex items-center justify-center">
+                <div className="absolute inset-2 rounded-full bg-gradient-to-tr from-emerald-500/25 to-teal-400/20 blur-xl animate-pulse pointer-events-none" />
+                <div className="relative w-32 h-32 animate-mascot-wave-halo">
+                  <Image
+                    src="/mascot/mascot-halo.png"
+                    alt={isEn ? "Bang Peci Waving Hello" : "Bang Peci Menyapa Halo"}
+                    fill
+                    sizes="144px"
+                    className="object-contain drop-shadow-md select-none"
+                    priority
+                    unoptimized
+                  />
+                </div>
+                {/* Cheerful Waving Badge */}
+                <span className="absolute top-1 right-2 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#059669] text-white shadow-md animate-bounce select-none">
+                  {isEn ? "👋 Hello!" : "👋 Halo!"}
+                </span>
               </div>
 
               <div className="mt-2">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-sm text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
                   <Sparkles className="h-3 w-3" />
-                  Pemandu Fin.IQ
+                  {isEn ? "Fin.IQ Assistant & Guide" : "Asisten & Pemandu Fin.IQ"}
                 </span>
-                <h3 className="text-xl font-extrabold tracking-tight text-foreground mt-2">
-                  Halo, saya Bang Peci
+                <h3 className="text-xl sm:text-2xl font-black tracking-tight text-foreground mt-2.5">
+                  {isEn ? "Hi! I'm Bang Peci 👋" : "Halo! Kenalin, Aku Bang Peci 👋"}
                 </h3>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-2 leading-relaxed">
-                  Mau tur singkat 1 menit untuk melihat fitur utama Fin.IQ?
+                <p className="text-xs sm:text-sm text-muted-foreground mt-2 leading-relaxed max-w-sm">
+                  {isEn
+                    ? "Your smart personal financial companion in Fin.IQ. I'm here to help you monitor cash flow, control expenses, and provide tailored financial advice!"
+                    : "Asisten cerdas keuanganmu di Fin.IQ. Aku siap nemenin kamu memantau arus kas, mengontrol pengeluaran, dan kasih saran finansial yang pas!"}
                 </p>
+                <div className="mt-3 p-2.5 rounded-xl bg-primary/10 border border-primary/20 text-xs font-semibold text-primary">
+                  {isEn
+                    ? "✨ Join me on a quick 1-minute tour to get started smoothly!"
+                    : "✨ Yuk, ikut aku keliling tur singkat 1 menit biar kamu makin lancar pakainya!"}
+                </div>
               </div>
 
               {/* Action Buttons */}
@@ -650,19 +793,19 @@ export function MascotNavigator() {
                     startBasicTour();
                     router.push("/overview");
                   }}
-                  className="relative w-full flex-1 py-2.5 px-4 rounded-md font-bold text-sm bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 animate-button-ripple"
+                  className="relative w-full flex-1 py-3 px-4 rounded-xl font-bold text-sm bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer animate-button-ripple"
                 >
                   <Compass className="h-4 w-4" />
-                  Mulai Tur
+                  {isEn ? "Start Tour with Bang Peci 🚀" : "Mulai Tur Bersama Bang Peci 🚀"}
                 </button>
                 <button
                   onClick={() => {
                     markWelcomeAsSeen();
                     mascotSound.playPop();
                   }}
-                  className="w-full sm:w-auto py-2.5 px-4 rounded-md font-semibold text-xs text-muted-foreground hover:bg-muted transition-colors"
+                  className="w-full sm:w-auto py-2.5 px-4 rounded-xl font-semibold text-xs text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
                 >
-                  Nanti Saja
+                  {isEn ? "Maybe Later" : "Nanti Saja"}
                 </button>
               </div>
             </div>
@@ -671,45 +814,51 @@ export function MascotNavigator() {
       )}
 
       {/* =========================================================================
-          1.5. CONTINUATION PROMPT MODAL (Setelah Tur 1 Selesai)
+          1.5. MIDDLE ACTIVITY CHECKPOINT MODAL ("Masih mau lanjut? Atau eksplor sendiri?")
       ========================================================================= */}
-      {isContinuationPromptOpen && (
+      {(isMiddleCheckpointOpen || isContinuationPromptOpen) && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="relative w-full max-w-md overflow-hidden rounded-md border border-primary/30 bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+          <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-primary/30 bg-card p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            {/* Background Glow */}
+            <div className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+            <div className="absolute -left-10 -bottom-10 h-36 w-36 rounded-full bg-emerald-500/15 blur-3xl pointer-events-none" />
 
             <button
-              onClick={closeContinuationPrompt}
-              className="absolute right-4 top-4 p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors"
-              aria-label="Tutup"
+              onClick={() => {
+                chooseNgulikSendiri();
+              }}
+              className="absolute right-4 top-4 p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
+              aria-label={isEn ? "Close and explore on my own" : "Tutup dan eksplor sendiri"}
             >
               <X className="h-4 w-4" />
             </button>
 
             <div className="flex flex-col items-center text-center">
-              {/* Animated Bang Peci with Glasses preview */}
+              {/* Animated Bang Peci speaking / inquisitive */}
               <div className="relative w-36 h-32 my-1 animate-mascot-bounce-playful">
                 <Image
-                  src="/mascot/mascot-tech-penjelasan.png"
-                  alt="Bang Peci Mode Analis"
+                  src="/mascot/mascot-bicara.png"
+                  alt={isEn ? "Bang Peci Asking" : "Bang Peci Bertanya"}
                   fill
                   sizes="144px"
-                  className="object-contain drop-shadow-md"
+                  className="object-contain drop-shadow-md select-none"
                   priority
                   unoptimized
                 />
               </div>
 
               <div className="mt-2">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-sm text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Tur Dasar Selesai
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
+                  <Sparkles className="h-3 w-3" />
+                  {isEn ? "Mid-Tour Checkpoint" : "Checkpoint Pertengahan Tur"}
                 </span>
-                <h3 className="text-xl font-extrabold tracking-tight text-foreground mt-2">
-                  Lanjut ke Tur Analisis?
+                <h3 className="text-xl font-extrabold tracking-tight text-foreground mt-2.5">
+                  {isEn ? "Ready to Continue the Tour?" : "Masih Mau Lanjut Tur?"}
                 </h3>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-2 leading-relaxed">
-                  Tur berikutnya membahas kurva saldo harian, rata-rata belanja, dan impor mutasi bank.
+                <p className="text-xs sm:text-sm text-muted-foreground mt-2 leading-relaxed max-w-sm">
+                  {isEn
+                    ? "You've seen core cash flow features & balance trends. Ready to explore intelligent analytics & the AI assistant, or try exploring on your own now?"
+                    : "Kamu sudah melihat fitur inti keuangan & tren saldo harian. Mau lanjut keliling fitur analisis cerdas & asisten AI, atau mau coba eksplor sendiri sekarang?"}
                 </p>
               </div>
 
@@ -717,19 +866,20 @@ export function MascotNavigator() {
               <div className="mt-6 flex flex-col sm:flex-row items-center gap-2.5 w-full">
                 <button
                   onClick={() => {
-                    startTechnicalTour();
-                    router.push("/overview");
+                    continueFromMiddleCheckpoint();
                   }}
-                  className="relative w-full flex-1 py-2.5 px-4 rounded-md font-bold text-sm bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 animate-button-ripple"
+                  className="relative w-full flex-1 py-2.5 px-4 rounded-xl font-bold text-sm bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer animate-button-ripple"
                 >
                   <Compass className="h-4 w-4" />
-                  Lanjut Tur Analisis
+                  {isEn ? "Continue Tour: Smart Features 🚀" : "Lanjut Tur Fitur Cerdas 🚀"}
                 </button>
                 <button
-                  onClick={chooseNgulikSendiri}
-                  className="w-full sm:w-auto py-2.5 px-4 rounded-md font-semibold text-xs border border-border bg-card text-foreground hover:bg-muted transition-colors"
+                  onClick={() => {
+                    chooseNgulikSendiri();
+                  }}
+                  className="w-full sm:w-auto py-2.5 px-4 rounded-xl font-semibold text-xs border border-border bg-card text-foreground hover:bg-muted transition-colors cursor-pointer"
                 >
-                  Eksplor Sendiri
+                  {isEn ? "Explore on My Own" : "Eksplor Sendiri Dulu"}
                 </button>
               </div>
             </div>
@@ -773,7 +923,15 @@ export function MascotNavigator() {
 
               {/* Spotlight Frame with Gentle Radar Border & Calm Ripple Waves */}
               <div
-                className={`fixed transition-all duration-300 ease-out pointer-events-none rounded-md ${isQuickAddOpen || activeTourType === "transaction" ? "z-[225]" : isSidebarOpen ? "z-[175]" : "z-[155]"} animate-tour-radar`}
+                className={cn(
+                  "fixed transition-all duration-300 ease-out pointer-events-none animate-tour-radar",
+                  isCircularTarget ? "rounded-full" : "rounded-md",
+                  isQuickAddOpen || activeTourType === "transaction"
+                    ? "z-[225]"
+                    : isSidebarOpen
+                    ? "z-[175]"
+                    : "z-[155]"
+                )}
                 style={{
                   top: `${Math.max(0, targetRect.top - 8)}px`,
                   left: `${Math.max(0, targetRect.left - 8)}px`,
@@ -782,36 +940,43 @@ export function MascotNavigator() {
                 }}
               >
                 {/* 2 Calm & Slow Expanding Ripple Waves */}
-                <span className="absolute -inset-1 rounded-md border border-[#059669]/50 animate-tour-ripple-1 pointer-events-none" />
-                <span className="absolute -inset-2.5 rounded-md border border-[#059669]/30 animate-tour-ripple-2 pointer-events-none" />
+                <span
+                  className={cn(
+                    "absolute -inset-1 border border-[#059669]/50 animate-tour-ripple-1 pointer-events-none",
+                    isCircularTarget ? "rounded-full" : "rounded-md"
+                  )}
+                />
+                <span
+                  className={cn(
+                    "absolute -inset-2.5 border border-[#059669]/30 animate-tour-ripple-2 pointer-events-none",
+                    isCircularTarget ? "rounded-full" : "rounded-md"
+                  )}
+                />
 
-                {/* Subtle Target Beacon Badge: "PILIH DI SINI" / "KLIK MENU SIDEBAR" */}
+                {/* Refined Target Beacon Badge (Pill with clean SVG Arrow and Sentence Case) */}
                 <div
-                  className={`absolute z-20 flex items-center gap-1.5 px-2.5 py-0.5 rounded-sm bg-[#059669] text-white text-[10px] font-bold shadow-md border border-white/50 tracking-wider pointer-events-none select-none transition-all ${
-                    targetRect.top < 65 ? "-bottom-3.5 left-3" : "-top-3.5 left-3"
-                  }`}
+                  className={cn(
+                    "absolute z-20 flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-600 dark:bg-emerald-500 text-white text-[11px] font-semibold shadow-lg border border-white/20 pointer-events-none select-none transition-all left-1/2 -translate-x-1/2 whitespace-nowrap",
+                    targetRect.top < 90 ? "-bottom-9" : "-top-9"
+                  )}
                 >
-                  <span className="h-1.5 w-1.5 rounded-xs bg-white/90 shadow-xs" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse shrink-0" />
                   <span>
                     {needsMobileSidebarClick
-                      ? "KLIK MENU SIDEBAR"
-                      : currentStep.targetAttr.includes("quick-add") ||
-                        currentStep.targetAttr.includes("ai-studio") ||
-                        currentStep.targetAttr.includes("filter") ||
-                        currentStep.targetAttr.includes("modal-ai-tools")
-                      ? "PILIH DI SINI"
-                      : "FOKUS"}
+                      ? (isEn ? "Open Menu" : "Buka Menu")
+                      : currentStep.targetAttr.includes("quick-add")
+                      ? (isEn ? "Record Transaction" : "Catat Transaksi")
+                      : currentStep.targetAttr.includes("filter")
+                      ? (isEn ? "Filter Period" : "Filter Periode")
+                      : currentStep.targetAttr.includes("ai-studio")
+                      ? (isEn ? "AI Assistant" : "Asisten AI")
+                      : (isEn ? "Focus" : "Fokus")}
                   </span>
-                  <span className="text-[11px]">
-                    {needsMobileSidebarClick
-                      ? "👆"
-                      : currentStep.targetAttr.includes("quick-add") ||
-                        currentStep.targetAttr.includes("ai-studio") ||
-                        currentStep.targetAttr.includes("filter") ||
-                        currentStep.targetAttr.includes("modal-ai-tools")
-                      ? "👆"
-                      : "🎯"}
-                  </span>
+                  {targetRect.top < 90 ? (
+                    <ArrowUp className="h-3 w-3 stroke-[2.5px] shrink-0" />
+                  ) : (
+                    <ArrowDown className="h-3 w-3 stroke-[2.5px] animate-bounce shrink-0" />
+                  )}
                 </div>
               </div>
             </>
@@ -839,14 +1004,12 @@ export function MascotNavigator() {
                     />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-primary flex items-center gap-1 uppercase tracking-wider">
-                      {activeTourType === "technical"
-                        ? "Modul Teknis"
-                        : activeTourType === "transaction"
-                        ? "Tutorial Form Transaksi"
-                        : "Panduan Dasar"} • Langkah {currentStepIndex + 1} dari {activeSteps.length}
+                    <span className="text-[11px] font-semibold text-primary block leading-tight">
+                      {isEn
+                        ? `Step ${currentStepIndex + 1} of ${activeSteps.length}`
+                        : `Langkah ${currentStepIndex + 1} dari ${activeSteps.length}`}
                     </span>
-                    <h4 className="font-extrabold text-sm sm:text-base text-foreground leading-tight">
+                    <h4 className="font-extrabold text-sm sm:text-base text-foreground leading-tight mt-0.5">
                       {effectiveTitle}
                     </h4>
                   </div>
@@ -860,7 +1023,7 @@ export function MascotNavigator() {
                       setIsCardMinimized((prev) => !prev);
                     }}
                     className="h-8 w-8 min-h-[32px] min-w-[32px] sm:h-7 sm:w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
-                    title={isCardMinimized ? "Perbesar Panduan" : "Perkecil Panduan"}
+                    title={isCardMinimized ? (isEn ? "Expand Guide" : "Perbesar Panduan") : (isEn ? "Minimize Guide" : "Perkecil Panduan")}
                   >
                     {isCardMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
                   </button>
@@ -868,7 +1031,7 @@ export function MascotNavigator() {
                     type="button"
                     onClick={handleEndTour}
                     className="h-8 w-8 min-h-[32px] min-w-[32px] sm:h-7 sm:w-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
-                    title="Lewati Tur"
+                    title={isEn ? "Skip Tour" : "Lewati Tur"}
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -878,15 +1041,16 @@ export function MascotNavigator() {
               {isCardMinimized ? (
                 /* Compact / Minimized View */
                 <div className="mt-2 pt-2 border-t border-border/70 flex items-center justify-between gap-2">
-                  <p className="text-xs text-muted-foreground italic truncate max-w-[210px]">
-                    💬 "{effectiveQuote}"
+                  <p className="text-xs text-muted-foreground italic truncate max-w-[210px] flex items-center gap-1.5">
+                    <Lightbulb className="h-3 w-3 text-primary shrink-0" />
+                    <span>"{effectiveQuote}"</span>
                   </p>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {currentStepIndex > 0 && (
                       <button
                         onClick={handlePrevStep}
                         className="p-1 rounded-md border border-input text-foreground hover:bg-muted transition-colors text-xs font-semibold"
-                        title="Kembali"
+                        title={isEn ? "Back" : "Kembali"}
                       >
                         <ChevronLeft className="h-3.5 w-3.5" />
                       </button>
@@ -902,7 +1066,7 @@ export function MascotNavigator() {
                         className="py-1 px-2.5 rounded-md text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1 cursor-pointer shadow-xs"
                       >
                         <CheckCircle2 className="h-3 w-3" />
-                        Simpan
+                        {isEn ? "Save" : "Simpan"}
                       </button>
                     ) : needsMobileSidebarClick ? (
                       <button
@@ -913,7 +1077,7 @@ export function MascotNavigator() {
                         className="py-1 px-2.5 rounded-md text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1 cursor-pointer shadow-xs"
                       >
                         <Menu className="h-3 w-3" />
-                        Buka Menu
+                        {isEn ? "Open Menu" : "Buka Menu"}
                       </button>
                     ) : (
                       <button
@@ -921,7 +1085,7 @@ export function MascotNavigator() {
                         onClick={handleNextStep}
                         className="py-1 px-2.5 rounded-md text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1 cursor-pointer shadow-xs"
                       >
-                        {currentStepIndex === activeSteps.length - 1 ? "Selesai" : "Lanjut"}
+                        {currentStepIndex === activeSteps.length - 1 ? (isEn ? "Finish" : "Selesai") : (isEn ? "Next" : "Lanjut")}
                         <ChevronRight className="h-3 w-3" />
                       </button>
                     )}
@@ -932,14 +1096,16 @@ export function MascotNavigator() {
                   {/* Body: Explanation & Mascot Speech Bubble */}
                   <div className="mt-3 space-y-2 overflow-y-auto pr-0.5">
                     {hasJustAddedTourTransaction && activeTourType === "basic" && currentStepIndex === 2 && (
-                      <div className="p-2.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 flex items-start gap-2.5 animate-in zoom-in-95 duration-200">
-                        <span className="text-base shrink-0">🎉</span>
+                      <div className="p-2.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 flex items-start gap-2 animate-in zoom-in-95 duration-200">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                         <div className="space-y-0.5">
                           <p className="font-bold text-xs text-emerald-700 dark:text-emerald-400">
-                            Transaksi Berhasil Ditambahkan!
+                            {isEn ? "Transaction Successfully Added" : "Transaksi Berhasil Ditambahkan"}
                           </p>
                           <p className="text-[11px] text-muted-foreground leading-tight">
-                            Nominal dan pos belanja telah dibukukan ke ringkasan kas.
+                            {isEn
+                              ? "Amount and category have been posted to your cash summary."
+                              : "Nominal dan pos belanja telah dibukukan ke ringkasan kas."}
                           </p>
                         </div>
                       </div>
@@ -949,9 +1115,9 @@ export function MascotNavigator() {
                       {effectiveDescription}
                     </p>
 
-                    <div className="rounded-sm bg-primary/10 border border-primary/20 px-2.5 py-1.5 text-xs font-medium text-foreground flex items-center gap-2">
-                      <span className="text-xs">💬</span>
-                      <span className="italic font-semibold text-primary">
+                    <div className="rounded-md bg-primary/10 border border-primary/20 px-2.5 py-1.5 text-xs font-medium text-foreground flex items-center gap-2">
+                      <Lightbulb className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="italic font-medium text-primary">
                         "{effectiveQuote}"
                       </span>
                     </div>
@@ -961,10 +1127,12 @@ export function MascotNavigator() {
                       <div className="mt-2.5 p-2.5 rounded-lg bg-primary/10 border border-primary/30 space-y-2 animate-in fade-in duration-200">
                         <p className="font-bold text-xs text-foreground flex items-center gap-1.5">
                           <Menu className="h-4 w-4 text-primary shrink-0" />
-                          Sidebar sedang tertutup di smartphone
+                          {isEn ? "Menu bar is currently closed" : "Bilah menu sedang tertutup"}
                         </p>
                         <p className="text-[11px] text-muted-foreground leading-relaxed">
-                          Tekan tombol menu di kiri atas layar atau tombol berikut untuk memunculkan sidebar Fin.IQ:
+                          {isEn
+                            ? "Tap the navigation menu button to view the complete menu list:"
+                            : "Tekan tombol menu navigasi untuk melihat daftar menu lengkap:"}
                         </p>
                         <button
                           type="button"
@@ -972,10 +1140,10 @@ export function MascotNavigator() {
                             mascotSound.playPop();
                             setSidebarOpen(true);
                           }}
-                          className="w-full h-8 px-3 rounded-md text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs transition-transform active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="w-full h-8 px-3 rounded-md text-xs font-bold bg-primary hover:bg-emerald-600 text-primary-foreground shadow-xs transition-transform active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <Menu className="h-3.5 w-3.5" />
-                          Buka Sidebar Sekarang
+                          {isEn ? "Open Menu Now" : "Buka Menu Sekarang"}
                         </button>
                       </div>
                     )}
@@ -985,44 +1153,33 @@ export function MascotNavigator() {
                       <div className="mt-2.5 p-2.5 rounded-md bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/30 space-y-1.5 animate-in fade-in duration-200">
                         <p className="font-bold text-xs text-foreground flex items-center gap-1.5">
                           <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                          Ayo Coba Simpan Transaksi Pertama!
+                          {isEn ? "Let's Save Your First Transaction!" : "Ayo Coba Simpan Transaksi Pertama!"}
                         </p>
                         <p className="text-[11px] text-muted-foreground leading-relaxed">
-                          Lengkapi nominal dan input di formulir transaksi, lalu tekan tombol <b>Simpan Transaksi</b> di bawah form. Fin.IQ akan langsung membawamu ke langkah tur berikutnya setelah transaksi berhasil dicatat.
+                          {isEn
+                            ? "Fill in amount and category in the form, then click the Save Transaction button below. Fin.IQ will guide you to the next step once recorded."
+                            : "Lengkapi nominal dan input di formulir transaksi, lalu tekan tombol Simpan Transaksi di bawah form. Fin.IQ akan langsung membawamu ke langkah tur berikutnya setelah transaksi berhasil dicatat."}
                         </p>
                       </div>
                     )}
 
-                    {/* Interactive prompt on quick-add step */}
+                    {/* Direct action helper on quick-add step */}
                     {currentStep.targetAttr.includes("quick-add") && (
-                      <div className="mt-2.5 p-2.5 rounded-md bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/25 space-y-1.5 animate-in fade-in duration-200">
-                        <p className="font-bold text-xs text-foreground flex items-center gap-1.5">
-                          <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
-                          Coba catat transaksi sekarang?
-                        </p>
-                        <p className="text-[11px] text-muted-foreground leading-tight">
-                          Buka form transaksi dan pelajari fitur pencatatan bersama Bang Peci.
-                        </p>
-                        <div className="flex items-center gap-2 pt-0.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              openQuickAdd();
-                              startTransactionTour(true);
-                            }}
-                            className="h-7 px-3 rounded-md text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs transition-transform active:scale-95 flex items-center gap-1 cursor-pointer"
-                          >
-                            <CheckCircle2 className="h-3 w-3" />
-                            Ya, Mau Transaksi
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleNextStep}
-                            className="h-7 px-2.5 rounded-md text-xs font-semibold border border-input bg-background hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                          >
-                            Belum, Lanjut Tur
-                          </button>
-                        </div>
+                      <div className="mt-2.5 p-2.5 rounded-md bg-muted/60 border border-border/80 flex items-center justify-between gap-2 animate-in fade-in duration-200">
+                        <span className="text-xs text-muted-foreground font-medium">
+                          {isEn ? "Try recording a transaction now?" : "Coba catat transaksi sekarang?"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            openQuickAdd();
+                            startTransactionTour(true);
+                          }}
+                          className="h-7 px-3 rounded-md text-xs font-semibold bg-primary hover:bg-emerald-600 text-white transition-all active:scale-95 flex items-center gap-1 cursor-pointer shadow-xs"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          {isEn ? "Open Form" : "Buka Form"}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -1037,7 +1194,7 @@ export function MascotNavigator() {
                           type="button"
                           onClick={() => setStepIndex(i)}
                           className="py-1.5 px-1 flex items-center justify-center cursor-pointer group"
-                          aria-label={`Ke Langkah ${i + 1}`}
+                          aria-label={isEn ? `To Step ${i + 1}` : `Ke Langkah ${i + 1}`}
                         >
                           <span
                             className={`h-2 rounded-xs transition-all block ${
@@ -1059,7 +1216,7 @@ export function MascotNavigator() {
                           className="p-2 rounded-md border border-input text-foreground hover:bg-muted transition-colors text-xs font-semibold flex items-center gap-1 cursor-pointer"
                         >
                           <ChevronLeft className="h-3.5 w-3.5" />
-                          Kembali
+                          {isEn ? "Back" : "Kembali"}
                         </button>
                       )}
 
@@ -1076,9 +1233,9 @@ export function MascotNavigator() {
                               }
                             }}
                             className="py-2 px-2.5 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                            title="Lanjut tur tanpa menyimpan transaksi"
+                            title={isEn ? "Continue tour without saving transaction" : "Lanjut tur tanpa menyimpan transaksi"}
                           >
-                            Lewati Tanpa Simpan
+                            {isEn ? "Skip Without Saving" : "Lewati Tanpa Simpan"}
                           </button>
                           <button
                             type="button"
@@ -1090,10 +1247,10 @@ export function MascotNavigator() {
                                 formEl.requestSubmit();
                               }
                             }}
-                            className="relative py-2 px-3.5 rounded-md font-bold text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 animate-button-ripple cursor-pointer"
+                            className="relative py-2 px-3.5 rounded-md font-bold text-xs bg-primary hover:bg-emerald-600 text-primary-foreground shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 cursor-pointer"
                           >
                             <CheckCircle2 className="h-3.5 w-3.5" />
-                            Simpan Transaksi 💾
+                            {isEn ? "Save Transaction" : "Simpan Transaksi"}
                           </button>
                         </div>
                       ) : needsMobileSidebarClick ? (
@@ -1103,32 +1260,32 @@ export function MascotNavigator() {
                             mascotSound.playPop();
                             setSidebarOpen(true);
                           }}
-                          className="relative py-2 px-3.5 rounded-md font-bold text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 animate-button-ripple cursor-pointer"
+                          className="relative py-2 px-3.5 rounded-md font-bold text-xs bg-primary hover:bg-emerald-600 text-primary-foreground shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 cursor-pointer"
                         >
                           <Menu className="h-3.5 w-3.5" />
-                          Buka Sidebar Dulu
+                          {isEn ? "Open Menu" : "Buka Menu"}
                         </button>
                       ) : (
                         <button
                           type="button"
                           onClick={handleNextStep}
-                          className="relative py-2 px-3.5 rounded-md font-bold text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 animate-button-ripple cursor-pointer"
+                          className="relative py-2 px-3.5 rounded-md font-bold text-xs bg-primary hover:bg-emerald-600 text-primary-foreground shadow-sm transition-transform active:scale-95 flex items-center gap-1.5 cursor-pointer"
                         >
                           {currentStepIndex === activeSteps.length - 1 ? (
                             activeTourType === "transaction" && resumeBasicTourAfter ? (
                               <>
                                 <CheckCircle2 className="h-3.5 w-3.5" />
-                                Lanjut Tur Utama 🚀
+                                {isEn ? "Continue Tour" : "Lanjut Tur"}
                               </>
                             ) : (
                               <>
                                 <CheckCircle2 className="h-3.5 w-3.5" />
-                                Selesai!
+                                {isEn ? "Finish" : "Selesai"}
                               </>
                             )
                           ) : (
                             <>
-                              Lanjut
+                              {isEn ? "Next" : "Lanjut"}
                               <ChevronRight className="h-3.5 w-3.5" />
                             </>
                           )}
@@ -1161,7 +1318,7 @@ export function MascotNavigator() {
           {/* Subtle Teaser Hint Tooltip (only when no modal is open & not in quiet mode) */}
           {!isAnyModalActive && !isUserMinimized && showTooltipHint && !isBubbleOpen && (
             <div className="mb-2 mr-1 rounded-md border border-primary/30 bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 flex items-center gap-2 max-w-xs pointer-events-auto">
-              <span>Butuh panduan? Klik Bang Peci</span>
+              <span>{isEn ? "Need guidance? Click Bang Peci" : "Butuh panduan? Klik Bang Peci"}</span>
               <button
                 onClick={() => setShowTooltipHint(false)}
                 className="text-muted-foreground hover:text-foreground"
@@ -1194,10 +1351,14 @@ export function MascotNavigator() {
                     <h4 className="font-extrabold text-sm text-foreground flex items-center gap-1.5">
                       Bang Peci
                       <span className="text-[10px] font-semibold text-primary px-1.5 py-0.2 rounded-sm bg-primary/10">
-                        {mascotOutfit === "analyst" ? "Mode Analis 👓" : "Mode Santai 🧢"}
+                        {mascotOutfit === "analyst"
+                          ? (isEn ? "Analyst Mode 👓" : "Mode Analis 👓")
+                          : (isEn ? "Casual Mode 🧢" : "Mode Santai 🧢")}
                       </span>
                     </h4>
-                    <p className="text-[10px] text-muted-foreground">Navigator Finansial</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {isEn ? "Financial Navigator" : "Navigator Finansial"}
+                    </p>
                   </div>
                 </div>
 
@@ -1205,7 +1366,7 @@ export function MascotNavigator() {
                   <button
                     onClick={toggleMute}
                     className="p-1 rounded-md text-muted-foreground hover:bg-muted"
-                    title={isMuted ? "Bunyikan Suara" : "Bisukan Suara"}
+                    title={isMuted ? (isEn ? "Unmute" : "Bunyikan Suara") : (isEn ? "Mute" : "Bisukan Suara")}
                   >
                     {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4 text-primary" />}
                   </button>
@@ -1223,17 +1384,17 @@ export function MascotNavigator() {
                 <div className="flex items-center justify-between text-[11px] font-bold text-muted-foreground mb-1">
                   <span className="flex items-center gap-1 text-primary">
                     <Lightbulb className="h-3.5 w-3.5" />
-                    Tips Bang Peci
+                    {isEn ? "Bang Peci Tips" : "Tips Bang Peci"}
                   </span>
                   <button
                     onClick={nextTip}
                     className="hover:underline text-[10px] font-semibold text-foreground"
                   >
-                    Ganti Tip
+                    {isEn ? "Next Tip" : "Ganti Tip"}
                   </button>
                 </div>
                 <p className="text-xs text-foreground/90 leading-relaxed font-medium">
-                  "{RANDOM_TIPS[tipIndex]}"
+                  "{randomTips[tipIndex % randomTips.length]}"
                 </p>
               </div>
 
@@ -1249,7 +1410,7 @@ export function MascotNavigator() {
                 >
                   <span className="flex items-center gap-2">
                     <Compass className="h-4 w-4 text-primary" />
-                    Tur Dasar (5 Langkah)
+                    {isEn ? "Full Fin.IQ Tour (10 Steps)" : "Tur Fin.IQ Lengkap (10 Langkah)"}
                   </span>
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
@@ -1264,7 +1425,7 @@ export function MascotNavigator() {
                 >
                   <span className="flex items-center gap-2">
                     <Receipt className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                    Panduan Form Transaksi (6 Langkah)
+                    {isEn ? "Transaction Form Guide (6 Steps)" : "Panduan Form Transaksi (6 Langkah)"}
                   </span>
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
@@ -1279,7 +1440,7 @@ export function MascotNavigator() {
                 >
                   <span className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4" />
-                    Tur Analisis (5 Langkah)
+                    {isEn ? "Continue Analytics Tour (Steps 5-10)" : "Lanjut Tur Analisis (Langkah 5-10)"}
                   </span>
                   <ChevronRight className="h-3.5 w-3.5" />
                 </button>
@@ -1287,24 +1448,34 @@ export function MascotNavigator() {
                 <button
                   onClick={() => toggleOutfit(true)}
                   className="w-full flex items-center justify-between p-2.5 rounded-md border border-input bg-card text-foreground font-semibold text-xs hover:bg-muted transition-colors cursor-pointer"
-                  title="Ganti mode tampilan"
+                  title={isEn ? "Change display mode" : "Ganti mode tampilan"}
                 >
                   <span className="flex items-center gap-2">
                     <span>{mascotOutfit === "analyst" ? "👓" : "🧢"}</span>
-                    <span>Mode: {mascotOutfit === "analyst" ? "Analis" : "Santai"}</span>
+                    <span>
+                      {isEn
+                        ? `Mode: ${mascotOutfit === "analyst" ? "Analyst" : "Casual"}`
+                        : `Mode: ${mascotOutfit === "analyst" ? "Analis" : "Santai"}`}
+                    </span>
                   </span>
-                  <span className="text-[10px] font-bold text-primary underline">Ganti Mode</span>
+                  <span className="text-[10px] font-bold text-primary underline">
+                    {isEn ? "Switch" : "Ganti Mode"}
+                  </span>
                 </button>
 
                 {/* Petualang Dashboard (Autonomous Roaming) Toggle */}
                 <button
                   onClick={() => toggleRoaming()}
                   className="w-full flex items-center justify-between p-2.5 rounded-md border border-input bg-card text-foreground font-semibold text-xs hover:bg-muted transition-colors cursor-pointer"
-                  title="Aktifkan atau nonaktifkan karakter Bang Peci berjalan di dashboard"
+                  title={
+                    isEn
+                      ? "Toggle Bang Peci walking around the dashboard"
+                      : "Aktifkan atau nonaktifkan karakter Bang Peci berjalan di dashboard"
+                  }
                 >
                   <span className="flex items-center gap-2">
                     <Footprints className="h-4 w-4 text-primary" />
-                    <span>Petualang Dashboard</span>
+                    <span>{isEn ? "Dashboard Explorer" : "Petualang Dashboard"}</span>
                   </span>
                   <span
                     className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
@@ -1313,7 +1484,7 @@ export function MascotNavigator() {
                         : "bg-muted text-muted-foreground border-border/60"
                     }`}
                   >
-                    {isRoamingActive ? "Aktif" : "Mati"}
+                    {isRoamingActive ? (isEn ? "Active" : "Aktif") : (isEn ? "Off" : "Mati")}
                   </span>
                 </button>
 
@@ -1324,7 +1495,7 @@ export function MascotNavigator() {
                     setBubbleOpen(false);
                   }}
                   className="w-full flex items-center justify-between p-2.5 rounded-md border border-primary/25 bg-primary/10 hover:bg-primary/20 text-foreground font-semibold text-xs transition-colors cursor-pointer"
-                  title="Buka panel AI Financial Advisor"
+                  title={isEn ? "Open AI Financial Advisor panel" : "Buka panel AI Financial Advisor"}
                 >
                   <span className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-primary" />
@@ -1337,13 +1508,19 @@ export function MascotNavigator() {
                 <button
                   onClick={() => toggleUserMinimize(true)}
                   className="w-full flex items-center justify-between p-2 rounded-md border border-dashed border-border/80 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground font-semibold text-xs transition-colors cursor-pointer mt-1"
-                  title="Kecilkan widget Bang Peci agar tidak mengganggu layar"
+                  title={
+                    isEn
+                      ? "Minimize Bang Peci widget to avoid screen obstruction"
+                      : "Kecilkan widget Bang Peci agar tidak mengganggu layar"
+                  }
                 >
                   <span className="flex items-center gap-2">
                     <Moon className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span>Mode Tenang (Perkecil)</span>
+                    <span>{isEn ? "Quiet Mode (Minimize)" : "Mode Tenang (Perkecil)"}</span>
                   </span>
-                  <span className="text-[10px] text-muted-foreground">Kecilkan</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {isEn ? "Minimize" : "Kecilkan"}
+                  </span>
                 </button>
               </div>
             </div>
@@ -1359,8 +1536,8 @@ export function MascotNavigator() {
                   toggleBubble();
                 }}
                 className="group pointer-events-auto relative flex h-8 items-center gap-1.5 pl-1.5 pr-2.5 rounded-full border border-emerald-500/30 bg-card/95 hover:bg-card text-foreground shadow-lg backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer"
-                title="Klik untuk membuka Bang Peci"
-                aria-label="Panduan Asisten Bang Peci"
+                title={isEn ? "Click to open Bang Peci" : "Klik untuk membuka Bang Peci"}
+                aria-label={isEn ? "Bang Peci Assistant Guide" : "Panduan Asisten Bang Peci"}
               >
                 <div className="relative h-5 w-5 shrink-0 flex items-center justify-center">
                   <Image
@@ -1383,8 +1560,8 @@ export function MascotNavigator() {
             <button
               onClick={() => toggleUserMinimize(false)}
               className="group pointer-events-auto relative flex h-8 items-center gap-1.5 pl-1.5 pr-2.5 rounded-full border border-border/80 bg-card/90 hover:bg-card text-foreground shadow-md backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 cursor-pointer opacity-80 hover:opacity-100"
-              title="Klik untuk perbesar Bang Peci"
-              aria-label="Perbesar Asisten Bang Peci"
+              title={isEn ? "Click to enlarge Bang Peci" : "Klik untuk perbesar Bang Peci"}
+              aria-label={isEn ? "Enlarge Bang Peci Assistant" : "Perbesar Asisten Bang Peci"}
             >
               <div className="relative h-5 w-5 shrink-0 flex items-center justify-center">
                 <Image
@@ -1412,8 +1589,8 @@ export function MascotNavigator() {
                   toggleUserMinimize(true);
                 }}
                 className="absolute -top-1.5 -left-1.5 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-card/90 border border-border/80 text-muted-foreground hover:text-foreground opacity-0 group-hover/btn:opacity-100 transition-opacity shadow-xs cursor-pointer hover:bg-muted"
-                title="Kecilkan widget (Mode Tenang)"
-                aria-label="Kecilkan widget"
+                title={isEn ? "Minimize widget (Quiet Mode)" : "Kecilkan widget (Mode Tenang)"}
+                aria-label={isEn ? "Minimize widget" : "Kecilkan widget"}
               >
                 <Minus className="h-3 w-3" />
               </button>
@@ -1427,7 +1604,7 @@ export function MascotNavigator() {
                     ? "opacity-75 hover:opacity-100 hover:scale-105"
                     : "hover:scale-110 active:scale-95 animate-mascot-float"
                 } focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/40`}
-                aria-label="Buka Menu Asisten Bang Peci"
+                aria-label={isEn ? "Open Bang Peci Assistant Menu" : "Buka Menu Asisten Bang Peci"}
               >
                 {/* Glowing Pulse Ring (calmed during scrolling or typing) */}
                 {!isInputFocused && !isScrolling && (

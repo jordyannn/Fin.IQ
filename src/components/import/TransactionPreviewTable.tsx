@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useTranslation } from "@/i18n";
 import {
   formatCurrency,
   formatDate,
@@ -54,64 +55,68 @@ export interface ColumnDefinition {
   defaultVisible: boolean;
 }
 
-export const ALL_COLUMNS: ColumnDefinition[] = [
-  {
-    id: "happenedAt",
-    label: "Tanggal",
-    description: "Tanggal & waktu transaksi",
-    minWidth: "w-28",
-    defaultVisible: true,
-  },
-  {
-    id: "txType",
-    label: "Jenis",
-    description: "Pengeluaran, Pemasukan, atau Transfer",
-    minWidth: "w-24",
-    defaultVisible: true,
-  },
-  {
-    id: "amount",
-    label: "Nominal (Rp)",
-    description: "Jumlah uang transaksi",
-    minWidth: "w-32",
-    defaultVisible: true,
-  },
-  {
-    id: "categoryName",
-    label: "Kategori",
-    description: "Pos anggaran / klasifikasi",
-    minWidth: "w-36",
-    defaultVisible: true,
-  },
-  {
-    id: "accountName",
-    label: "Akun",
-    description: "Bank atau dompet digital sumber dana",
-    minWidth: "w-32",
-    defaultVisible: true,
-  },
-  {
-    id: "toAccountName",
-    label: "Akun Tujuan",
-    description: "Rekening penerima (khusus transfer)",
-    minWidth: "w-32",
-    defaultVisible: false,
-  },
-  {
-    id: "note",
-    label: "Deskripsi Transaksi",
-    description: "Keterangan, rincian, atau nama merchant",
-    minWidth: "min-w-[160px]",
-    defaultVisible: true,
-  },
-  {
-    id: "tags",
-    label: "Tag / Label",
-    description: "Label pelengkap transaksi",
-    minWidth: "w-28",
-    defaultVisible: false,
-  },
-];
+export function getAllColumns(isEn: boolean): ColumnDefinition[] {
+  return [
+    {
+      id: "happenedAt",
+      label: isEn ? "Date" : "Tanggal",
+      description: isEn ? "Transaction date & time" : "Tanggal & waktu transaksi",
+      minWidth: "w-28",
+      defaultVisible: true,
+    },
+    {
+      id: "txType",
+      label: isEn ? "Type" : "Jenis",
+      description: isEn ? "Expense, Income, or Transfer" : "Pengeluaran, Pemasukan, atau Transfer",
+      minWidth: "w-24",
+      defaultVisible: true,
+    },
+    {
+      id: "amount",
+      label: isEn ? "Amount (Rp)" : "Nominal (Rp)",
+      description: isEn ? "Transaction monetary amount" : "Jumlah uang transaksi",
+      minWidth: "w-32",
+      defaultVisible: true,
+    },
+    {
+      id: "categoryName",
+      label: isEn ? "Category" : "Kategori",
+      description: isEn ? "Budget envelope / classification" : "Pos anggaran / klasifikasi",
+      minWidth: "w-36",
+      defaultVisible: true,
+    },
+    {
+      id: "accountName",
+      label: isEn ? "Account" : "Akun",
+      description: isEn ? "Source bank or digital wallet" : "Bank atau dompet digital sumber dana",
+      minWidth: "w-32",
+      defaultVisible: true,
+    },
+    {
+      id: "toAccountName",
+      label: isEn ? "Destination" : "Akun Tujuan",
+      description: isEn ? "Recipient account (transfer only)" : "Rekening penerima (khusus transfer)",
+      minWidth: "w-32",
+      defaultVisible: false,
+    },
+    {
+      id: "note",
+      label: isEn ? "Transaction Description" : "Deskripsi Transaksi",
+      description: isEn ? "Notes, details, or merchant name" : "Keterangan, rincian, atau nama merchant",
+      minWidth: "min-w-[160px]",
+      defaultVisible: true,
+    },
+    {
+      id: "tags",
+      label: isEn ? "Tag / Label" : "Tag / Label",
+      description: isEn ? "Transaction labels / tags" : "Label pelengkap transaksi",
+      minWidth: "w-28",
+      defaultVisible: false,
+    },
+  ];
+}
+
+export const ALL_COLUMNS = getAllColumns(false);
 
 export interface ImportPreviewTxItem {
   id: string;
@@ -183,11 +188,19 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
   onRerunNlp,
   defaultAccountName,
   defaultCategoryName,
-  title = "Pratinjau & Edit Transaksi",
-  subtitle = "Kelola, edit, tambah, dan hapus baris atau kolom transaksi sebelum diimpor ke sistem.",
+  title,
+  subtitle,
   variant = "file",
   onVisibleColumnsChange,
 }: TransactionPreviewTableProps<T>) {
+  const { locale } = useTranslation();
+  const isEn = locale === "en";
+
+  const resolvedTitle = title || (isEn ? "Transaction Preview & Edit" : "Pratinjau & Edit Transaksi");
+  const resolvedSubtitle = subtitle || (isEn ? "Manage, edit, add, and remove transaction rows or columns before importing into the system." : "Kelola, edit, tambah, dan hapus baris atau kolom transaksi sebelum diimpor ke sistem.");
+
+  const allColumns = useMemo(() => getAllColumns(isEn), [isEn]);
+
   // Check if items contain any transfer transactions
   const hasTransfers = useMemo(() => items.some((it) => it.txType === "transfer"), [items]);
 
@@ -271,8 +284,8 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
 
   // Deleted columns list for quick restore pills
   const deletedColumns = useMemo(() => {
-    return ALL_COLUMNS.filter((col) => !visibleColumns.includes(col.id));
-  }, [visibleColumns]);
+    return allColumns.filter((col) => !visibleColumns.includes(col.id));
+  }, [allColumns, visibleColumns]);
 
   // 2. Row Selection & Batch Operations (CRUD: Delete, Bulk Update)
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
@@ -326,7 +339,13 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
   };
 
   const handleClearAllRows = () => {
-    if (window.confirm("Apakah Anda yakin ingin menghapus seluruh baris transaksi dari pratinjau?")) {
+    if (
+      window.confirm(
+        isEn
+          ? "Are you sure you want to remove all transaction rows from the preview?"
+          : "Apakah Anda yakin ingin menghapus seluruh baris transaksi dari pratinjau?"
+      )
+    ) {
       onUpdateItems([]);
       setSelectedRowIds(new Set());
     }
@@ -409,10 +428,10 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
   });
   const [newAmount, setNewAmount] = useState<string>("50.000");
   const [newCategoryName, setNewCategoryName] = useState<string>(
-    defaultCategoryName || categories[0]?.name || "Umum"
+    defaultCategoryName || categories[0]?.name || (isEn ? "General" : "Umum")
   );
   const [newAccountName, setNewAccountName] = useState<string>(
-    defaultAccountName || accounts[0]?.name || "Kas Tunai"
+    defaultAccountName || accounts[0]?.name || (isEn ? "Cash" : "Kas Tunai")
   );
   const [newToAccountName, setNewToAccountName] = useState<string>("");
   const [newNote, setNewNote] = useState<string>("");
@@ -423,8 +442,8 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
     setNewTxType("expense");
     setNewHappenedAt(now.toISOString().slice(0, 16));
     setNewAmount("50.000");
-    setNewCategoryName(defaultCategoryName || categories[0]?.name || "Umum");
-    setNewAccountName(defaultAccountName || accounts[0]?.name || "Kas Tunai");
+    setNewCategoryName(defaultCategoryName || categories[0]?.name || (isEn ? "General" : "Umum"));
+    setNewAccountName(defaultAccountName || accounts[0]?.name || (isEn ? "Cash" : "Kas Tunai"));
     setNewToAccountName("");
     setNewNote("");
     setNewTags("");
@@ -450,10 +469,10 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
       happenedAt: isoDate,
       txType: newTxType,
       amount: cleanAmt,
-      categoryName: newCategoryName.trim() || "Umum",
-      accountName: newAccountName.trim() || "Kas Tunai",
+      categoryName: newCategoryName.trim() || (isEn ? "General" : "Umum"),
+      accountName: newAccountName.trim() || (isEn ? "Cash" : "Kas Tunai"),
       toAccountName: newTxType === "transfer" ? newToAccountName.trim() || null : null,
-      note: newNote.trim() || "Transaksi Manual",
+      note: newNote.trim() || (isEn ? "Manual Transaction" : "Transaksi Manual"),
       tags: tagList,
     } as unknown as T;
 
@@ -481,8 +500,8 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
       setEditHappenedAt("");
     }
     setEditAmount(formatInputIDR(String(item.amount)));
-    setEditCategoryName(item.categoryName || "Umum");
-    setEditAccountName(item.accountName || "Kas Tunai");
+    setEditCategoryName(item.categoryName || (isEn ? "General" : "Umum"));
+    setEditAccountName(item.accountName || (isEn ? "Cash" : "Kas Tunai"));
     setEditToAccountName(item.toAccountName || "");
     setEditNote(item.note || "");
     setEditTags((item.tags || []).join(", "));
@@ -509,8 +528,8 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
       txType: editTxType,
       happenedAt: isoDate,
       amount: cleanAmt,
-      categoryName: editCategoryName.trim() || "Umum",
-      accountName: editAccountName.trim() || "Kas Tunai",
+      categoryName: editCategoryName.trim() || (isEn ? "General" : "Umum"),
+      accountName: editAccountName.trim() || (isEn ? "Cash" : "Kas Tunai"),
       toAccountName: editTxType === "transfer" ? editToAccountName.trim() || null : null,
       note: editNote.trim() || "-",
       tags: tagList,
@@ -562,13 +581,13 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
                 <FileSpreadsheet className="h-4 w-4 text-primary" />
-                {title}
+                {resolvedTitle}
               </h3>
               <Badge
                 variant="secondary"
                 className="text-[10px] font-semibold bg-primary/10 text-primary border-primary/20"
               >
-                {items.length} Transaksi Terbaca
+                {items.length} {isEn ? "Transactions Read" : "Transaksi Terbaca"}
               </Badge>
               {isNlpAvailable && (
                 <Badge
@@ -576,11 +595,11 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 flex items-center gap-1 font-semibold"
                 >
                   <Sparkles className="h-3 w-3" />
-                  NLP AI Siap
+                  NLP AI {isEn ? "Ready" : "Siap"}
                 </Badge>
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{resolvedSubtitle}</p>
           </div>
 
           {/* Action Buttons: Add Row, Manage Columns, NLP, Clear All */}
@@ -592,10 +611,10 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               size="sm"
               onClick={handleOpenAddModal}
               className="h-8 text-xs font-semibold gap-1.5 shadow-xs bg-primary text-white hover:bg-primary/90"
-              title="Tambah baris transaksi baru secara manual ke pratinjau"
+              title={isEn ? "Add new transaction row manually to preview" : "Tambah baris transaksi baru secara manual ke pratinjau"}
             >
               <Plus className="h-3.5 w-3.5" />
-              <span>Tambah Baris</span>
+              <span>{isEn ? "Add Row" : "Tambah Baris"}</span>
             </Button>
 
             {/* Column Manager Dropdown Button */}
@@ -610,17 +629,19 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30"
                     : ""
                 }`}
-                title="Atur, sembunyikan, atau hapus kolom tabel"
+                title={isEn ? "Configure, hide, or remove table columns" : "Atur, sembunyikan, atau hapus kolom tabel"}
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
-                <span>Atur Kolom ({visibleColumns.length}/{ALL_COLUMNS.length})</span>
+                <span>
+                  {isEn ? "Manage Columns" : "Atur Kolom"} ({visibleColumns.length}/{allColumns.length})
+                </span>
               </Button>
 
               {/* Column Manager Dropdown Menu */}
               {isColumnManagerOpen && (
                 <div className="absolute right-0 mt-1 w-72 rounded-xl border border-border bg-popover shadow-xl p-3 z-50 text-xs animate-in fade-in zoom-in-95">
                   <div className="flex items-center justify-between border-b pb-2 mb-2 font-bold text-foreground">
-                    <span>Kelola Kolom Tabel</span>
+                    <span>{isEn ? "Manage Table Columns" : "Kelola Kolom Tabel"}</span>
                     <button
                       type="button"
                       onClick={() => setIsColumnManagerOpen(false)}
@@ -630,10 +651,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     </button>
                   </div>
                   <p className="text-[11px] text-muted-foreground mb-2">
-                    Centang untuk menampilkan atau hapus kolom dari pratinjau transaksi:
+                    {isEn
+                      ? "Check to display or remove columns from the transaction preview:"
+                      : "Centang untuk menampilkan atau hapus kolom dari pratinjau transaksi:"}
                   </p>
                   <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-                    {ALL_COLUMNS.map((col) => {
+                    {allColumns.map((col) => {
                       const isVisible = visibleColumns.includes(col.id);
                       return (
                         <div
@@ -668,7 +691,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                               type="button"
                               onClick={() => handleDeleteColumn(col.id)}
                               className="p-1 rounded hover:bg-rose-500/10 text-muted-foreground hover:text-rose-600 transition-colors"
-                              title={`Hapus kolom ${col.label}`}
+                              title={isEn ? `Remove column ${col.label}` : `Hapus kolom ${col.label}`}
                             >
                               <Trash2 className="h-3 w-3" />
                             </button>
@@ -691,7 +714,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                       onClick={handleRestoreAllColumns}
                       className="text-[10px] text-primary hover:underline font-semibold"
                     >
-                      Tampilkan Semua
+                      {isEn ? "Show All" : "Tampilkan Semua"}
                     </button>
                   </div>
                 </div>
@@ -706,10 +729,10 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 size="sm"
                 onClick={onRerunNlp}
                 className="text-xs gap-1.5 h-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 border-emerald-500/30 font-semibold"
-                title="Deteksi ulang kategori dengan AI NLP berdasarkan deskripsi transaksi"
+                title={isEn ? "Re-detect categories with AI NLP based on transaction description" : "Deteksi ulang kategori dengan AI NLP berdasarkan deskripsi transaksi"}
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Deteksi Ulang NLP</span>
+                <span className="hidden sm:inline">{isEn ? "Rerun NLP Detection" : "Deteksi Ulang NLP"}</span>
               </Button>
             )}
 
@@ -721,10 +744,10 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 size="sm"
                 onClick={handleClearAllRows}
                 className="h-8 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 gap-1 font-semibold"
-                title="Hapus semua baris transaksi di pratinjau"
+                title={isEn ? "Delete all transaction rows in preview" : "Hapus semua baris transaksi di pratinjau"}
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Hapus Semua</span>
+                <span className="hidden sm:inline">{isEn ? "Clear All" : "Hapus Semua"}</span>
               </Button>
             )}
           </div>
@@ -736,7 +759,9 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1">
                 <EyeOff className="h-3.5 w-3.5" />
-                Kolom Tersembunyi/Dihapus ({deletedColumns.length}):
+                {isEn
+                  ? `Hidden/Removed Columns (${deletedColumns.length}):`
+                  : `Kolom Tersembunyi/Dihapus (${deletedColumns.length}):`}
               </span>
               <div className="flex flex-wrap gap-1.5">
                 {deletedColumns.map((col) => (
@@ -745,7 +770,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     type="button"
                     onClick={() => handleRestoreColumn(col.id)}
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/20 text-amber-800 dark:text-amber-200 hover:bg-amber-500/30 transition-colors border border-amber-500/30"
-                    title={`Klik untuk memulihkan kolom ${col.label}`}
+                    title={isEn ? `Click to restore column ${col.label}` : `Klik untuk memulihkan kolom ${col.label}`}
                   >
                     <span>{col.label}</span>
                     <Plus className="h-2.5 w-2.5" />
@@ -761,7 +786,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               onClick={handleRestoreAllColumns}
               className="h-6 px-2 text-[11px] text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 font-bold"
             >
-              Pulihkan Semua Kolom
+              {isEn ? "Restore All Columns" : "Pulihkan Semua Kolom"}
             </Button>
           </div>
         )}
@@ -775,7 +800,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Cari deskripsi, kategori, akun..."
+                placeholder={isEn ? "Search description, category, account..." : "Cari deskripsi, kategori, akun..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-8 pl-8 pr-7 text-xs bg-background"
@@ -802,7 +827,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Semua ({items.length})
+                {isEn ? `All (${items.length})` : `Semua (${items.length})`}
               </button>
               <button
                 type="button"
@@ -812,9 +837,11 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     ? "bg-rose-500 text-white shadow-2xs"
                     : "text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
                 }`}
-                title={`Total Pengeluaran: Rp ${formatInputIDR(String(stats.expenseSum))}`}
+                title={isEn ? `Total Expense: Rp ${formatInputIDR(String(stats.expenseSum))}` : `Total Pengeluaran: Rp ${formatInputIDR(String(stats.expenseSum))}`}
               >
-                Pengeluaran ({stats.expenseCount}{stats.expenseSum > 0 ? ` • Rp ${formatInputIDR(String(stats.expenseSum))}` : ""})
+                {isEn
+                  ? `Expense (${stats.expenseCount}${stats.expenseSum > 0 ? ` • Rp ${formatInputIDR(String(stats.expenseSum))}` : ""})`
+                  : `Pengeluaran (${stats.expenseCount}${stats.expenseSum > 0 ? ` • Rp ${formatInputIDR(String(stats.expenseSum))}` : ""})`}
               </button>
               <button
                 type="button"
@@ -824,9 +851,11 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     ? "bg-emerald-500 text-white shadow-2xs"
                     : "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
                 }`}
-                title={`Total Pemasukan: Rp ${formatInputIDR(String(stats.incomeSum))}`}
+                title={isEn ? `Total Income: Rp ${formatInputIDR(String(stats.incomeSum))}` : `Total Pemasukan: Rp ${formatInputIDR(String(stats.incomeSum))}`}
               >
-                Pemasukan ({stats.incomeCount}{stats.incomeSum > 0 ? ` • Rp ${formatInputIDR(String(stats.incomeSum))}` : ""})
+                {isEn
+                  ? `Income (${stats.incomeCount}${stats.incomeSum > 0 ? ` • Rp ${formatInputIDR(String(stats.incomeSum))}` : ""})`
+                  : `Pemasukan (${stats.incomeCount}${stats.incomeSum > 0 ? ` • Rp ${formatInputIDR(String(stats.incomeSum))}` : ""})`}
               </button>
               <button
                 type="button"
@@ -836,25 +865,27 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     ? "bg-sky-500 text-white shadow-2xs"
                     : "text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/20"
                 }`}
-                title={`Total Transfer: Rp ${formatInputIDR(String(stats.transferSum))}`}
+                title={isEn ? `Total Transfer: Rp ${formatInputIDR(String(stats.transferSum))}` : `Total Transfer: Rp ${formatInputIDR(String(stats.transferSum))}`}
               >
-                Transfer ({stats.transferCount}{stats.transferSum > 0 ? ` • Rp ${formatInputIDR(String(stats.transferSum))}` : ""})
+                {isEn
+                  ? `Transfer (${stats.transferCount}${stats.transferSum > 0 ? ` • Rp ${formatInputIDR(String(stats.transferSum))}` : ""})`
+                  : `Transfer (${stats.transferCount}${stats.transferSum > 0 ? ` • Rp ${formatInputIDR(String(stats.transferSum))}` : ""})`}
               </button>
             </div>
           </div>
 
           {/* Row Display Limit Selector */}
           <div className="flex items-center gap-2 self-end sm:self-auto text-muted-foreground">
-            <span>Tampilkan:</span>
+            <span>{isEn ? "Show:" : "Tampilkan:"}</span>
             <select
               value={previewLimit}
               onChange={(e) => setPreviewLimit(Number(e.target.value))}
               className="h-8 rounded-md border border-border bg-card pl-2.5 pr-7 text-xs font-semibold text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
             >
-              <option value={10}>10 Baris</option>
-              <option value={25}>25 Baris</option>
-              <option value={50}>50 Baris</option>
-              <option value={0}>Semua ({filteredItems.length}) Baris</option>
+              <option value={10}>{isEn ? "10 Rows" : "10 Baris"}</option>
+              <option value={25}>{isEn ? "25 Rows" : "25 Baris"}</option>
+              <option value={50}>{isEn ? "50 Rows" : "50 Baris"}</option>
+              <option value={0}>{isEn ? `All (${filteredItems.length}) Rows` : `Semua (${filteredItems.length}) Baris`}</option>
             </select>
           </div>
         </div>
@@ -865,7 +896,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
             <div className="flex items-center gap-3">
               <span className="font-bold text-primary flex items-center gap-1.5">
                 <CheckSquare className="h-4 w-4" />
-                {selectedRowIds.size} baris transaksi dipilih
+                {selectedRowIds.size} {isEn ? "transaction rows selected" : "baris transaksi dipilih"}
               </span>
               <Button
                 type="button"
@@ -874,7 +905,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 onClick={() => setSelectedRowIds(new Set())}
                 className="h-7 text-xs text-muted-foreground hover:text-foreground"
               >
-                Batal Pilih
+                {isEn ? "Deselect" : "Batal Pilih"}
               </Button>
             </div>
 
@@ -885,7 +916,11 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   value={bulkCategory}
                   onChange={(e) => {
                     if (e.target.value === "__NEW_CATEGORY__") {
-                      const newCat = prompt("Masukkan nama kategori baru untuk massal:");
+                      const newCat = prompt(
+                        isEn
+                          ? "Enter new category name for bulk assign:"
+                          : "Masukkan nama kategori baru untuk massal:"
+                      );
                       if (newCat && newCat.trim()) {
                         setBulkCategory(newCat.trim());
                       }
@@ -895,26 +930,28 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   }}
                   className="h-7.5 rounded-md border border-border bg-card pl-2 pr-7 text-xs w-36 text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
-                  <option value="">-- Pilih Kategori --</option>
+                  <option value="">{isEn ? "-- Select Category --" : "-- Pilih Kategori --"}</option>
                   {bulkCategory &&
                     !categories.some((c) => c.name.toLowerCase() === bulkCategory.toLowerCase()) &&
                     !STANDARD_CATEGORIES.some((s) => s.toLowerCase() === bulkCategory.toLowerCase()) && (
-                      <option value={bulkCategory}>+ {bulkCategory} (Baru)</option>
+                      <option value={bulkCategory}>+ {bulkCategory} ({isEn ? "New" : "Baru"})</option>
                     )}
                   {categories.map((c) => (
                     <option key={c.id} value={c.name}>
                       {c.name}
                     </option>
                   ))}
-                  <optgroup label="Standar">
+                  <optgroup label={isEn ? "Standard" : "Standar"}>
                     {STANDARD_CATEGORIES.map((cat) => (
                       <option key={cat} value={cat}>
                         {cat}
                       </option>
                     ))}
                   </optgroup>
-                  <optgroup label="Kustom">
-                    <option value="__NEW_CATEGORY__">+ Buat Kategori Baru...</option>
+                  <optgroup label={isEn ? "Custom" : "Kustom"}>
+                    <option value="__NEW_CATEGORY__">
+                      {isEn ? "+ Create New Category..." : "+ Buat Kategori Baru..."}
+                    </option>
                   </optgroup>
                 </select>
                 <Button
@@ -925,7 +962,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   onClick={handleBatchApplyCategory}
                   className="h-7 text-xs font-semibold"
                 >
-                  Terapkan Kategori
+                  {isEn ? "Apply Category" : "Terapkan Kategori"}
                 </Button>
               </div>
 
@@ -935,7 +972,11 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   value={bulkAccount}
                   onChange={(e) => {
                     if (e.target.value === "__NEW_ACCOUNT__") {
-                      const newAcc = prompt("Masukkan nama akun baru untuk massal:");
+                      const newAcc = prompt(
+                        isEn
+                          ? "Enter new account name for bulk assign:"
+                          : "Masukkan nama akun baru untuk massal:"
+                      );
                       if (newAcc && newAcc.trim()) {
                         setBulkAccount(newAcc.trim());
                       }
@@ -945,17 +986,19 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   }}
                   className="h-7.5 rounded-md border border-border bg-card pl-2 pr-7 text-xs w-36 text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
-                  <option value="">-- Pilih Akun --</option>
+                  <option value="">{isEn ? "-- Select Account --" : "-- Pilih Akun --"}</option>
                   {bulkAccount &&
                     !accounts.some((a) => a.name.toLowerCase() === bulkAccount.toLowerCase()) && (
-                      <option value={bulkAccount}>+ {bulkAccount} (Baru)</option>
+                      <option value={bulkAccount}>+ {bulkAccount} ({isEn ? "New" : "Baru"})</option>
                     )}
                   {accounts.map((a) => (
                     <option key={a.id} value={a.name}>
                       {a.name}
                     </option>
                   ))}
-                  <option value="__NEW_ACCOUNT__">+ Buat Akun Baru...</option>
+                  <option value="__NEW_ACCOUNT__">
+                    {isEn ? "+ Create New Account..." : "+ Buat Akun Baru..."}
+                  </option>
                 </select>
                 <Button
                   type="button"
@@ -965,7 +1008,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   onClick={handleBatchApplyAccount}
                   className="h-7 text-xs font-semibold"
                 >
-                  Terapkan Akun
+                  {isEn ? "Apply Account" : "Terapkan Akun"}
                 </Button>
               </div>
 
@@ -978,7 +1021,9 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 className="h-7 text-xs font-bold gap-1 ml-1"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Hapus Terpilih ({selectedRowIds.size})
+                {isEn
+                  ? `Delete Selected (${selectedRowIds.size})`
+                  : `Hapus Terpilih (${selectedRowIds.size})`}
               </Button>
             </div>
           </div>
@@ -997,8 +1042,8 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     className="p-1 rounded text-muted-foreground hover:text-foreground"
                     title={
                       selectedRowIds.size === filteredItems.length && filteredItems.length > 0
-                        ? "Batal pilih semua"
-                        : "Pilih semua baris"
+                        ? (isEn ? "Deselect all" : "Batal pilih semua")
+                        : (isEn ? "Select all rows" : "Pilih semua baris")
                     }
                   >
                     {selectedRowIds.size === filteredItems.length && filteredItems.length > 0 ? (
@@ -1018,12 +1063,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 {visibleColumns.includes("happenedAt") && (
                   <th className="px-2 py-2 w-28 whitespace-nowrap">
                     <div className="flex items-center justify-between gap-1 group">
-                      <span>Tanggal</span>
+                      <span>{isEn ? "Date" : "Tanggal"}</span>
                       <button
                         type="button"
                         onClick={() => handleDeleteColumn("happenedAt")}
                         className="opacity-0 group-hover:opacity-100 hover:text-rose-500 p-0.5 rounded transition-opacity"
-                        title="Hapus kolom Tanggal dari pratinjau"
+                        title={isEn ? "Remove Date column from preview" : "Hapus kolom Tanggal dari pratinjau"}
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -1035,12 +1080,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 {visibleColumns.includes("txType") && (
                   <th className="px-2 py-2 w-24 whitespace-nowrap">
                     <div className="flex items-center justify-between gap-1 group">
-                      <span>Jenis</span>
+                      <span>{isEn ? "Type" : "Jenis"}</span>
                       <button
                         type="button"
                         onClick={() => handleDeleteColumn("txType")}
                         className="opacity-0 group-hover:opacity-100 hover:text-rose-500 p-0.5 rounded transition-opacity"
-                        title="Hapus kolom Jenis Transaksi dari pratinjau"
+                        title={isEn ? "Remove Transaction Type column from preview" : "Hapus kolom Jenis Transaksi dari pratinjau"}
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -1052,12 +1097,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 {visibleColumns.includes("amount") && (
                   <th className="px-2 py-2 w-32 text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-1 group">
-                      <span>Nominal (Rp)</span>
+                      <span>{isEn ? "Amount (Rp)" : "Nominal (Rp)"}</span>
                       <button
                         type="button"
                         onClick={() => handleDeleteColumn("amount")}
                         className="opacity-0 group-hover:opacity-100 hover:text-rose-500 p-0.5 rounded transition-opacity ml-1"
-                        title="Hapus kolom Nominal dari pratinjau"
+                        title={isEn ? "Remove Amount column from preview" : "Hapus kolom Nominal dari pratinjau"}
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -1069,12 +1114,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 {visibleColumns.includes("categoryName") && (
                   <th className="px-2 py-2 w-36 whitespace-nowrap">
                     <div className="flex items-center justify-between gap-1 group">
-                      <span>Kategori</span>
+                      <span>{isEn ? "Category" : "Kategori"}</span>
                       <button
                         type="button"
                         onClick={() => handleDeleteColumn("categoryName")}
                         className="opacity-0 group-hover:opacity-100 hover:text-rose-500 p-0.5 rounded transition-opacity"
-                        title="Hapus kolom Kategori dari pratinjau"
+                        title={isEn ? "Remove Category column from preview" : "Hapus kolom Kategori dari pratinjau"}
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -1086,12 +1131,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 {visibleColumns.includes("accountName") && (
                   <th className="px-2 py-2 w-32 whitespace-nowrap">
                     <div className="flex items-center justify-between gap-1 group">
-                      <span>Akun</span>
+                      <span>{isEn ? "Account" : "Akun"}</span>
                       <button
                         type="button"
                         onClick={() => handleDeleteColumn("accountName")}
                         className="opacity-0 group-hover:opacity-100 hover:text-rose-500 p-0.5 rounded transition-opacity"
-                        title="Hapus kolom Akun dari pratinjau"
+                        title={isEn ? "Remove Account column from preview" : "Hapus kolom Akun dari pratinjau"}
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -1103,12 +1148,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 {visibleColumns.includes("toAccountName") && (
                   <th className="px-2 py-2 w-32 whitespace-nowrap">
                     <div className="flex items-center justify-between gap-1 group">
-                      <span>Tujuan</span>
+                      <span>{isEn ? "Destination" : "Tujuan"}</span>
                       <button
                         type="button"
                         onClick={() => handleDeleteColumn("toAccountName")}
                         className="opacity-0 group-hover:opacity-100 hover:text-rose-500 p-0.5 rounded transition-opacity"
-                        title="Hapus kolom Akun Tujuan dari pratinjau"
+                        title={isEn ? "Remove Destination Account column from preview" : "Hapus kolom Akun Tujuan dari pratinjau"}
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -1121,13 +1166,13 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   <th className="px-2 py-2 w-auto min-w-[160px]">
                     <div className="flex items-center justify-between gap-1 group">
                       <span className="font-bold text-foreground">
-                        Deskripsi Transaksi
+                        {isEn ? "Transaction Description" : "Deskripsi Transaksi"}
                       </span>
                       <button
                         type="button"
                         onClick={() => handleDeleteColumn("note")}
                         className="opacity-0 group-hover:opacity-100 hover:text-rose-500 p-0.5 rounded transition-opacity"
-                        title="Hapus kolom Deskripsi Transaksi dari pratinjau"
+                        title={isEn ? "Remove Transaction Description column from preview" : "Hapus kolom Deskripsi Transaksi dari pratinjau"}
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -1139,12 +1184,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 {visibleColumns.includes("tags") && (
                   <th className="px-2 py-2 w-28 whitespace-nowrap">
                     <div className="flex items-center justify-between gap-1 group">
-                      <span>Tag</span>
+                      <span>{isEn ? "Tags" : "Tag"}</span>
                       <button
                         type="button"
                         onClick={() => handleDeleteColumn("tags")}
                         className="opacity-0 group-hover:opacity-100 hover:text-rose-500 p-0.5 rounded transition-opacity"
-                        title="Hapus kolom Tag dari pratinjau"
+                        title={isEn ? "Remove Tags column from preview" : "Hapus kolom Tag dari pratinjau"}
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -1153,7 +1198,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 )}
 
                 {/* Actions Column */}
-                <th className="px-2 py-2 w-16 text-center whitespace-nowrap">Aksi</th>
+                <th className="px-2 py-2 w-16 text-center whitespace-nowrap">{isEn ? "Actions" : "Aksi"}</th>
               </tr>
             </thead>
 
@@ -1167,12 +1212,16 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
                       <AlertTriangle className="h-8 w-8 text-amber-500" />
                       <p className="font-semibold text-foreground text-sm">
-                        Tidak Ada Baris Transaksi
+                        {isEn ? "No Transaction Rows" : "Tidak Ada Baris Transaksi"}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {searchQuery || typeFilter !== "all"
-                          ? "Tidak ada transaksi yang cocok dengan filter atau kata kunci pencarian."
-                          : "Belum ada transaksi di pratinjau. Klik 'Tambah Baris' untuk membuat transaksi manual."}
+                          ? (isEn
+                              ? "No transactions match your search filter or keywords."
+                              : "Tidak ada transaksi yang cocok dengan filter atau kata kunci pencarian.")
+                          : (isEn
+                              ? "No transactions in preview yet. Click 'Add Row' to create a manual transaction."
+                              : "Belum ada transaksi di pratinjau. Klik 'Tambah Baris' untuk membuat transaksi manual.")}
                       </p>
                       {(searchQuery || typeFilter !== "all") && (
                         <Button
@@ -1184,7 +1233,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                           }}
                           className="mt-2 text-xs"
                         >
-                          Reset Filter Pencarian
+                          {isEn ? "Reset Search Filters" : "Reset Filter Pencarian"}
                         </Button>
                       )}
                     </div>
@@ -1240,7 +1289,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                 }
                               }}
                               className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                              title="Klik untuk memilih tanggal transaksi"
+                              title={isEn ? "Click to pick transaction date" : "Klik untuk memilih tanggal transaksi"}
                             />
                           </div>
                         </td>
@@ -1264,8 +1313,8 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                 : "bg-sky-500/10 text-sky-600 border-sky-200 dark:border-sky-900"
                             }`}
                           >
-                            <option value="expense">Pengeluaran</option>
-                            <option value="income">Pemasukan</option>
+                            <option value="expense">{isEn ? "Expense" : "Pengeluaran"}</option>
+                            <option value="income">{isEn ? "Income" : "Pemasukan"}</option>
                             <option value="transfer">Transfer</option>
                           </select>
                         </td>
@@ -1290,10 +1339,10 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                               }}
                               className={`h-7.5 text-xs font-bold w-full pl-6 pr-2 text-right bg-background shadow-2xs font-mono tracking-tight ${
                                 tx.txType === "expense"
-                                  ? "text-rose-600 dark:text-rose-400"
-                                  : tx.txType === "income"
-                                  ? "text-emerald-600 dark:text-emerald-400"
-                                  : "text-sky-600 dark:text-sky-400"
+                                    ? "text-rose-600 dark:text-rose-400"
+                                    : tx.txType === "income"
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : "text-sky-600 dark:text-sky-400"
                               }`}
                               placeholder="0"
                             />
@@ -1309,7 +1358,9 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                               value={tx.categoryName}
                               onChange={(e) => {
                                 if (e.target.value === "__NEW_CATEGORY__") {
-                                  const newCat = prompt("Masukkan nama kategori baru:");
+                                  const newCat = prompt(
+                                    isEn ? "Enter new category name:" : "Masukkan nama kategori baru:"
+                                  );
                                   if (newCat && newCat.trim()) {
                                     handleCellUpdate(tx.id, {
                                       categoryName: newCat.trim(),
@@ -1325,7 +1376,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                               }}
                               className="h-7.5 rounded-md border border-input bg-background px-1.5 text-xs font-medium focus:outline-none w-full shadow-2xs cursor-pointer hover:border-primary/60 transition-colors truncate"
                             >
-                              <option value="">-- Pilih Kategori --</option>
+                              <option value="">{isEn ? "-- Select Category --" : "-- Pilih Kategori --"}</option>
                               {tx.categoryName &&
                                 !categories?.some(
                                   (c) =>
@@ -1340,12 +1391,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                   <option value={tx.categoryName}>
                                     {tx.categoryName}{" "}
                                     {tx.isNlpDetected
-                                      ? "✨ (Prediksi NLP)"
-                                      : "(Kategori Baru)"}
+                                      ? (isEn ? "✨ (NLP Predicted)" : "✨ (Prediksi NLP)")
+                                      : (isEn ? "(New Category)" : "(Kategori Baru)")}
                                   </option>
                                 )}
                               {categories && categories.length > 0 && (
-                                <optgroup label="Kategori Saya">
+                                <optgroup label={isEn ? "My Categories" : "Kategori Saya"}>
                                   {categories.map((c) => (
                                     <option key={c.id} value={c.name}>
                                       {c.name}
@@ -1353,15 +1404,17 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                   ))}
                                 </optgroup>
                               )}
-                              <optgroup label="Kategori Standar">
+                              <optgroup label={isEn ? "Standard Categories" : "Kategori Standar"}>
                                 {STANDARD_CATEGORIES.map((cat) => (
                                   <option key={cat} value={cat}>
                                     {cat}
                                   </option>
                                 ))}
                               </optgroup>
-                              <optgroup label="Kustom">
-                                <option value="__NEW_CATEGORY__">+ Buat Kategori Baru...</option>
+                              <optgroup label={isEn ? "Custom" : "Kustom"}>
+                                <option value="__NEW_CATEGORY__">
+                                  {isEn ? "+ Create New Category..." : "+ Buat Kategori Baru..."}
+                                </option>
                               </optgroup>
                             </select>
 
@@ -1382,7 +1435,9 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                             value={tx.accountName}
                             onChange={(e) => {
                               if (e.target.value === "__NEW_ACCOUNT__") {
-                                const newAcc = prompt("Masukkan nama akun baru:");
+                                const newAcc = prompt(
+                                  isEn ? "Enter new account name:" : "Masukkan nama akun baru:"
+                                );
                                 if (newAcc && newAcc.trim()) {
                                   handleCellUpdate(tx.id, {
                                     accountName: newAcc.trim(),
@@ -1408,10 +1463,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                   tx.accountName.toLowerCase()
                               ) && (
                                 <option value={tx.accountName}>
-                                  + {tx.accountName} (Akun Baru)
+                                  + {tx.accountName} ({isEn ? "New Account" : "Akun Baru"})
                                 </option>
                               )}
-                            <option value="__NEW_ACCOUNT__">+ Buat Akun Baru...</option>
+                            <option value="__NEW_ACCOUNT__">
+                              {isEn ? "+ Create New Account..." : "+ Buat Akun Baru..."}
+                            </option>
                           </select>
                         </td>
                       )}
@@ -1424,7 +1481,9 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                               value={tx.toAccountName || ""}
                               onChange={(e) => {
                                 if (e.target.value === "__NEW_ACCOUNT__") {
-                                  const newAcc = prompt("Masukkan nama akun tujuan baru:");
+                                  const newAcc = prompt(
+                                    isEn ? "Enter new destination account name:" : "Masukkan nama akun tujuan baru:"
+                                  );
                                   if (newAcc && newAcc.trim()) {
                                     handleCellUpdate(tx.id, {
                                       toAccountName: newAcc.trim(),
@@ -1438,7 +1497,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                               }}
                               className="h-7.5 rounded-md border border-input bg-background px-1.5 text-xs w-full focus:outline-none font-medium shadow-2xs truncate"
                             >
-                              <option value="">-- Akun Tujuan --</option>
+                              <option value="">{isEn ? "-- Destination Account --" : "-- Akun Tujuan --"}</option>
                               {accounts.map((acc) => (
                                 <option key={acc.id} value={acc.name}>
                                   {acc.name}
@@ -1451,10 +1510,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                                     tx.toAccountName!.toLowerCase()
                                 ) && (
                                   <option value={tx.toAccountName}>
-                                    + {tx.toAccountName} (Akun Baru)
+                                    + {tx.toAccountName} ({isEn ? "New Account" : "Akun Baru"})
                                   </option>
                                 )}
-                              <option value="__NEW_ACCOUNT__">+ Buat Akun Baru...</option>
+                              <option value="__NEW_ACCOUNT__">
+                                {isEn ? "+ Create New Account..." : "+ Buat Akun Baru..."}
+                              </option>
                             </select>
                           ) : (
                             <span className="text-[11px] text-muted-foreground italic px-2">
@@ -1476,7 +1537,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                               })
                             }
                             className="h-7.5 text-xs bg-background w-full min-w-[150px] font-medium placeholder:text-muted-foreground/60 shadow-2xs px-2"
-                            placeholder="Tulis deskripsi / keterangan transaksi..."
+                            placeholder={isEn ? "Write transaction note / description..." : "Tulis deskripsi / keterangan transaksi..."}
                           />
                         </td>
                       )}
@@ -1510,7 +1571,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                             size="icon"
                             onClick={() => handleOpenEditModal(tx)}
                             className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md p-0"
-                            title="Edit rincian baris transaksi ini"
+                            title={isEn ? "Edit this transaction row details" : "Edit rincian baris transaksi ini"}
                           >
                             <Pencil className="h-3 w-3" />
                           </Button>
@@ -1522,7 +1583,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                             size="icon"
                             onClick={() => handleSingleDelete(tx.id)}
                             className="h-7 w-7 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-md p-0"
-                            title="Hapus baris transaksi ini"
+                            title={isEn ? "Delete this transaction row" : "Hapus baris transaksi ini"}
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
@@ -1540,15 +1601,18 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
         {previewLimit !== 0 && previewLimit < filteredItems.length && (
           <div className="py-2.5 px-4 bg-muted/20 border-t text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
             <span>
-              Menampilkan {Math.min(previewLimit, filteredItems.length)} dari{" "}
-              {filteredItems.length} transaksi.
+              {isEn
+                ? `Showing ${Math.min(previewLimit, filteredItems.length)} of ${filteredItems.length} transactions.`
+                : `Menampilkan ${Math.min(previewLimit, filteredItems.length)} dari ${filteredItems.length} transaksi.`}
             </span>
             <button
               type="button"
               onClick={() => setPreviewLimit(0)}
               className="font-bold text-primary hover:underline ml-1"
             >
-              Tampilkan Semua ({filteredItems.length}) Baris
+              {isEn
+                ? `Show All (${filteredItems.length}) Rows`
+                : `Tampilkan Semua (${filteredItems.length}) Baris`}
             </button>
           </div>
         )}
@@ -1563,10 +1627,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <div>
                 <h3 className="text-base font-bold text-foreground">
-                  Tambah Baris Transaksi ke Pratinjau
+                  {isEn ? "Add Transaction Row to Preview" : "Tambah Baris Transaksi ke Pratinjau"}
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Tambahkan transaksi baru secara manual ke tabel sebelum diimpor.
+                  {isEn
+                    ? "Manually add a new transaction to the table before importing."
+                    : "Tambahkan transaksi baru secara manual ke tabel sebelum diimpor."}
                 </p>
               </div>
               <button
@@ -1582,7 +1648,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               {/* Jenis Transaksi Selector */}
               <div>
                 <label className="font-semibold text-foreground mb-1 block">
-                  Jenis Transaksi <span className="text-rose-500">*</span>
+                  {isEn ? "Transaction Type" : "Jenis Transaksi"} <span className="text-rose-500">*</span>
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   <button
@@ -1595,7 +1661,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     }`}
                   >
                     <ArrowDownLeft className="h-3.5 w-3.5" />
-                    Pengeluaran
+                    {isEn ? "Expense" : "Pengeluaran"}
                   </button>
                   <button
                     type="button"
@@ -1607,7 +1673,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     }`}
                   >
                     <ArrowUpRight className="h-3.5 w-3.5" />
-                    Pemasukan
+                    {isEn ? "Income" : "Pemasukan"}
                   </button>
                   <button
                     type="button"
@@ -1628,7 +1694,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-semibold text-foreground mb-1 block">
-                    Nominal (Rp) <span className="text-rose-500">*</span>
+                    {isEn ? "Amount (Rp)" : "Nominal (Rp)"} <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative flex items-center">
                     <span className="absolute left-3 text-xs font-bold text-muted-foreground pointer-events-none select-none">
@@ -1641,14 +1707,14 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                       value={newAmount ? formatInputIDR(newAmount) : ""}
                       onChange={(e) => setNewAmount(formatInputIDR(e.target.value))}
                       className="h-9 text-sm font-bold pl-9 font-mono"
-                      placeholder="Contoh: 50.000"
+                      placeholder={isEn ? "e.g., 50.000" : "Contoh: 50.000"}
                     />
                   </div>
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="font-semibold text-foreground">
-                      Waktu / Tanggal <span className="text-rose-500">*</span>
+                      {isEn ? "Date / Time" : "Waktu / Tanggal"} <span className="text-rose-500">*</span>
                     </label>
                     {newHappenedAt && (
                       <span className="font-mono text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
@@ -1669,18 +1735,20 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               {/* Deskripsi Transaksi (MANDATORY REQUEST) */}
               <div>
                 <label className="font-semibold text-foreground mb-1 block">
-                  Deskripsi Transaksi <span className="text-rose-500">*</span>
+                  {isEn ? "Transaction Description" : "Deskripsi Transaksi"} <span className="text-rose-500">*</span>
                 </label>
                 <Input
                   type="text"
                   required
-                  placeholder="Contoh: Beli Kopi Kenangan, Gaji Bulanan, dsb."
+                  placeholder={isEn ? "e.g., Morning Coffee, Monthly Salary, etc." : "Contoh: Beli Kopi Kenangan, Gaji Bulanan, dsb."}
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
                   className="h-9 text-xs font-medium"
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Keterangan atau rincian transaksi untuk pencatatan di pembukuan.
+                  {isEn
+                    ? "Transaction note or details for bookkeeping records."
+                    : "Keterangan atau rincian transaksi untuk pencatatan di pembukuan."}
                 </p>
               </div>
 
@@ -1688,13 +1756,15 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-semibold text-foreground mb-1 block">
-                    Kategori Transaksi
+                    {isEn ? "Transaction Category" : "Kategori Transaksi"}
                   </label>
                   <select
                     value={newCategoryName}
                     onChange={(e) => {
                       if (e.target.value === "__NEW_CATEGORY__") {
-                        const newCat = prompt("Masukkan nama kategori baru:");
+                        const newCat = prompt(
+                          isEn ? "Enter new category name:" : "Masukkan nama kategori baru:"
+                        );
                         if (newCat && newCat.trim()) {
                           setNewCategoryName(newCat.trim());
                         }
@@ -1707,37 +1777,41 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     {newCategoryName &&
                       !categories.some((c) => c.name.toLowerCase() === newCategoryName.toLowerCase()) &&
                       !STANDARD_CATEGORIES.some((s) => s.toLowerCase() === newCategoryName.toLowerCase()) && (
-                        <option value={newCategoryName}>+ {newCategoryName} (Baru)</option>
+                        <option value={newCategoryName}>+ {newCategoryName} ({isEn ? "New" : "Baru"})</option>
                       )}
-                    <optgroup label="Kategori Saya">
+                    <optgroup label={isEn ? "My Categories" : "Kategori Saya"}>
                       {categories.map((c) => (
                         <option key={c.id} value={c.name}>
                           {c.name}
                         </option>
                       ))}
                     </optgroup>
-                    <optgroup label="Standar">
+                    <optgroup label={isEn ? "Standard" : "Standar"}>
                       {STANDARD_CATEGORIES.map((cat) => (
                         <option key={cat} value={cat}>
                           {cat}
                         </option>
                       ))}
                     </optgroup>
-                    <optgroup label="Kustom">
-                      <option value="__NEW_CATEGORY__">+ Buat Kategori Baru...</option>
+                    <optgroup label={isEn ? "Custom" : "Kustom"}>
+                      <option value="__NEW_CATEGORY__">
+                        {isEn ? "+ Create New Category..." : "+ Buat Kategori Baru..."}
+                      </option>
                     </optgroup>
                   </select>
                 </div>
 
                 <div>
                   <label className="font-semibold text-foreground mb-1 block">
-                    Akun Asal
+                    {isEn ? "Source Account" : "Akun Asal"}
                   </label>
                   <select
                     value={newAccountName}
                     onChange={(e) => {
                       if (e.target.value === "__NEW_ACCOUNT__") {
-                        const newAcc = prompt("Masukkan nama akun baru:");
+                        const newAcc = prompt(
+                          isEn ? "Enter new account name:" : "Masukkan nama akun baru:"
+                        );
                         if (newAcc && newAcc.trim()) {
                           setNewAccountName(newAcc.trim());
                         }
@@ -1749,14 +1823,16 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   >
                     {newAccountName &&
                       !accounts.some((a) => a.name.toLowerCase() === newAccountName.toLowerCase()) && (
-                        <option value={newAccountName}>+ {newAccountName} (Baru)</option>
+                        <option value={newAccountName}>+ {newAccountName} ({isEn ? "New" : "Baru"})</option>
                       )}
                     {accounts.map((a) => (
                       <option key={a.id} value={a.name}>
-                        {a.name} ({a.group || "Akun"})
+                        {a.name} ({a.group || (isEn ? "Account" : "Akun")})
                       </option>
                     ))}
-                    <option value="__NEW_ACCOUNT__">+ Buat Akun Baru...</option>
+                    <option value="__NEW_ACCOUNT__">
+                      {isEn ? "+ Create New Account..." : "+ Buat Akun Baru..."}
+                    </option>
                   </select>
                 </div>
               </div>
@@ -1765,14 +1841,16 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               {newTxType === "transfer" && (
                 <div>
                   <label className="font-semibold text-foreground mb-1 block">
-                    Akun Tujuan Transfer <span className="text-rose-500">*</span>
+                    {isEn ? "Destination Account" : "Akun Tujuan Transfer"} <span className="text-rose-500">*</span>
                   </label>
                   <select
                     required
                     value={newToAccountName}
                     onChange={(e) => {
                       if (e.target.value === "__NEW_ACCOUNT__") {
-                        const newAcc = prompt("Masukkan nama akun tujuan baru:");
+                        const newAcc = prompt(
+                          isEn ? "Enter new destination account name:" : "Masukkan nama akun tujuan baru:"
+                        );
                         if (newAcc && newAcc.trim()) {
                           setNewToAccountName(newAcc.trim());
                         }
@@ -1782,17 +1860,19 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     }}
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-2xs text-xs focus:outline-none font-medium"
                   >
-                    <option value="">-- Pilih Akun Tujuan --</option>
+                    <option value="">{isEn ? "-- Select Destination Account --" : "-- Pilih Akun Tujuan --"}</option>
                     {newToAccountName &&
                       !accounts.some((a) => a.name.toLowerCase() === newToAccountName.toLowerCase()) && (
-                        <option value={newToAccountName}>+ {newToAccountName} (Baru)</option>
+                        <option value={newToAccountName}>+ {newToAccountName} ({isEn ? "New" : "Baru"})</option>
                       )}
                     {accounts.map((a) => (
                       <option key={a.id} value={a.name}>
-                        {a.name} ({a.group || "Akun"})
+                        {a.name} ({a.group || (isEn ? "Account" : "Akun")})
                       </option>
                     ))}
-                    <option value="__NEW_ACCOUNT__">+ Buat Akun Baru...</option>
+                    <option value="__NEW_ACCOUNT__">
+                      {isEn ? "+ Create New Account..." : "+ Buat Akun Baru..."}
+                    </option>
                   </select>
                 </div>
               )}
@@ -1800,11 +1880,11 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               {/* Tag / Label */}
               <div>
                 <label className="font-semibold text-foreground mb-1 block">
-                  Tag / Label (Opsional)
+                  {isEn ? "Tags / Labels (Optional)" : "Tag / Label (Opsional)"}
                 </label>
                 <Input
                   type="text"
-                  placeholder="Contoh: sarapan, operasional (pisahkan dengan koma)"
+                  placeholder={isEn ? "e.g., breakfast, operational (comma separated)" : "Contoh: sarapan, operasional (pisahkan dengan koma)"}
                   value={newTags}
                   onChange={(e) => setNewTags(e.target.value)}
                   className="h-9 text-xs"
@@ -1819,13 +1899,13 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   onClick={() => setIsAddModalOpen(false)}
                   className="text-xs"
                 >
-                  Batal
+                  {isEn ? "Cancel" : "Batal"}
                 </Button>
                 <Button
                   type="submit"
                   className="text-xs font-semibold bg-primary text-white hover:bg-primary/90"
                 >
-                  Simpan ke Pratinjau
+                  {isEn ? "Save to Preview" : "Simpan ke Pratinjau"}
                 </Button>
               </div>
             </form>
@@ -1842,10 +1922,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <div>
                 <h3 className="text-base font-bold text-foreground">
-                  Edit Rincian Transaksi
+                  {isEn ? "Edit Transaction Details" : "Edit Rincian Transaksi"}
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Ubah data nominal, kategori, akun, atau deskripsi transaksi ini.
+                  {isEn
+                    ? "Modify amount, category, account, or description of this transaction."
+                    : "Ubah data nominal, kategori, akun, atau deskripsi transaksi ini."}
                 </p>
               </div>
               <button
@@ -1861,7 +1943,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               {/* Jenis Transaksi Selector */}
               <div>
                 <label className="font-semibold text-foreground mb-1 block">
-                  Jenis Transaksi
+                  {isEn ? "Transaction Type" : "Jenis Transaksi"}
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   <button
@@ -1874,7 +1956,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     }`}
                   >
                     <ArrowDownLeft className="h-3.5 w-3.5" />
-                    Pengeluaran
+                    {isEn ? "Expense" : "Pengeluaran"}
                   </button>
                   <button
                     type="button"
@@ -1886,7 +1968,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     }`}
                   >
                     <ArrowUpRight className="h-3.5 w-3.5" />
-                    Pemasukan
+                    {isEn ? "Income" : "Pemasukan"}
                   </button>
                   <button
                     type="button"
@@ -1907,7 +1989,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-semibold text-foreground mb-1 block">
-                    Nominal (Rp) <span className="text-rose-500">*</span>
+                    {isEn ? "Amount (Rp)" : "Nominal (Rp)"} <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative flex items-center">
                     <span className="absolute left-3 text-xs font-bold text-muted-foreground pointer-events-none select-none">
@@ -1920,14 +2002,14 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                       value={editAmount ? formatInputIDR(editAmount) : ""}
                       onChange={(e) => setEditAmount(formatInputIDR(e.target.value))}
                       className="h-9 text-sm font-bold pl-9 font-mono"
-                      placeholder="Contoh: 50.000"
+                      placeholder={isEn ? "e.g., 50.000" : "Contoh: 50.000"}
                     />
                   </div>
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="font-semibold text-foreground">
-                      Waktu / Tanggal
+                      {isEn ? "Date / Time" : "Waktu / Tanggal"}
                     </label>
                     {editHappenedAt && (
                       <span className="font-mono text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
@@ -1948,12 +2030,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               {/* Deskripsi Transaksi (MANDATORY REQUEST) */}
               <div>
                 <label className="font-semibold text-foreground mb-1 block">
-                  Deskripsi Transaksi
+                  {isEn ? "Transaction Description" : "Deskripsi Transaksi"}
                 </label>
                 <Input
                   type="text"
                   required
-                  placeholder="Keterangan transaksi..."
+                  placeholder={isEn ? "Transaction description..." : "Keterangan transaksi..."}
                   value={editNote}
                   onChange={(e) => setEditNote(e.target.value)}
                   className="h-9 text-xs font-medium"
@@ -1964,13 +2046,15 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-semibold text-foreground mb-1 block">
-                    Kategori Transaksi
+                    {isEn ? "Transaction Category" : "Kategori Transaksi"}
                   </label>
                   <select
                     value={editCategoryName}
                     onChange={(e) => {
                       if (e.target.value === "__NEW_CATEGORY__") {
-                        const newCat = prompt("Masukkan nama kategori baru:");
+                        const newCat = prompt(
+                          isEn ? "Enter new category name:" : "Masukkan nama kategori baru:"
+                        );
                         if (newCat && newCat.trim()) {
                           setEditCategoryName(newCat.trim());
                         }
@@ -1983,37 +2067,41 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     {editCategoryName &&
                       !categories.some((c) => c.name.toLowerCase() === editCategoryName.toLowerCase()) &&
                       !STANDARD_CATEGORIES.some((s) => s.toLowerCase() === editCategoryName.toLowerCase()) && (
-                        <option value={editCategoryName}>+ {editCategoryName} (Baru)</option>
+                        <option value={editCategoryName}>+ {editCategoryName} ({isEn ? "New" : "Baru"})</option>
                       )}
-                    <optgroup label="Kategori Saya">
+                    <optgroup label={isEn ? "My Categories" : "Kategori Saya"}>
                       {categories.map((c) => (
                         <option key={c.id} value={c.name}>
                           {c.name}
                         </option>
                       ))}
                     </optgroup>
-                    <optgroup label="Standar">
+                    <optgroup label={isEn ? "Standard Categories" : "Kategori Standar"}>
                       {STANDARD_CATEGORIES.map((cat) => (
                         <option key={cat} value={cat}>
                           {cat}
                         </option>
                       ))}
                     </optgroup>
-                    <optgroup label="Kustom">
-                      <option value="__NEW_CATEGORY__">+ Buat Kategori Baru...</option>
+                    <optgroup label={isEn ? "Custom" : "Kustom"}>
+                      <option value="__NEW_CATEGORY__">
+                        {isEn ? "+ Create New Category..." : "+ Buat Kategori Baru..."}
+                      </option>
                     </optgroup>
                   </select>
                 </div>
 
                 <div>
                   <label className="font-semibold text-foreground mb-1 block">
-                    Akun Asal
+                    {isEn ? "Source Account" : "Akun Asal"}
                   </label>
                   <select
                     value={editAccountName}
                     onChange={(e) => {
                       if (e.target.value === "__NEW_ACCOUNT__") {
-                        const newAcc = prompt("Masukkan nama akun baru:");
+                        const newAcc = prompt(
+                          isEn ? "Enter new account name:" : "Masukkan nama akun baru:"
+                        );
                         if (newAcc && newAcc.trim()) {
                           setEditAccountName(newAcc.trim());
                         }
@@ -2025,14 +2113,16 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   >
                     {editAccountName &&
                       !accounts.some((a) => a.name.toLowerCase() === editAccountName.toLowerCase()) && (
-                        <option value={editAccountName}>+ {editAccountName} (Baru)</option>
+                        <option value={editAccountName}>+ {editAccountName} ({isEn ? "New" : "Baru"})</option>
                       )}
                     {accounts.map((a) => (
                       <option key={a.id} value={a.name}>
-                        {a.name} ({a.group || "Akun"})
+                        {a.name} ({a.group || (isEn ? "Account" : "Akun")})
                       </option>
                     ))}
-                    <option value="__NEW_ACCOUNT__">+ Buat Akun Baru...</option>
+                    <option value="__NEW_ACCOUNT__">
+                      {isEn ? "+ Create New Account..." : "+ Buat Akun Baru..."}
+                    </option>
                   </select>
                 </div>
               </div>
@@ -2041,13 +2131,15 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               {editTxType === "transfer" && (
                 <div>
                   <label className="font-semibold text-foreground mb-1 block">
-                    Akun Tujuan Transfer
+                    {isEn ? "Destination Account" : "Akun Tujuan Transfer"}
                   </label>
                   <select
                     value={editToAccountName}
                     onChange={(e) => {
                       if (e.target.value === "__NEW_ACCOUNT__") {
-                        const newAcc = prompt("Masukkan nama akun tujuan baru:");
+                        const newAcc = prompt(
+                          isEn ? "Enter new destination account name:" : "Masukkan nama akun tujuan baru:"
+                        );
                         if (newAcc && newAcc.trim()) {
                           setEditToAccountName(newAcc.trim());
                         }
@@ -2057,17 +2149,19 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                     }}
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-2xs text-xs focus:outline-none font-medium"
                   >
-                    <option value="">-- Pilih Akun Tujuan --</option>
+                    <option value="">{isEn ? "-- Select Destination Account --" : "-- Pilih Akun Tujuan --"}</option>
                     {editToAccountName &&
                       !accounts.some((a) => a.name.toLowerCase() === editToAccountName.toLowerCase()) && (
-                        <option value={editToAccountName}>+ {editToAccountName} (Baru)</option>
+                        <option value={editToAccountName}>+ {editToAccountName} ({isEn ? "New" : "Baru"})</option>
                       )}
                     {accounts.map((a) => (
                       <option key={a.id} value={a.name}>
-                        {a.name} ({a.group || "Akun"})
+                        {a.name} ({a.group || (isEn ? "Account" : "Akun")})
                       </option>
                     ))}
-                    <option value="__NEW_ACCOUNT__">+ Buat Akun Baru...</option>
+                    <option value="__NEW_ACCOUNT__">
+                      {isEn ? "+ Create New Account..." : "+ Buat Akun Baru..."}
+                    </option>
                   </select>
                 </div>
               )}
@@ -2075,7 +2169,7 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
               {/* Tag / Label */}
               <div>
                 <label className="font-semibold text-foreground mb-1 block">
-                  Tag / Label
+                  {isEn ? "Tags / Labels" : "Tag / Label"}
                 </label>
                 <Input
                   type="text"
@@ -2094,13 +2188,13 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   onClick={() => setEditingItem(null)}
                   className="text-xs"
                 >
-                  Batal
+                  {isEn ? "Cancel" : "Batal"}
                 </Button>
                 <Button
                   type="submit"
                   className="text-xs font-semibold bg-primary text-white hover:bg-primary/90"
                 >
-                  Simpan Perubahan
+                  {isEn ? "Save Changes" : "Simpan Perubahan"}
                 </Button>
               </div>
             </form>

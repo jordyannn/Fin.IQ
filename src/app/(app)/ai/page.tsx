@@ -28,7 +28,7 @@ import {
 import { AIMessageRenderer } from "@/components/ai/AIMessageRenderer";
 import { useTranslation } from "@/i18n";
 
-const SUGGESTIONS = [
+const SUGGESTIONS_ID = [
   {
     title: "Audit Pos Boros & Kebocoran",
     desc: "Deteksi anomali mutasi dan pangkas pos pengeluaran terbesar.",
@@ -52,6 +52,33 @@ const SUGGESTIONS = [
     desc: "Hitung berapa bulan cadangan dana bertahan tanpa pemasukan baru.",
     prompt:
       "Dengan rata-rata pengeluaran saat ini, berapa bulan total saldo saya bisa bertahan jika tanpa pemasukan?",
+  },
+];
+
+const SUGGESTIONS_EN = [
+  {
+    title: "Audit Spending Leaks & Anomalies",
+    desc: "Detect irregular expenses and trim down your biggest expense categories.",
+    prompt:
+      "Audit my largest spending categories: which transactions are excessive and how can I trim them?",
+  },
+  {
+    title: "Daily Safe Spend Limit",
+    desc: "Calculate a safe daily allowance to ensure a surplus cash balance by month-end.",
+    prompt:
+      "Calculate my maximum daily spending limit to stay in surplus and avoid overspending this month.",
+  },
+  {
+    title: "Optimal Savings Allocation",
+    desc: "Determine a realistic amount to safely set aside for savings or investments.",
+    prompt:
+      "Based on my income and spending habits, what is the exact safe amount I should save this month?",
+  },
+  {
+    title: "Cash Runway Analysis",
+    desc: "Calculate how many months your liquid reserves can sustain you without new income.",
+    prompt:
+      "With my current average spending, how many months can my total balance sustain without new income?",
   },
 ];
 
@@ -114,6 +141,8 @@ function AIAdvisorPageContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
   const { t, locale } = useTranslation();
+  const isEn = locale === "en";
+  const suggestions = isEn ? SUGGESTIONS_EN : SUGGESTIONS_ID;
 
   // 1. Ambil Konfigurasi Model Free-Tier & Status Kuota
   const { data: aiConfig, refetch: refetchAiConfig } = trpc.ai.getAiConfig.useQuery(undefined, {
@@ -210,11 +239,16 @@ function AIAdvisorPageContent() {
   const defaultWelcomeMessage: ChatMessage = {
     id: "welcome-msg",
     role: "assistant",
-    text: `### Konsultasi Keuangan Aktif (OpenRouter Free Tier)
-Data akun kas, saldo riil, dan 30 transaksi mutasi Anda telah terhubung secara otomatis.
+    text: isEn
+      ? `### Financial Advisor Active (OpenRouter Free Tier)
+All registered accounts, real balances, current & monthly cash flows, budgets, and recent transactions for your logged-in account are synchronized and ready for analysis.
+
+Please select a topic below or type your question directly to analyze cash flow, budgets, and financial strategies.`
+      : `### Konsultasi Keuangan Fin.IQ Aktif (OpenRouter Free Tier)
+Seluruh akun kas, saldo riil, arus kas bulan berjalan, target anggaran, serta riwayat mutasi dari akun Anda yang sedang login telah terhubung secara akurat dan siap dianalisis.
 
 Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis arus kas, pos anggaran, dan strategi finansial Anda.`,
-    time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+    time: new Date().toLocaleTimeString(isEn ? "en-US" : "id-ID", { hour: "2-digit", minute: "2-digit" }),
     modelUsed: activeModel.name,
   };
 
@@ -233,7 +267,7 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
           id: m.id,
           role: m.role as "user" | "assistant",
           text: m.content,
-          time: new Date(m.createdAt).toLocaleTimeString("id-ID", {
+          time: new Date(m.createdAt).toLocaleTimeString(isEn ? "en-US" : "id-ID", {
             hour: "2-digit",
             minute: "2-digit",
           }),
@@ -245,7 +279,7 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
         setChatMessages([defaultWelcomeMessage]);
       }
     }
-  }, [activeSessionId, activeSessionData]);
+  }, [activeSessionId, activeSessionData, isEn]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -263,7 +297,7 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
           id: `ai-${Date.now()}`,
           role: "assistant",
           text: data.answer,
-          time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+          time: new Date().toLocaleTimeString(isEn ? "en-US" : "id-ID", { hour: "2-digit", minute: "2-digit" }),
           modelUsed: data.modelUsed,
           guardrailBlocked: data.guardrailBlocked,
         },
@@ -291,8 +325,10 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
         {
           id: `err-${Date.now()}`,
           role: "assistant",
-          text: `Gagal memproses data: ${err.message || "Koneksi ke AI terganggu."}`,
-          time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+          text: isEn
+            ? `Failed to process data: ${err.message || "Connection to AI interrupted."}`
+            : `Gagal memproses data: ${err.message || "Koneksi ke AI terganggu."}`,
+          time: new Date().toLocaleTimeString(isEn ? "en-US" : "id-ID", { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
 
@@ -324,7 +360,7 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
       id: `user-${Date.now()}`,
       role: "user",
       text: q,
-      time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+      time: new Date().toLocaleTimeString(isEn ? "en-US" : "id-ID", { hour: "2-digit", minute: "2-digit" }),
     };
 
     setChatMessages((prev) => [...prev, userMsg]);
@@ -335,6 +371,7 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
       model: selectedModelId,
       sessionId: activeSessionId || undefined,
       lang: locale,
+      clientTime: new Date().toISOString(),
     });
   };
 
@@ -350,9 +387,12 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
       {
         id: `welcome-${Date.now()}`,
         role: "assistant",
-        text: `### Sesi Baru Dimulai
+        text: isEn
+          ? `### New Session Started
+Feel free to ask a new question regarding expense evaluations, budget comparisons, or savings projections.`
+          : `### Sesi Baru Dimulai
 Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos anggaran, atau simulasi target tabungan Anda.`,
-        time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+        time: new Date().toLocaleTimeString(isEn ? "en-US" : "id-ID", { hour: "2-digit", minute: "2-digit" }),
         modelUsed: activeModel.name,
       },
     ]);
@@ -377,9 +417,9 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
       date.getFullYear() === now.getFullYear();
 
     if (isToday) {
-      return date.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+      return date.toLocaleTimeString(isEn ? "en-US" : "id-ID", { hour: "2-digit", minute: "2-digit" });
     }
-    return date.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+    return date.toLocaleDateString(isEn ? "en-US" : "id-ID", { day: "numeric", month: "short" });
   };
 
   return (
@@ -400,7 +440,7 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
               <div className="flex items-center gap-1.5 min-w-0">
                 <History className="h-4 w-4 text-primary shrink-0" />
                 <span className="text-xs font-bold text-foreground truncate">
-                  Riwayat Percakapan
+                  {isEn ? "Chat History" : "Riwayat Percakapan"}
                 </span>
                 <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold">
                   {sessions.length}
@@ -417,17 +457,17 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
                     }
                   }}
                   className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-md bg-primary text-white hover:bg-[#047857] active:scale-95 transition-all cursor-pointer shadow-xs"
-                  title="Buat Sesi Chat Baru"
+                  title={isEn ? "Create New Chat Session" : "Buat Sesi Chat Baru"}
                 >
                   <Plus className="h-3 w-3 stroke-[2.5]" />
-                  <span>Baru</span>
+                  <span>{isEn ? "New" : "Baru"}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsSidebarOpen(false)}
                   className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted lg:hidden cursor-pointer"
-                  title="Tutup riwayat"
-                  aria-label="Tutup riwayat"
+                  title={isEn ? "Close history" : "Tutup riwayat"}
+                  aria-label={isEn ? "Close history" : "Tutup riwayat"}
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -439,13 +479,13 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
               {isSessionsLoading ? (
                 <div className="p-4 text-center">
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mx-auto mb-1" />
-                  <span className="text-[11px] text-muted-foreground">Memuat riwayat...</span>
+                  <span className="text-[11px] text-muted-foreground">{isEn ? "Loading history..." : "Memuat riwayat..."}</span>
                 </div>
               ) : sessions.length === 0 ? (
                 <div className="p-4 text-center">
-                  <p className="text-xs text-muted-foreground">Belum ada riwayat sesi.</p>
+                  <p className="text-xs text-muted-foreground">{isEn ? "No chat history yet." : "Belum ada riwayat sesi."}</p>
                   <p className="text-[10px] text-muted-foreground/70 mt-1">
-                    Ketik pertanyaan untuk memulai percakapan pertama Anda.
+                    {isEn ? "Type a prompt to start your first conversation." : "Ketik pertanyaan untuk memulai percakapan pertama Anda."}
                   </p>
                 </div>
               ) : (
@@ -479,13 +519,13 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm("Hapus riwayat sesi ini?")) {
+                          if (confirm(isEn ? "Delete this chat session?" : "Hapus riwayat sesi ini?")) {
                             deleteSessionMutation.mutate({ sessionId: s.id });
                           }
                         }}
                         className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-rose-500/10 hover:text-rose-600 text-muted-foreground cursor-pointer"
-                        title="Hapus sesi"
-                        aria-label="Hapus sesi"
+                        title={isEn ? "Delete session" : "Hapus sesi"}
+                        aria-label={isEn ? "Delete session" : "Hapus sesi"}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -510,11 +550,11 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
               type="button"
               onClick={() => setIsSidebarOpen((v) => !v)}
               className="lg:hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border/80 bg-card hover:bg-muted text-xs font-semibold text-foreground shadow-2xs active:scale-95 transition-all cursor-pointer min-h-[44px]"
-              title="Buka Riwayat Percakapan"
-              aria-label="Buka Riwayat Percakapan"
+              title={isEn ? "Open Conversation History" : "Buka Riwayat Percakapan"}
+              aria-label={isEn ? "Open Conversation History" : "Buka Riwayat Percakapan"}
             >
               <History className="h-4 w-4 text-primary shrink-0" />
-              <span className="font-bold">Riwayat</span>
+              <span className="font-bold">{isEn ? "History" : "Riwayat"}</span>
               <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-mono font-bold leading-none">
                 {sessions.length}
               </span>
@@ -525,8 +565,8 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
               type="button"
               onClick={() => setIsSidebarOpen((v) => !v)}
               className="hidden lg:inline-flex items-center justify-center h-9 w-9 rounded-lg border border-border/70 bg-card hover:bg-muted text-muted-foreground hover:text-foreground shadow-2xs active:scale-95 transition-all cursor-pointer"
-              title={isSidebarOpen ? "Sembunyikan Riwayat" : "Tampilkan Riwayat"}
-              aria-label={isSidebarOpen ? "Sembunyikan Riwayat" : "Tampilkan Riwayat"}
+              title={isSidebarOpen ? (isEn ? "Hide History" : "Sembunyikan Riwayat") : (isEn ? "Show History" : "Tampilkan Riwayat")}
+              aria-label={isSidebarOpen ? (isEn ? "Hide History" : "Sembunyikan Riwayat") : (isEn ? "Show History" : "Tampilkan Riwayat")}
             >
               {isSidebarOpen ? (
                 <PanelLeftClose className="h-4 w-4" />
@@ -552,11 +592,11 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
             type="button"
             onClick={handleNewSession}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary hover:bg-[#047857] text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer shrink-0 min-h-[44px]"
-            title="Mulai Sesi Chat Baru"
+            title={isEn ? "Start New Chat Session" : "Mulai Sesi Chat Baru"}
           >
             <Plus className="h-4 w-4 stroke-[2.5]" />
-            <span className="hidden xs:inline">Chat Baru</span>
-            <span className="xs:hidden">Baru</span>
+            <span className="hidden xs:inline">{isEn ? "New Chat" : "Chat Baru"}</span>
+            <span className="xs:hidden">{isEn ? "New" : "Baru"}</span>
           </button>
         </header>
 
@@ -565,7 +605,7 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
           {isSessionFetching && (
             <div className="py-2 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              <span>Memuat percakapan sesi...</span>
+              <span>{isEn ? "Loading session messages..." : "Memuat percakapan sesi..."}</span>
             </div>
           )}
 
@@ -586,7 +626,7 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
                   {msg.guardrailBlocked && (
                     <div className="mb-2.5 pb-2 border-b border-amber-500/20 flex items-center gap-1.5 text-[10px] font-mono text-amber-600 dark:text-amber-400 font-semibold uppercase tracking-wider">
                       <Shield className="h-3 w-3 shrink-0" />
-                      <span>Guardrail Fin.IQ Keuangan Aktif</span>
+                      <span>{isEn ? "Fin.IQ Financial Guardrail Active" : "Guardrail Fin.IQ Keuangan Aktif"}</span>
                     </div>
                   )}
 
@@ -610,12 +650,12 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
                       {copiedId === msg.id ? (
                         <>
                           <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                          <span className="text-emerald-600 dark:text-emerald-400 font-sans">Tersalin</span>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-sans">{isEn ? "Copied" : "Tersalin"}</span>
                         </>
                       ) : (
                         <>
                           <Copy className="h-3 w-3" />
-                          <span className="font-sans">Salin</span>
+                          <span className="font-sans">{isEn ? "Copy" : "Salin"}</span>
                         </>
                       )}
                     </button>
@@ -638,7 +678,7 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
           {askAssistantMutation.isPending && (
             <div className="w-full max-w-[92%] sm:max-w-[88%] rounded-lg p-3.5 text-xs bg-muted/20 border border-border/50 text-muted-foreground flex items-center gap-2.5 animate-in fade-in duration-150">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>Menganalisis transaksi dengan {activeModel.name}...</span>
+              <span>{isEn ? `Analyzing transactions with ${activeModel.name}...` : `Menganalisis transaksi dengan ${activeModel.name}...`}</span>
             </div>
           )}
 
@@ -647,16 +687,16 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
             <div className="pt-1.5 sm:pt-2">
               <div className="flex items-center justify-between mb-2 px-0.5">
                 <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-                  Ide Analisis & Solusi Finansial
+                  {isEn ? "Analysis Ideas & Financial Strategies" : "Ide Analisis & Solusi Finansial"}
                 </p>
                 <span className="text-[10px] text-muted-foreground/60 font-mono hidden sm:inline">
-                  Klik untuk evaluasi instan
+                  {isEn ? "Click for instant evaluation" : "Klik untuk evaluasi instan"}
                 </span>
               </div>
 
               {/* Desktop / Tablet Grid */}
               <div className="hidden sm:grid sm:grid-cols-2 gap-2">
-                {SUGGESTIONS.map((s, idx) => (
+                {suggestions.map((s, idx) => (
                   <button
                     key={idx}
                     type="button"
@@ -678,7 +718,7 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
 
               {/* Mobile Compact Horizontal Scroll Chips */}
               <div className="flex sm:hidden items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                {SUGGESTIONS.map((s, idx) => (
+                {suggestions.map((s, idx) => (
                   <button
                     key={idx}
                     type="button"
@@ -703,7 +743,7 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
             <div className="p-2.5 rounded-lg border border-rose-500/30 bg-rose-500/5 flex items-center gap-2 text-xs text-foreground animate-in fade-in duration-150">
               <Info className="h-4 w-4 text-rose-500 shrink-0" />
               <span className="text-[11px] leading-tight">
-                Batas kuota harian Anda (20 pertanyaan) telah tercapai. Kuota akan di-reset bertahap besok.
+                {isEn ? "Your daily quota limit (20 questions) has been reached. It will reset tomorrow." : "Batas kuota harian Anda (20 pertanyaan) telah tercapai. Kuota akan di-reset bertahap besok."}
               </span>
             </div>
           )}
@@ -716,7 +756,7 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
                 type="button"
                 onClick={() => setIsModelDropdownOpen((v) => !v)}
                 className="w-full inline-flex items-center justify-between gap-1.5 px-2.5 py-1.5 text-[11px] font-mono rounded-lg border border-border/80 bg-muted/40 hover:bg-muted text-foreground transition-colors cursor-pointer select-none min-h-[36px] active:scale-[0.98]"
-                title="Ganti Model AI (Khusus Free Tier)"
+                title={isEn ? "Switch AI Model (Free Tier)" : "Ganti Model AI (Khusus Free Tier)"}
                 aria-expanded={isModelDropdownOpen}
                 aria-haspopup="true"
               >
@@ -743,7 +783,7 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
                 <div className="absolute left-0 bottom-full mb-2 w-[calc(100vw-2.5rem)] max-w-xs sm:w-80 rounded-xl border border-border/80 bg-popover p-1.5 shadow-2xl shadow-black/20 z-50 animate-in fade-in zoom-in-95 duration-100 origin-bottom-left">
                   <div className="px-2 py-1.5 border-b border-border/60 mb-1 flex items-center justify-between">
                     <span className="text-[10px] font-mono uppercase text-muted-foreground font-semibold">
-                      Pilihan Model AI (Free Tier)
+                      {isEn ? "AI Model Selection (Free Tier)" : "Pilihan Model AI (Free Tier)"}
                     </span>
                     <span className="text-[9px] font-mono text-emerald-600 dark:text-emerald-400">
                       OpenRouter Demo
@@ -800,11 +840,11 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
                   ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
                   : "border-border/70 bg-muted/40 text-muted-foreground"
               }`}
-              title="Batas pemakaian prompt demo gratis per 24 jam"
+              title={isEn ? "Free demo prompt usage limit per 24 hours" : "Batas pemakaian prompt demo gratis per 24 jam"}
             >
               <Zap className="h-3.5 w-3.5 shrink-0" />
               <span>
-                Kuota: <strong className="font-bold text-foreground">{quota.remaining}</strong>/{quota.limit}
+                {isEn ? "Quota:" : "Kuota:"} <strong className="font-bold text-foreground">{quota.remaining}</strong>/{quota.limit}
               </span>
             </div>
           </div>
@@ -825,8 +865,8 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder={
                   quota.remaining <= 0
-                    ? "Batas kuota harian tercapai. Coba lagi besok."
-                    : `Tanyakan analisis keuangan...`
+                    ? (isEn ? "Daily quota limit reached. Try again tomorrow." : "Batas kuota harian tercapai. Coba lagi besok.")
+                    : (isEn ? "Ask about financial analysis..." : "Tanyakan analisis keuangan...")
                 }
                 className="w-full h-11 sm:h-10 px-3.5 text-xs rounded-xl sm:rounded-md bg-background border border-border/80 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-foreground transition-all placeholder:text-muted-foreground/60 pr-12 sm:pr-14 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
                 disabled={askAssistantMutation.isPending || quota.remaining <= 0}
@@ -839,7 +879,7 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
             <button
               type="submit"
               disabled={askAssistantMutation.isPending || !chatInput.trim() || quota.remaining <= 0}
-              aria-label="Kirim Pesan"
+              aria-label={isEn ? "Send Message" : "Kirim Pesan"}
               className="h-11 px-3.5 sm:h-10 sm:px-4 rounded-xl sm:rounded-md text-xs font-bold bg-primary hover:bg-[#047857] text-white shadow-xs transition-all active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0 flex items-center justify-center gap-1.5 min-w-[44px]"
             >
               {askAssistantMutation.isPending ? (
@@ -847,7 +887,7 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              <span className="hidden sm:inline">Kirim</span>
+              <span className="hidden sm:inline">{isEn ? "Send" : "Kirim"}</span>
             </button>
           </form>
         </footer>
@@ -857,12 +897,15 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
 }
 
 export default function AIPage() {
+  const { locale } = useTranslation();
+  const isEn = locale === "en";
+
   return (
     <Suspense
       fallback={
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-2">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          <p className="text-xs text-muted-foreground">Memuat AI Advisor...</p>
+          <p className="text-xs text-muted-foreground">{isEn ? "Loading AI Advisor..." : "Memuat AI Advisor..."}</p>
         </div>
       }
     >

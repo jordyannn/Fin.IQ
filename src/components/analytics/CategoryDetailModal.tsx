@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { useTranslation } from "@/i18n";
 import {
   X,
   TrendingDown,
@@ -43,6 +44,8 @@ export function CategoryDetailModal({
   dateFrom,
   dateTo,
 }: CategoryDetailModalProps) {
+  const { t, locale } = useTranslation();
+  const isEn = locale === "en";
   const isExpense = category?.kind === "expense";
 
   const { data: txData, isLoading } = trpc.transactions.list.useQuery(
@@ -98,7 +101,7 @@ export function CategoryDetailModal({
                       : "bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/20 border-emerald-500/20"
                   }`}
                 >
-                  {isExpense ? "Pengeluaran" : "Pemasukan"}
+                  {isExpense ? (isEn ? "Expense" : "Pengeluaran") : (isEn ? "Income" : "Pemasukan")}
                 </Badge>
               </div>
 
@@ -107,7 +110,7 @@ export function CategoryDetailModal({
                   <Calendar className="h-3.5 w-3.5" /> {periodLabel}
                 </span>
                 <span>•</span>
-                <span className="font-semibold">{category.percent}% dari total</span>
+                <span className="font-semibold">{category.percent}% {isEn ? "of total" : "dari total"}</span>
               </div>
             </div>
           </div>
@@ -115,7 +118,7 @@ export function CategoryDetailModal({
           <button
             onClick={onClose}
             className="h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all shrink-0 cursor-pointer active:scale-95 touch-manipulation"
-            title="Tutup"
+            title={isEn ? "Close" : "Tutup"}
           >
             <X className="h-5 w-5" />
           </button>
@@ -124,7 +127,7 @@ export function CategoryDetailModal({
         {/* Total Stat Box */}
         <div className="px-5 sm:px-6 py-3.5 bg-muted/30 border-b border-border/60 flex items-center justify-between">
           <span className="text-xs font-semibold text-muted-foreground">
-            Total Transaksi Periode Ini
+            {isEn ? "Total Transactions This Period" : "Total Transaksi Periode Ini"}
           </span>
           <span
             className={`text-base font-black ${
@@ -143,7 +146,7 @@ export function CategoryDetailModal({
           {isLoading && (
             <div className="py-12 flex flex-col items-center justify-center gap-2 text-muted-foreground text-xs">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              <span>Memuat data transaksi...</span>
+              <span>{isEn ? "Loading transactions..." : "Memuat data transaksi..."}</span>
             </div>
           )}
 
@@ -151,7 +154,11 @@ export function CategoryDetailModal({
             <div className="py-12 flex flex-col items-center justify-center text-center gap-2 text-muted-foreground">
               <Layers className="h-8 w-8 text-muted-foreground/40 stroke-1" />
               <p className="text-xs font-medium">
-                Tidak ada transaksi untuk kategori <strong>{category.name}</strong> pada {periodLabel}.
+                {isEn ? (
+                  <>No transactions for category <strong>{category.name}</strong> in {periodLabel}.</>
+                ) : (
+                  <>Tidak ada transaksi untuk kategori <strong>{category.name}</strong> pada {periodLabel}.</>
+                )}
               </p>
             </div>
           )}
@@ -164,13 +171,13 @@ export function CategoryDetailModal({
               >
                 <div className="min-w-0">
                   <div className="font-bold text-foreground truncate">
-                    {tx.note || "Tanpa Keterangan"}
+                    {tx.note || (isEn ? "No description" : "Tanpa Keterangan")}
                   </div>
                   <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
                     <span>{formatDate(tx.happenedAt)}</span>
                     <span>•</span>
                     <span className="flex items-center gap-1 font-medium capitalize text-muted-foreground">
-                      <Wallet className="h-3 w-3" /> {tx.accountName || "Kas"}
+                      <Wallet className="h-3 w-3" /> {tx.accountName || (isEn ? "Cash" : "Kas")}
                     </span>
                   </div>
                 </div>
@@ -194,7 +201,7 @@ export function CategoryDetailModal({
         {/* Footer */}
         <div className="p-4 pb-[max(1rem,calc(env(safe-area-inset-bottom,0px)+0.5rem))] border-t border-border/70 flex items-center justify-between bg-card">
           <span className="text-[11px] text-muted-foreground">
-            {txData?.items?.length || 0} catatan ditemukan
+            {txData?.items?.length || 0} {isEn ? "records found" : "catatan ditemukan"}
           </span>
           <div className="flex gap-2">
             <Button
@@ -204,11 +211,11 @@ export function CategoryDetailModal({
               onClick={onClose}
               className="text-xs font-semibold"
             >
-              Tutup
+              {isEn ? "Close" : "Tutup"}
             </Button>
             <Link href="/transactions">
               <Button size="sm" className="text-xs font-semibold gap-1.5">
-                Semua Transaksi <ExternalLink className="h-3.5 w-3.5" />
+                {isEn ? "All Transactions" : "Semua Transaksi"} <ExternalLink className="h-3.5 w-3.5" />
               </Button>
             </Link>
           </div>

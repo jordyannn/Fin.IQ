@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
-import { formatCurrency, formatDate, formatInputIDR, parseInputIDR } from "@/lib/utils";
+import { useTranslation } from "@/i18n";
+import { formatDate, formatInputIDR, parseInputIDR } from "@/lib/utils";
 import {
   Wallet,
   Plus,
@@ -49,6 +50,8 @@ interface AdjustBalanceState {
 export default function AccountsPage() {
   const utils = trpc.useUtils();
   const confirm = useConfirm();
+  const { t, locale, formatCurrency } = useTranslation();
+  const isEn = locale === "en";
 
   // Search & filter tab
   const [filterTab, setFilterTab] = useState<"all" | "active" | "hidden">("all");
@@ -148,7 +151,7 @@ export default function AccountsPage() {
     adjustBalanceMutation.mutate({
       accountId: adjustingAccount.id,
       newBalance: parseInputIDR(adjustingAccount.newBalance),
-      note: `Penyesuaian saldo manual (${formatDate(new Date())})`,
+      note: isEn ? `Manual balance adjustment (${formatDate(new Date())})` : `Penyesuaian saldo manual (${formatDate(new Date())})`,
     });
   };
 
@@ -172,9 +175,9 @@ export default function AccountsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">Akun &amp; Portofolio Rekening</h1>
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">{t.accounts.title}</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Rincian saldo seluruh rekening perbankan, dompet digital, dan kas fisik.
+            {t.accounts.subtitle}
           </p>
         </div>
 
@@ -184,7 +187,7 @@ export default function AccountsPage() {
             className="bg-primary hover:bg-[#047857] text-white gap-2 shadow-xs text-xs rounded-xl font-bold h-10 px-4 active:scale-95 transition-all cursor-pointer min-h-[44px]"
           >
             <Plus className="h-4 w-4 stroke-[3px]" />
-            Tambah Akun Baru
+            {t.accounts.newAccount}
           </Button>
         </div>
       </div>
@@ -196,15 +199,15 @@ export default function AccountsPage() {
             <div>
               <div className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                 <GeometricIcon name="accounts" size="xs" active />
-                <span>TOTAL SALDO KEKAYAAN</span>
+                <span>{isEn ? "TOTAL WEALTH BALANCE" : "TOTAL SALDO KEKAYAAN"}</span>
               </div>
               <div className="text-3xl sm:text-4xl lg:text-5xl font-black text-foreground tracking-tight mt-1.5">
                 {formatCurrency(accountsData?.totalBalance || 0)}
               </div>
               <p className="text-xs text-muted-foreground mt-1.5 font-medium flex items-center gap-2 flex-wrap">
-                <span>Tercatat pada seluruh instrumen keuangan</span>
+                <span>{isEn ? "Recorded across all financial instruments" : "Tercatat pada seluruh instrumen keuangan"}</span>
                 <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold bg-secondary text-secondary-foreground border border-emerald-300 dark:border-emerald-800">
-                  {accountsData?.accounts?.filter((a) => !a.isHidden).length || 0} Akun Aktif
+                  {accountsData?.accounts?.filter((a) => !a.isHidden).length || 0} {isEn ? "Active Accounts" : "Akun Aktif"}
                 </span>
               </p>
             </div>
@@ -218,17 +221,17 @@ export default function AccountsPage() {
           <div>
             <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
               <GeometricIcon name="integrity" size="xs" active />
-              <span>Status Rekening</span>
+              <span>{isEn ? "Account Status" : "Status Rekening"}</span>
             </div>
             <div className="grid grid-cols-2 gap-2.5 mt-2.5">
               <div className="p-2.5 bg-muted/40 rounded-xl border border-border/60">
-                <div className="text-[11px] text-muted-foreground font-semibold">Akun Aktif</div>
+                <div className="text-[11px] text-muted-foreground font-semibold">{isEn ? "Active" : "Akun Aktif"}</div>
                 <div className="text-xl font-bold mt-0.5 text-foreground">
                   {accountsData?.accounts?.filter((a) => !a.isHidden).length || 0}
                 </div>
               </div>
               <div className="p-2.5 bg-muted/40 rounded-xl border border-border/60">
-                <div className="text-[11px] text-muted-foreground font-semibold">Disembunyikan</div>
+                <div className="text-[11px] text-muted-foreground font-semibold">{isEn ? "Hidden" : "Disembunyikan"}</div>
                 <div className="text-xl font-bold mt-0.5 text-muted-foreground">
                   {accountsData?.accounts?.filter((a) => a.isHidden).length || 0}
                 </div>
@@ -236,7 +239,7 @@ export default function AccountsPage() {
             </div>
           </div>
           <p className="text-[11px] text-muted-foreground mt-2">
-            Akun yang disembunyikan tidak akan muncul pada dropdown transaksi harian.
+            {isEn ? "Hidden accounts will not appear in daily transaction dropdowns." : "Akun yang disembunyikan tidak akan muncul pada dropdown transaksi harian."}
           </p>
         </Card>
       </div>
@@ -252,7 +255,7 @@ export default function AccountsPage() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Semua ({accountsData?.accounts?.length || 0})
+            {t.accounts.filterAll} ({accountsData?.accounts?.length || 0})
           </button>
           <button
             onClick={() => setFilterTab("active")}
@@ -262,7 +265,7 @@ export default function AccountsPage() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Aktif ({(accountsData?.accounts || []).filter((a) => !a.isHidden).length})
+            {t.accounts.filterActive} ({(accountsData?.accounts || []).filter((a) => !a.isHidden).length})
           </button>
           <button
             onClick={() => setFilterTab("hidden")}
@@ -272,7 +275,7 @@ export default function AccountsPage() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Disembunyikan ({(accountsData?.accounts || []).filter((a) => a.isHidden).length})
+            {t.accounts.filterHidden} ({(accountsData?.accounts || []).filter((a) => a.isHidden).length})
           </button>
         </div>
 
@@ -280,7 +283,7 @@ export default function AccountsPage() {
           <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Cari nama akun atau catatan..."
+            placeholder={t.accounts.searchPlaceholder}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 h-10 text-xs rounded-xl"
@@ -348,7 +351,7 @@ export default function AccountsPage() {
                       </Badge>
                       {acc.isHidden && (
                         <Badge variant="outline" className="text-[9px] px-2 py-0.5 text-amber-600 border-amber-300 rounded-full">
-                          Disembunyikan
+                          {isEn ? "Hidden" : "Disembunyikan"}
                         </Badge>
                       )}
                     </div>
@@ -367,9 +370,9 @@ export default function AccountsPage() {
                         currency: acc.currency,
                       })
                     }
-                    aria-label="Sesuaikan Saldo Cepat"
+                    aria-label={isEn ? "Quick Adjust Balance" : "Sesuaikan Saldo Cepat"}
                     className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 active:scale-95 transition-all"
-                    title="Sesuaikan Saldo Cepat"
+                    title={isEn ? "Quick Adjust Balance" : "Sesuaikan Saldo Cepat"}
                   >
                     <SlidersHorizontal className="h-3.5 w-3.5" />
                   </button>
@@ -387,9 +390,9 @@ export default function AccountsPage() {
                         isHidden: acc.isHidden,
                       })
                     }
-                    aria-label="Ubah Rincian Akun"
+                    aria-label={isEn ? "Edit Account Details" : "Ubah Rincian Akun"}
                     className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 active:scale-95 transition-all"
-                    title="Ubah Rincian Akun"
+                    title={isEn ? "Edit Account Details" : "Ubah Rincian Akun"}
                   >
                     <Edit2 className="h-3.5 w-3.5" />
                   </button>
@@ -398,9 +401,9 @@ export default function AccountsPage() {
                     onClick={() =>
                       toggleHiddenMutation.mutate({ id: acc.id, isHidden: !acc.isHidden })
                     }
-                    aria-label={acc.isHidden ? "Tampilkan Akun" : "Sembunyikan Akun"}
+                    aria-label={acc.isHidden ? (isEn ? "Show Account" : "Tampilkan Akun") : (isEn ? "Hide Account" : "Sembunyikan Akun")}
                     className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all"
-                    title={acc.isHidden ? "Tampilkan Akun" : "Sembunyikan Akun"}
+                    title={acc.isHidden ? (isEn ? "Show Account" : "Tampilkan Akun") : (isEn ? "Hide Account" : "Sembunyikan Akun")}
                   >
                     {acc.isHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
                   </button>
@@ -408,9 +411,11 @@ export default function AccountsPage() {
                   <button
                     onClick={async () => {
                       const ok = await confirm({
-                        title: `Hapus Akun "${acc.name}"?`,
-                        description: `Akun "${acc.name}" akan dihapus dari daftar akun Anda. Tindakan ini tidak dapat dibatalkan.`,
-                        confirmText: "Hapus Akun",
+                        title: isEn ? `Delete Account "${acc.name}"?` : `Hapus Akun "${acc.name}"?`,
+                        description: isEn
+                          ? `Account "${acc.name}" will be deleted from your accounts list. This action cannot be undone.`
+                          : `Akun "${acc.name}" akan dihapus dari daftar akun Anda. Tindakan ini tidak dapat dibatalkan.`,
+                        confirmText: isEn ? "Delete Account" : "Hapus Akun",
                         variant: "destructive",
                         icon: "trash",
                       });
@@ -418,9 +423,9 @@ export default function AccountsPage() {
                         deleteMutation.mutate({ id: acc.id });
                       }
                     }}
-                    aria-label="Hapus Akun"
+                    aria-label={isEn ? "Delete Account" : "Hapus Akun"}
                     className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 active:scale-95 transition-all"
-                    title="Hapus Akun"
+                    title={isEn ? "Delete Account" : "Hapus Akun"}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -431,7 +436,7 @@ export default function AccountsPage() {
                 <div className="flex items-baseline justify-between mt-1">
                   <div>
                     <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                      Saldo Saat Ini
+                      {isEn ? "Current Balance" : "Saldo Saat Ini"}
                     </div>
                     <div className="text-xl font-bold tracking-tight text-foreground mt-0.5">
                       {formatCurrency(acc.balance, acc.currency)}
@@ -440,7 +445,7 @@ export default function AccountsPage() {
                 </div>
 
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-3 pt-2.5 border-t">
-                  <span>Saldo Awal: {formatCurrency(acc.initialBalance, acc.currency)}</span>
+                  <span>{isEn ? "Initial Balance:" : "Saldo Awal:"} {formatCurrency(acc.initialBalance, acc.currency)}</span>
                   <span className="font-bold text-foreground px-2 py-0.5 bg-muted rounded-sm text-[10px]">
                     {acc.currency}
                   </span>
@@ -467,7 +472,7 @@ export default function AccountsPage() {
                     className="text-[11px] font-medium text-primary hover:underline flex items-center gap-1"
                   >
                     <SlidersHorizontal className="h-3 w-3" />
-                    Sesuaikan Saldo
+                    {isEn ? "Adjust Balance" : "Sesuaikan Saldo"}
                   </button>
 
                   <button
@@ -486,7 +491,7 @@ export default function AccountsPage() {
                     className="text-[11px] font-medium text-muted-foreground hover:text-foreground flex items-center gap-1"
                   >
                     <Edit2 className="h-3 w-3" />
-                    Ubah Rincian
+                    {isEn ? "Edit Details" : "Ubah Rincian"}
                   </button>
                 </div>
               </CardContent>
@@ -496,7 +501,9 @@ export default function AccountsPage() {
 
         {filteredAccounts.length === 0 && (
           <div className="col-span-full p-12 text-center text-xs text-muted-foreground border rounded-md border-dashed">
-            {isLoading ? "Memuat akun..." : "Tidak ada akun keuangan yang cocok dengan filter."}
+            {isLoading
+              ? (isEn ? "Loading accounts..." : "Memuat akun...")
+              : (isEn ? "No financial accounts match your filter." : "Tidak ada akun keuangan yang cocok dengan filter.")}
           </div>
         )}
       </div>
@@ -509,7 +516,7 @@ export default function AccountsPage() {
           <div
             role="dialog"
             aria-modal="true"
-            aria-label="Tambah Akun Baru"
+            aria-label={isEn ? "Add New Financial Account" : "Tambah Akun Keuangan Baru"}
             className="relative w-full max-w-md rounded-t-3xl sm:rounded-2xl bg-card border shadow-2xl p-5 text-card-foreground max-h-[90vh] overflow-y-auto pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5"
           >
             {/* Visual Drag Handle Pill on Mobile */}
@@ -517,15 +524,15 @@ export default function AccountsPage() {
 
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <div>
-                <h2 className="text-sm font-bold">Tambah Akun Baru</h2>
+                <h2 className="text-sm font-bold">{isEn ? "Add New Account" : "Tambah Akun Baru"}</h2>
                 <p className="text-[11px] text-muted-foreground">
-                  Daftarkan dompet tunai atau rekening baru Anda.
+                  {isEn ? "Record a new bank account, e-wallet, or cash reserve." : "Catat rekening bank, dompet digital, atau uang tunai baru."}
                 </p>
               </div>
               <button
                 onClick={() => setIsAddOpen(false)}
                 className="h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
-                title="Tutup modal"
+                title={isEn ? "Close modal" : "Tutup modal"}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -533,10 +540,10 @@ export default function AccountsPage() {
 
             <form onSubmit={handleCreate} className="space-y-4 text-xs">
               <div>
-                <label className="font-semibold text-foreground">Nama Akun</label>
+                <label className="font-semibold text-foreground">{isEn ? "Account Name" : "Nama Akun"}</label>
                 <Input
                   type="text"
-                  placeholder="Contoh: Dompet Utama, BCA, Mandiri, GoPay"
+                  placeholder={isEn ? "e.g. BCA Primary, GoPay, Cash" : "cth. BCA Utama, GoPay, Kas Dompet"}
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   className="mt-1 h-9"
@@ -547,29 +554,29 @@ export default function AccountsPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold text-foreground">Kelompok Akun</label>
+                  <label className="font-semibold text-foreground">{isEn ? "Account Group" : "Kelompok Akun"}</label>
                   <select
                     value={newGroup}
                     onChange={(e) => setNewGroup(e.target.value)}
                     className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
-                    <option value="Cash">Cash (Uang Tunai)</option>
-                    <option value="Bank card">Bank card (Rekening Bank)</option>
+                    <option value="Cash">{isEn ? "Cash (Physical Money)" : "Cash (Uang Tunai)"}</option>
+                    <option value="Bank card">{isEn ? "Bank card (Bank Account)" : "Bank card (Rekening Bank)"}</option>
                     <option value="Alipay">Alipay / E-Wallet</option>
-                    <option value="Credit card">Credit card (Kartu Kredit)</option>
+                    <option value="Credit card">{isEn ? "Credit card (Credit Line)" : "Credit card (Kartu Kredit)"}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="font-semibold text-foreground">Mata Uang</label>
+                  <label className="font-semibold text-foreground">{isEn ? "Currency" : "Mata Uang"}</label>
                   <select
                     value={newCurrency}
                     onChange={(e) => setNewCurrency(e.target.value)}
                     className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
                     <option value="IDR">IDR (Rupiah)</option>
-                    <option value="USD">USD (Dollar AS)</option>
-                    <option value="SGD">SGD (Dollar Singapura)</option>
+                    <option value="USD">USD (US Dollar)</option>
+                    <option value="SGD">SGD (Singapore Dollar)</option>
                     <option value="EUR">EUR (Euro)</option>
                     <option value="MYR">MYR (Ringgit)</option>
                     <option value="JPY">JPY (Yen)</option>
@@ -578,25 +585,25 @@ export default function AccountsPage() {
               </div>
 
               <div>
-                <label className="font-semibold text-foreground">Saldo Awal</label>
+                <label className="font-semibold text-foreground">{isEn ? "Initial Balance" : "Saldo Awal"}</label>
                 <Input
                   type="text"
                   inputMode="numeric"
-                  placeholder=""
+                  placeholder="0"
                   value={newInitialBalance}
                   onChange={(e) => setNewInitialBalance(formatInputIDR(e.target.value))}
                   className="mt-1 h-9 font-mono"
                 />
                 <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                  Nominal uang yang ada saat akun ini pertama kali mulai dicatat.
+                  {isEn ? "Amount of money available when this account was first recorded." : "Nominal uang yang ada saat akun ini pertama kali mulai dicatat."}
                 </span>
               </div>
 
               <div>
-                <label className="font-semibold text-foreground">Keterangan / Catatan (Opsional)</label>
+                <label className="font-semibold text-foreground">{isEn ? "Notes (Optional)" : "Catatan (Opsional)"}</label>
                 <Input
                   type="text"
-                  placeholder="Misal: Nomor rekening atau catatan tambahan"
+                  placeholder={isEn ? "e.g. Account number, usage details" : "cth. No rekening, catatan khusus"}
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
                   className="mt-1 h-9"
@@ -610,14 +617,14 @@ export default function AccountsPage() {
                   className="w-1/2"
                   onClick={() => setIsAddOpen(false)}
                 >
-                  Batal
+                  {t.common.cancel}
                 </Button>
                 <Button
                   type="submit"
                   disabled={createMutation.isPending}
                   className="w-1/2 bg-primary text-white"
                 >
-                  {createMutation.isPending ? "Menyimpan..." : "Simpan Akun"}
+                  {createMutation.isPending ? (isEn ? "Saving..." : "Menyimpan...") : (isEn ? "Save Account" : "Simpan Akun")}
                 </Button>
               </div>
             </form>
@@ -633,7 +640,7 @@ export default function AccountsPage() {
           <div
             role="dialog"
             aria-modal="true"
-            aria-label="Ubah Akun Keuangan"
+            aria-label={isEn ? "Edit Financial Account" : "Ubah Akun Keuangan"}
             className="relative w-full max-w-md rounded-t-3xl sm:rounded-2xl bg-card border shadow-2xl p-5 text-card-foreground max-h-[90vh] overflow-y-auto pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5"
           >
             {/* Visual Drag Handle Pill on Mobile */}
@@ -641,15 +648,15 @@ export default function AccountsPage() {
 
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <div>
-                <h2 className="text-sm font-bold">Ubah Akun Keuangan</h2>
+                <h2 className="text-sm font-bold">{isEn ? "Edit Financial Account" : "Ubah Akun Keuangan"}</h2>
                 <p className="text-[11px] text-muted-foreground">
-                  Sesuaikan nama, tipe kelompok, atau koreksi saldo akun ini.
+                  {isEn ? "Adjust name, group type, or correct the balance of this account." : "Sesuaikan nama, tipe kelompok, atau koreksi saldo akun ini."}
                 </p>
               </div>
               <button
                 onClick={() => setEditingAccount(null)}
                 className="h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
-                title="Tutup modal"
+                title={isEn ? "Close modal" : "Tutup modal"}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -657,7 +664,7 @@ export default function AccountsPage() {
 
             <form onSubmit={handleUpdate} className="space-y-4 text-xs">
               <div>
-                <label className="font-semibold text-foreground">Nama Akun</label>
+                <label className="font-semibold text-foreground">{isEn ? "Account Name" : "Nama Akun"}</label>
                 <Input
                   type="text"
                   value={editingAccount.name}
@@ -671,7 +678,7 @@ export default function AccountsPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold text-foreground">Kelompok Akun</label>
+                  <label className="font-semibold text-foreground">{isEn ? "Account Group" : "Kelompok Akun"}</label>
                   <select
                     value={editingAccount.group}
                     onChange={(e) =>
@@ -679,15 +686,15 @@ export default function AccountsPage() {
                     }
                     className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
-                    <option value="Cash">Cash (Uang Tunai)</option>
-                    <option value="Bank card">Bank card (Rekening Bank)</option>
-                    <option value="Alipay">Alipay / E-Wallet</option>
-                    <option value="Credit card">Credit card (Kartu Kredit)</option>
+                    <option value="Cash">{isEn ? "Cash (Physical Money)" : "Cash (Uang Tunai)"}</option>
+                    <option value="Bank card">{isEn ? "Bank card (Bank Account)" : "Bank card (Rekening Bank)"}</option>
+                    <option value="Alipay">{isEn ? "E-Wallet" : "Alipay / E-Wallet"}</option>
+                    <option value="Credit card">{isEn ? "Credit card (Credit Line)" : "Credit card (Kartu Kredit)"}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="font-semibold text-foreground">Mata Uang</label>
+                  <label className="font-semibold text-foreground">{isEn ? "Currency" : "Mata Uang"}</label>
                   <select
                     value={editingAccount.currency}
                     onChange={(e) =>
@@ -695,19 +702,19 @@ export default function AccountsPage() {
                     }
                     className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
-                    <option value="IDR">IDR (Rupiah)</option>
-                    <option value="USD">USD (Dollar AS)</option>
-                    <option value="SGD">SGD (Dollar Singapura)</option>
+                    <option value="IDR">IDR ({isEn ? "Indonesian Rupiah" : "Rupiah"})</option>
+                    <option value="USD">USD ({isEn ? "US Dollar" : "Dollar AS"})</option>
+                    <option value="SGD">SGD ({isEn ? "Singapore Dollar" : "Dollar Singapura"})</option>
                     <option value="EUR">EUR (Euro)</option>
-                    <option value="MYR">MYR (Ringgit)</option>
-                    <option value="JPY">JPY (Yen)</option>
+                    <option value="MYR">MYR ({isEn ? "Malaysian Ringgit" : "Ringgit"})</option>
+                    <option value="JPY">JPY ({isEn ? "Japanese Yen" : "Yen"})</option>
                   </select>
                 </div>
               </div>
 
               <div>
                 <label className="font-semibold text-foreground">
-                  Saldo Saat Ini ({editingAccount.currency})
+                  {isEn ? "Current Balance" : "Saldo Saat Ini"} ({editingAccount.currency})
                 </label>
                 <Input
                   type="text"
@@ -723,13 +730,13 @@ export default function AccountsPage() {
                   className="mt-1 h-9 font-bold text-sm font-mono"
                 />
                 <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                  Ubah angka ini jika ingin menyelaraskan langsung dengan saldo riil di dompet atau bank Anda.
+                  {isEn ? "Change this number if you want to directly match the actual balance in your wallet or bank." : "Ubah angka ini jika ingin menyelaraskan langsung dengan saldo riil di dompet atau bank Anda."}
                 </span>
               </div>
 
               <div>
                 <label className="font-semibold text-foreground">
-                  Saldo Awal ({editingAccount.currency})
+                  {isEn ? "Initial Balance" : "Saldo Awal"} ({editingAccount.currency})
                 </label>
                 <Input
                   type="text"
@@ -747,7 +754,7 @@ export default function AccountsPage() {
               </div>
 
               <div>
-                <label className="font-semibold text-foreground">Catatan</label>
+                <label className="font-semibold text-foreground">{isEn ? "Notes" : "Catatan"}</label>
                 <Input
                   type="text"
                   value={editingAccount.note}
@@ -755,7 +762,7 @@ export default function AccountsPage() {
                     setEditingAccount({ ...editingAccount, note: e.target.value })
                   }
                   className="mt-1 h-9"
-                  placeholder="Keterangan tambahan"
+                  placeholder={isEn ? "Additional notes" : "Keterangan tambahan"}
                 />
               </div>
 
@@ -766,14 +773,14 @@ export default function AccountsPage() {
                   className="w-1/2"
                   onClick={() => setEditingAccount(null)}
                 >
-                  Batal
+                  {t.common.cancel}
                 </Button>
                 <Button
                   type="submit"
                   disabled={updateMutation.isPending}
                   className="w-1/2 bg-primary text-white"
                 >
-                  {updateMutation.isPending ? "Menyimpan..." : "Simpan Perubahan"}
+                  {updateMutation.isPending ? (isEn ? "Saving..." : "Menyimpan...") : (isEn ? "Save Changes" : "Simpan Perubahan")}
                 </Button>
               </div>
             </form>
@@ -792,15 +799,15 @@ export default function AccountsPage() {
 
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <div>
-                <h2 className="text-sm font-bold">Sesuaikan Saldo</h2>
+                <h2 className="text-sm font-bold">{isEn ? "Adjust Balance" : "Sesuaikan Saldo"}</h2>
                 <p className="text-[11px] text-muted-foreground">
-                  Akun: <span className="font-semibold text-foreground">{adjustingAccount.name}</span>
+                  {isEn ? "Account:" : "Akun:"} <span className="font-semibold text-foreground">{adjustingAccount.name}</span>
                 </p>
               </div>
               <button
                 onClick={() => setAdjustingAccount(null)}
                 className="h-8 w-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
-                title="Tutup modal"
+                title={isEn ? "Close modal" : "Tutup modal"}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -808,7 +815,7 @@ export default function AccountsPage() {
 
             <form onSubmit={handleAdjustBalance} className="space-y-4 text-xs">
               <div className="p-3 bg-muted/40 rounded-sm space-y-1">
-                <div className="text-[10px] text-muted-foreground">Saldo Tercatat Saat Ini</div>
+                <div className="text-[10px] text-muted-foreground">{isEn ? "Current Recorded Balance" : "Saldo Tercatat Saat Ini"}</div>
                 <div className="text-lg font-bold text-foreground">
                   {formatCurrency(adjustingAccount.currentBalance, adjustingAccount.currency)}
                 </div>
@@ -816,7 +823,7 @@ export default function AccountsPage() {
 
               <div>
                 <label className="font-semibold text-foreground">
-                  Saldo Riil / Baru ({adjustingAccount.currency})
+                  {isEn ? "Real / New Balance" : "Saldo Riil / Baru"} ({adjustingAccount.currency})
                 </label>
                 <Input
                   type="text"
@@ -836,7 +843,7 @@ export default function AccountsPage() {
                   const parsedDiff = parseInputIDR(adjustingAccount.newBalance) - adjustingAccount.currentBalance;
                   return (
                     <span className="text-[10px] text-muted-foreground mt-1 block">
-                      Selisih:{" "}
+                      {isEn ? "Difference: " : "Selisih: "}
                       <span
                         className={
                           parsedDiff >= 0
@@ -859,14 +866,14 @@ export default function AccountsPage() {
                   className="w-1/2"
                   onClick={() => setAdjustingAccount(null)}
                 >
-                  Batal
+                  {t.common.cancel}
                 </Button>
                 <Button
                   type="submit"
                   disabled={adjustBalanceMutation.isPending}
                   className="w-1/2 bg-primary text-white"
                 >
-                  {adjustBalanceMutation.isPending ? "Menyimpan..." : "Update Saldo"}
+                  {adjustBalanceMutation.isPending ? (isEn ? "Saving..." : "Menyimpan...") : (isEn ? "Update Balance" : "Update Saldo")}
                 </Button>
               </div>
             </form>

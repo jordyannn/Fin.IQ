@@ -51,7 +51,7 @@ import { CsvImportTutorialModal } from "@/components/import/CsvImportTutorialMod
 import { MascotRoamingStage } from "@/components/mascot/MascotRoamingStage";
 import { CatHouseBed } from "@/components/mascot/CatHouseBed";
 import { useMascotStore } from "@/store/mascot.store";
-import { MonthYearPicker, MONTHS_ID } from "@/components/ui/MonthYearPicker";
+import { MonthYearPicker, MONTHS_ID, MONTHS_EN } from "@/components/ui/MonthYearPicker";
 import {
   AreaChart,
   Area,
@@ -80,7 +80,8 @@ export default function OverviewPage() {
   const { openQuickAdd } = useUIStore();
   const { isSleeping, setIsSleeping } = useMascotStore();
   const utils = trpc.useUtils();
-  const { t, formatCurrency, formatDate } = useTranslation();
+  const { t, formatCurrency, formatDate, locale } = useTranslation();
+  const isEn = locale === "en";
 
   // Date Filter state - Disamakan dengan Transactions Page
   const [datePreset, setDatePreset] = useState<DateFilterPreset>("this_month");
@@ -125,8 +126,8 @@ export default function OverviewPage() {
 
   // Perhitungan rentang tanggal dan label periode
   const { dateFrom, dateTo, periodLabel } = useMemo(() => {
-    return computeDateRange(datePreset, currentMonth, customDateFrom, customDateTo);
-  }, [datePreset, currentMonth, customDateFrom, customDateTo]);
+    return computeDateRange(datePreset, currentMonth, customDateFrom, customDateTo, locale);
+  }, [datePreset, currentMonth, customDateFrom, customDateTo, locale]);
 
   const isCurrentMonthNow =
     currentMonth.getMonth() === new Date().getMonth() &&
@@ -250,7 +251,7 @@ export default function OverviewPage() {
     const points: Array<{ idx: number; date: string; running: number }> = [
       {
         idx: 0,
-        date: "Mulai",
+        date: isEn ? "Start" : "Mulai",
         running: 0,
       },
     ];
@@ -333,12 +334,12 @@ export default function OverviewPage() {
   }, [heatmapData, datePreset, currentMonth, summary]);
 
   // Metadata Kuartal untuk 4 Halaman Carousel
-  const quarterMetadata = [
-    { page: 0, label: "Q1", title: "Kuartal 1", range: "Januari - Maret", shortRange: "Jan - Mar" },
-    { page: 1, label: "Q2", title: "Kuartal 2", range: "April - Juni", shortRange: "Apr - Jun" },
-    { page: 2, label: "Q3", title: "Kuartal 3", range: "Juli - September", shortRange: "Jul - Sep" },
-    { page: 3, label: "Q4", title: "Kuartal 4", range: "Oktober - Desember", shortRange: "Okt - Des" },
-  ];
+  const quarterMetadata = useMemo(() => [
+    { page: 0, label: "Q1", title: isEn ? "Quarter 1" : "Kuartal 1", range: isEn ? "January - March" : "Januari - Maret", shortRange: isEn ? "Jan - Mar" : "Jan - Mar" },
+    { page: 1, label: "Q2", title: isEn ? "Quarter 2" : "Kuartal 2", range: isEn ? "April - June" : "April - Juni", shortRange: isEn ? "Apr - Jun" : "Apr - Jun" },
+    { page: 2, label: "Q3", title: isEn ? "Quarter 3" : "Kuartal 3", range: isEn ? "July - September" : "Juli - September", shortRange: isEn ? "Jul - Sep" : "Jul - Sep" },
+    { page: 3, label: "Q4", title: isEn ? "Quarter 4" : "Kuartal 4", range: isEn ? "October - December" : "Oktober - Desember", shortRange: isEn ? "Oct - Dec" : "Okt - Des" },
+  ], [isEn]);
 
   // Heatmap Data dibagi menjadi 4 Halaman Carousel (3 bulan per halaman)
   const heatmapPages = useMemo(() => {
@@ -362,7 +363,7 @@ export default function OverviewPage() {
       for (const item of txListData.items) {
         if (item.txType === "expense") {
           const catId = item.categoryId || "uncategorized";
-          const catName = item.categoryName || "Lainnya";
+          const catName = item.categoryName || (isEn ? "Others" : "Lainnya");
           const cur = map.get(catId) || { id: catId, name: catName, icon: null, total: 0, count: 0 };
           cur.total += item.amount;
           cur.count += 1;
@@ -390,7 +391,7 @@ export default function OverviewPage() {
       for (const item of txListData.items) {
         if (item.txType === "income") {
           const catId = item.categoryId || "uncategorized";
-          const catName = item.categoryName || "Lainnya";
+          const catName = item.categoryName || (isEn ? "Others" : "Lainnya");
           const cur = map.get(catId) || { id: catId, name: catName, icon: null, total: 0, count: 0 };
           cur.total += item.amount;
           cur.count += 1;
@@ -462,7 +463,7 @@ export default function OverviewPage() {
                 size="icon"
                 className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
                 onClick={handlePrevPeriod}
-                title="Bulan sebelumnya"
+                title={isEn ? "Previous month" : "Bulan sebelumnya"}
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
@@ -471,7 +472,7 @@ export default function OverviewPage() {
                 type="button"
                 onClick={() => setIsMonthPickerOpen((prev) => !prev)}
                 className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 text-xs font-bold capitalize rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-foreground select-none group cursor-pointer active:scale-95"
-                title="Klik untuk memilih bulan secara langsung dari kalender"
+                title={isEn ? "Click to pick a month directly from calendar" : "Klik untuk memilih bulan secara langsung dari kalender"}
               >
                 <Calendar className="h-3.5 w-3.5 text-primary group-hover:scale-105 transition-transform shrink-0" />
                 <span className="whitespace-nowrap font-bold">{periodLabel}</span>
@@ -483,7 +484,7 @@ export default function OverviewPage() {
                 size="icon"
                 className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
                 onClick={handleNextPeriod}
-                title="Bulan berikutnya"
+                title={isEn ? "Next month" : "Bulan berikutnya"}
               >
                 <ChevronRight className="h-3.5 w-3.5" />
               </Button>
@@ -492,9 +493,9 @@ export default function OverviewPage() {
                 <button
                   onClick={handleResetPeriod}
                   className="hidden xs:inline-block px-1.5 py-0.5 text-[10px] font-bold text-primary hover:underline rounded-sm border-l border-border/60 pl-1.5 cursor-pointer whitespace-nowrap"
-                  title="Kembali ke bulan saat ini"
+                  title={isEn ? "Back to current month" : "Kembali ke bulan saat ini"}
                 >
-                  Bulan Ini
+                  {t.dateFilter.thisMonth}
                 </button>
               )}
 
@@ -519,7 +520,7 @@ export default function OverviewPage() {
                 size="icon"
                 className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
                 onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear() - 1, 0, 1))}
-                title="Tahun sebelumnya"
+                title={isEn ? "Previous year" : "Tahun sebelumnya"}
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
@@ -528,9 +529,9 @@ export default function OverviewPage() {
                 type="button"
                 onClick={() => setIsMonthPickerOpen((prev) => !prev)}
                 className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 text-xs font-bold rounded-sm hover:bg-primary/10 hover:text-primary transition-all text-foreground cursor-pointer active:scale-95 whitespace-nowrap"
-                title="Pilih tahun atau bulan langsung"
+                title={isEn ? "Choose year or month directly" : "Pilih tahun atau bulan langsung"}
               >
-                <span>Tahun {currentMonth.getFullYear()}</span>
+                <span>{isEn ? `Year ${currentMonth.getFullYear()}` : `Tahun ${currentMonth.getFullYear()}`}</span>
                 <ChevronDown className="h-3 w-3 opacity-60" />
               </button>
 
@@ -539,7 +540,7 @@ export default function OverviewPage() {
                 size="icon"
                 className="h-7 w-7 sm:h-6 sm:w-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer active:scale-95"
                 onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear() + 1, 0, 1))}
-                title="Tahun berikutnya"
+                title={isEn ? "Next year" : "Tahun berikutnya"}
               >
                 <ChevronRight className="h-3.5 w-3.5" />
               </Button>
@@ -548,9 +549,9 @@ export default function OverviewPage() {
                 <button
                   onClick={() => setCurrentMonth(new Date())}
                   className="hidden xs:inline-block px-1.5 py-0.5 text-[10px] font-bold text-primary hover:underline rounded-sm border-l border-border/60 pl-1.5 cursor-pointer whitespace-nowrap"
-                  title="Kembali ke tahun sekarang"
+                  title={isEn ? "Back to current year" : "Kembali ke tahun sekarang"}
                 >
-                  Tahun Ini
+                  {t.dateFilter.thisYear}
                 </button>
               )}
 
@@ -575,7 +576,7 @@ export default function OverviewPage() {
                 value={customDateFrom}
                 onChange={(e) => setCustomDateFrom(e.target.value)}
                 className="h-8 text-xs w-28 xs:w-32 px-2 rounded-md"
-                placeholder="Dari"
+                placeholder={isEn ? "From" : "Dari"}
               />
               <span className="text-muted-foreground text-[11px]">-</span>
               <Input
@@ -583,7 +584,7 @@ export default function OverviewPage() {
                 value={customDateTo}
                 onChange={(e) => setCustomDateTo(e.target.value)}
                 className="h-8 text-xs w-28 xs:w-32 px-2 rounded-md"
-                placeholder="Sampai"
+                placeholder={isEn ? "To" : "Sampai"}
               />
             </div>
           )}
@@ -599,7 +600,7 @@ export default function OverviewPage() {
                     ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/20"
                     : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 active:scale-95 cursor-pointer"
                 }`}
-                title="Buka Pemilih Bulan & Kalender Langsung"
+                title={isEn ? "Open Direct Month & Calendar Picker" : "Buka Pemilih Bulan & Kalender Langsung"}
               >
                 <Calendar className="h-3.5 w-3.5 text-primary" />
                 <span className="hidden xs:inline">{periodLabel}</span>
@@ -633,14 +634,14 @@ export default function OverviewPage() {
             }}
             className="h-8 max-w-[95px] xs:max-w-[115px] sm:max-w-none rounded-md border border-border bg-card pl-2 pr-7 text-xs font-bold text-foreground shadow-2xs transition-all hover:border-primary/40 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary truncate"
           >
-            <option value="this_month">Bulan Ini</option>
-            <option value="today">Hari Ini</option>
-            <option value="last_7_days">7 Hari</option>
-            <option value="last_30_days">30 Hari</option>
-            <option value="last_month">Bulan Lalu</option>
-            <option value="this_year">Tahun Ini</option>
-            <option value="all">Semua</option>
-            <option value="custom">Kustom</option>
+            <option value="this_month">{t.dateFilter.thisMonth}</option>
+            <option value="today">{t.dateFilter.today}</option>
+            <option value="last_7_days">{t.dateFilter.last7Days}</option>
+            <option value="last_30_days">{t.dateFilter.last30Days}</option>
+            <option value="last_month">{t.dateFilter.lastMonth}</option>
+            <option value="this_year">{t.dateFilter.thisYear}</option>
+            <option value="all">{t.dateFilter.allTime}</option>
+            <option value="custom">{t.dateFilter.custom}</option>
           </select>
 
           {/* Tombol Perbarui */}
@@ -649,7 +650,7 @@ export default function OverviewPage() {
             size="icon"
             onClick={handleRefreshAll}
             className="h-8 w-8 rounded-md border border-border/80 bg-card text-muted-foreground hover:text-foreground shrink-0 shadow-2xs active:scale-95 cursor-pointer"
-            title="Perbarui data overview"
+            title={isEn ? "Refresh overview data" : "Perbarui data overview"}
           >
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
@@ -661,7 +662,7 @@ export default function OverviewPage() {
               size="sm"
               onClick={handleResetAllFilters}
               className="h-8 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 gap-1 px-2 rounded-md font-bold shrink-0 border border-rose-500/25 shadow-2xs cursor-pointer active:scale-95"
-              title="Reset filter ke Bulan Ini"
+              title={isEn ? "Reset filter to This Month" : "Reset filter ke Bulan Ini"}
             >
               <RotateCcw className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Reset</span>
@@ -773,13 +774,13 @@ export default function OverviewPage() {
       <div data-walker-target="accounts" id="walker-target-accounts" className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
           <h3 className="font-extrabold text-sm sm:text-base text-foreground tracking-tight">
-            Dompet &amp; Rekening
+            {t.overview.walletsAndAccounts}
           </h3>
           <Link
             href="/accounts"
             className="text-xs text-primary font-bold hover:underline flex items-center gap-1 active:scale-95"
           >
-            <span>Kelola</span>
+            <span>{t.common.manage}</span>
             <ChevronRightIcon className="h-3.5 w-3.5" />
           </Link>
         </div>
@@ -821,7 +822,7 @@ export default function OverviewPage() {
           })}
           {accountsList.length === 0 && (
             <div className="p-5 rounded-2xl border border-dashed border-border bg-card/50 text-xs text-muted-foreground text-center w-full">
-              Belum ada rekening terdaftar. Klik + Tambah untuk mendaftarkan akun kas atau bank Anda.
+              {t.overview.emptyAccounts}
             </div>
           )}
         </div>
@@ -833,13 +834,13 @@ export default function OverviewPage() {
       <div className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
           <h3 className="font-extrabold text-sm sm:text-base text-foreground tracking-tight">
-            Transaksi Terakhir
+            {t.overview.recentTransactions}
           </h3>
           <Link
             href="/transactions"
             className="text-xs text-primary font-bold hover:underline flex items-center gap-1 active:scale-95"
           >
-            <span>Lihat Semua</span>
+            <span>{t.common.viewAll}</span>
             <ChevronRightIcon className="h-3.5 w-3.5" />
           </Link>
         </div>
@@ -870,12 +871,12 @@ export default function OverviewPage() {
                   </div>
                   <div className="min-w-0">
                     <div className="font-bold text-foreground truncate text-xs sm:text-sm">
-                      {tx.categoryName || tx.note || "Transaksi Umum"}
+                      {tx.categoryName || tx.note || (isEn ? "General Transaction" : "Transaksi Umum")}
                     </div>
                     <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 truncate mt-0.5">
                       <span>{formatDate(tx.happenedAt)}</span>
                       <span>•</span>
-                      <span className="capitalize">{tx.accountName || "Kas"}</span>
+                      <span className="capitalize">{tx.accountName || (isEn ? "Cash" : "Kas")}</span>
                       {tx.note && tx.categoryName && (
                         <>
                           <span>•</span>
@@ -906,7 +907,11 @@ export default function OverviewPage() {
 
           {recentDisplayList.length === 0 && (
             <div className="py-8 text-center text-xs text-muted-foreground">
-              Belum ada transaksi tercatat di periode <strong>{periodLabel}</strong>. Klik <strong>+ Catat Transaksi</strong> untuk memulai.
+              {isEn ? (
+                <>No transactions recorded in <strong>{periodLabel}</strong>. Click <strong>+ Add Transaction</strong> to get started.</>
+              ) : (
+                <>Belum ada transaksi tercatat di periode <strong>{periodLabel}</strong>. Klik <strong>+ Catat Transaksi</strong> untuk memulai.</>
+              )}
             </div>
           )}
         </Card>
@@ -918,20 +923,20 @@ export default function OverviewPage() {
       <Card data-tour="overview-sparkline" className="p-4 sm:p-5 rounded-2xl border-border/80 shadow-2xs flex flex-col gap-2.5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <span className="text-xs sm:text-sm font-bold text-foreground">
-            Kurva Pergerakan Arus Kas
+            {t.overview.cashFlowCurve}
           </span>
 
           {/* Chips Metrik Kurva */}
           <div className="flex flex-wrap items-center gap-3 text-xs">
             <span className="text-muted-foreground">
-              Mulai: <strong className="text-foreground">Rp 0</strong>
+              {t.overview.starting} <strong className="text-foreground">{formatCurrency(0)}</strong>
             </span>
             <span
               className={`font-bold ${
                 summary.net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
               }`}
             >
-              Posisi Akhir: {summary.net > 0 ? "+" : ""}{formatCurrency(summary.net)}
+              {t.overview.endingPosition} {summary.net > 0 ? "+" : ""}{formatCurrency(summary.net)}
             </span>
           </div>
         </div>
@@ -964,13 +969,13 @@ export default function OverviewPage() {
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={(v) => {
-                    if (Math.abs(v) >= 1000000) return `${(v / 1000000).toFixed(1)}jt`;
-                    if (Math.abs(v) >= 1000) return `${(v / 1000).toFixed(0)}rb`;
+                    if (Math.abs(v) >= 1000000) return isEn ? `${(v / 1000000).toFixed(1)}M` : `${(v / 1000000).toFixed(1)}jt`;
+                    if (Math.abs(v) >= 1000) return isEn ? `${(v / 1000).toFixed(0)}k` : `${(v / 1000).toFixed(0)}rb`;
                     return String(v);
                   }}
                 />
                 <Tooltip
-                  formatter={(val: any) => [formatCurrency(val), "Arus Kas Bersih"]}
+                  formatter={(val: any) => [formatCurrency(val), t.overview.netCashFlow]}
                   labelFormatter={(label, payload) => payload?.[0]?.payload?.date || ""}
                   contentStyle={{
                     backgroundColor: "var(--card)",
@@ -994,8 +999,10 @@ export default function OverviewPage() {
           </div>
         ) : (
           <div className="h-32 flex flex-col items-center justify-center text-xs text-muted-foreground border rounded-xl border-dashed bg-background/50 gap-1">
-            <span>Belum ada transaksi di periode {periodLabel}</span>
-            <span className="text-[11px] text-muted-foreground/75">Klik Catat Transaksi atau Impor Transaksi untuk mengisi data</span>
+            <span>{isEn ? `No transactions in ${periodLabel}` : `Belum ada transaksi di periode ${periodLabel}`}</span>
+            <span className="text-[11px] text-muted-foreground/75">
+              {isEn ? "Click Add Transaction or Import Transactions to fill data" : "Klik Catat Transaksi atau Impor Transaksi untuk mengisi data"}
+            </span>
           </div>
         )}
       </Card>
@@ -1014,22 +1021,24 @@ export default function OverviewPage() {
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-secondary text-secondary-foreground border border-emerald-300 dark:border-emerald-800">
                 <GeometricIcon name="sparkles" size="xs" active />
-                Impor Data
+                {isEn ? "Import Data" : "Impor Data"}
               </span>
             </div>
 
             <h2 className="text-lg sm:text-xl font-black text-foreground tracking-tight leading-snug">
-              Impor Rekening &amp; File Transaksi
+              {isEn ? "Import Accounts & Transaction Files" : "Impor Rekening & File Transaksi"}
             </h2>
 
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Tarik mutasi dari berkas bank (BCA, Mandiri, BRI, BNI), e-wallet, atau spreadsheet langsung ke pembukuan.
+              {isEn
+                ? "Pull statements from bank files (BCA, Mandiri, BRI, BNI), e-wallets, or spreadsheets directly into records."
+                : "Tarik mutasi dari berkas bank (BCA, Mandiri, BRI, BNI), e-wallet, atau spreadsheet langsung ke pembukuan."}
             </p>
 
             <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
               <span className="px-2 py-0.5 rounded-md bg-background/80 border border-border text-foreground font-medium flex items-center gap-1.5 shadow-2xs">
                 <GeometricIcon name="transactions" size="xs" active />
-                Mutasi Rekening
+                {isEn ? "Bank Statements" : "Mutasi Rekening"}
               </span>
               <span className="px-2 py-0.5 rounded-md bg-background/80 border border-border text-foreground font-medium flex items-center gap-1.5 shadow-2xs">
                 <GeometricIcon name="ledgers" size="xs" active />
@@ -1037,7 +1046,7 @@ export default function OverviewPage() {
               </span>
               <span className="px-2 py-0.5 rounded-md bg-background/80 border border-border text-foreground font-medium flex items-center gap-1.5 shadow-2xs">
                 <GeometricIcon name="ai" size="xs" active />
-                Foto Struk Kasir
+                {isEn ? "Receipt Scanner" : "Foto Struk Kasir"}
               </span>
             </div>
           </div>
@@ -1046,7 +1055,7 @@ export default function OverviewPage() {
             <Link href="/import">
               <Button className="rounded-xl bg-primary hover:bg-[#047857] text-white font-bold text-xs sm:text-sm px-4 py-2 shadow-xs gap-2 active:scale-95 transition-all">
                 <GeometricIcon name="import" size="xs" active />
-                <span>Impor Berkas</span>
+                <span>{isEn ? "Import Files" : "Impor Berkas"}</span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
@@ -1056,7 +1065,7 @@ export default function OverviewPage() {
               className="text-xs font-semibold text-primary hover:underline flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-background/60 border border-border"
             >
               <HelpCircle className="h-3.5 w-3.5" />
-              <span>Format file yang didukung</span>
+              <span>{isEn ? "Supported file formats" : "Format file yang didukung"}</span>
               <ChevronRightIcon className="h-3 w-3" />
             </Link>
           </div>
@@ -1076,10 +1085,10 @@ export default function OverviewPage() {
           </div>
           <div className="min-w-0">
             <div className="text-[11px] text-muted-foreground font-semibold truncate">
-              Rata-rata Pengeluaran
+              {isEn ? "Daily Spending Avg" : "Rata-rata Pengeluaran"}
             </div>
             <div className="text-base font-extrabold text-foreground truncate">
-              {formatCurrency(habitStats.dailyAvg)} / hari
+              {formatCurrency(habitStats.dailyAvg)} {isEn ? "/ day" : "/ hari"}
             </div>
           </div>
         </Card>
@@ -1090,10 +1099,10 @@ export default function OverviewPage() {
           </div>
           <div className="min-w-0">
             <div className="text-[11px] text-muted-foreground font-semibold truncate">
-              Frekuensi Pencatatan
+              {isEn ? "Recording Frequency" : "Frekuensi Pencatatan"}
             </div>
             <div className="text-base font-extrabold text-foreground truncate">
-              {habitStats.txPerDay} transaksi / hari
+              {habitStats.txPerDay} {isEn ? "tx / day" : "transaksi / hari"}
             </div>
           </div>
         </Card>
@@ -1102,16 +1111,16 @@ export default function OverviewPage() {
           <Link
             href="/calendar"
             className="h-9 w-9 rounded-xl bg-secondary text-secondary-foreground flex items-center justify-center shrink-0 hover:bg-primary/20 hover:text-primary transition-colors cursor-pointer"
-            title="Buka Kalender Transaksi Lengkap"
+            title={isEn ? "Open Complete Transaction Calendar" : "Buka Kalender Transaksi Lengkap"}
           >
             <GeometricIcon name="calendar" size="xs" active />
           </Link>
           <div className="min-w-0">
             <div className="text-[11px] text-muted-foreground font-semibold truncate">
-              Konsistensi Catatan
+              {isEn ? "Logging Streak" : "Konsistensi Catatan"}
             </div>
             <div className="text-base font-extrabold text-foreground truncate">
-              {habitStats.daysSinceFirst} Hari Berjalan
+              {habitStats.daysSinceFirst} {isEn ? "Days Active" : "Hari Berjalan"}
             </div>
           </div>
         </Card>
@@ -1129,14 +1138,14 @@ export default function OverviewPage() {
                 <div className="h-7 w-7 rounded-xl bg-secondary flex items-center justify-center text-secondary-foreground">
                   <GeometricIcon name="accounts" size="xs" active />
                 </div>
-                <h3 className="font-extrabold text-sm text-foreground">Grafik &amp; Alokasi Akun</h3>
+                <h3 className="font-extrabold text-sm text-foreground">{isEn ? "Account Allocation & Chart" : "Grafik & Alokasi Akun"}</h3>
               </div>
               <Link
                 href="/accounts"
                 className="text-xs text-primary hover:underline font-bold flex items-center gap-1"
-                title="Buka halaman pengelolaan rekening"
+                title={isEn ? "Manage accounts" : "Buka halaman pengelolaan rekening"}
               >
-                Kelola Akun <ChevronRightIcon className="h-3.5 w-3.5" />
+                {t.common.manage} <ChevronRightIcon className="h-3.5 w-3.5" />
               </Link>
             </div>
 
@@ -1183,13 +1192,13 @@ export default function OverviewPage() {
                 {/* Isi Saldo di Tengah Bawah Grafik */}
                 <div className="mt-1 pt-2 border-t border-border/40 flex flex-col items-center justify-center text-center">
                   <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
-                    Total Saldo Akun
+                    {isEn ? "Total Account Balance" : "Total Saldo Akun"}
                   </span>
                   <span className="text-sm sm:text-base font-black text-foreground tracking-tight mt-0.5">
                     {formatCurrency(totalUserBalance)}
                   </span>
                   <span className="text-[10px] font-semibold text-primary mt-0.5">
-                    {accountChartData.length} Akun Terdaftar
+                    {accountChartData.length} {isEn ? "Accounts Registered" : "Akun Terdaftar"}
                   </span>
                 </div>
               </div>
@@ -1246,7 +1255,7 @@ export default function OverviewPage() {
 
               {(!assetData?.items || assetData.items.length === 0) && (
                 <div className="p-6 text-center text-xs text-muted-foreground">
-                  Belum ada akun keuangan terdaftar.
+                  {isEn ? "No financial accounts registered yet." : "Belum ada akun keuangan terdaftar."}
                 </div>
               )}
             </div>
@@ -1261,10 +1270,10 @@ export default function OverviewPage() {
                 <div className="h-7 w-7 rounded-xl bg-secondary flex items-center justify-center text-secondary-foreground">
                   <GeometricIcon name="annual-report" size="xs" active />
                 </div>
-                <h3 className="font-extrabold text-sm text-foreground">Tren Arus Kas (6 Bulan)</h3>
+                <h3 className="font-extrabold text-sm text-foreground">{isEn ? "Cash Flow Trend (6 Months)" : "Tren Arus Kas (6 Bulan)"}</h3>
               </div>
               <Link href="/analytics" className="text-xs text-primary hover:underline font-bold">
-                Detail
+                {isEn ? "Details" : "Detail"}
               </Link>
             </div>
 
@@ -1275,7 +1284,7 @@ export default function OverviewPage() {
                   <YAxis
                     fontSize={10}
                     stroke="#888888"
-                    tickFormatter={(v) => `${(v / 1000000).toFixed(1)}jt`}
+                    tickFormatter={(v) => isEn ? `${(v / 1000000).toFixed(1)}M` : `${(v / 1000000).toFixed(1)}jt`}
                   />
                   <Tooltip
                     content={({ active, payload, label }) => {
@@ -1289,11 +1298,11 @@ export default function OverviewPage() {
                             {label}
                           </div>
                           <div className="flex items-center justify-between gap-3 text-emerald-600 dark:text-emerald-400 font-semibold">
-                            <span>Masuk:</span>
+                            <span>{isEn ? "Income:" : "Masuk:"}</span>
                             <span>+{formatCurrency(inc)}</span>
                           </div>
                           <div className="flex items-center justify-between gap-3 text-rose-600 dark:text-rose-400 font-semibold">
-                            <span>Keluar:</span>
+                            <span>{isEn ? "Expense:" : "Keluar:"}</span>
                             <span>-{formatCurrency(exp)}</span>
                           </div>
                           <div
@@ -1301,7 +1310,7 @@ export default function OverviewPage() {
                               net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                             }`}
                           >
-                            <span>Arus Kas Bersih:</span>
+                            <span>{t.overview.netCashFlow}:</span>
                             <span>
                               {net > 0 ? "+" : ""}
                               {formatCurrency(net)}
@@ -1311,8 +1320,8 @@ export default function OverviewPage() {
                       );
                     }}
                   />
-                  <Bar dataKey="income" name="Pemasukan" fill="#059669" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="expense" name="Pengeluaran" fill="#ba1a1a" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="income" name={t.overview.totalIncome} fill="#059669" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="expense" name={t.overview.totalExpense} fill="#ba1a1a" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1338,14 +1347,14 @@ export default function OverviewPage() {
               <Link
                 href="/calendar"
                 className="h-8 w-8 rounded-md bg-secondary hover:bg-primary/20 hover:border-primary flex items-center justify-center text-secondary-foreground hover:text-primary shrink-0 border border-emerald-300 dark:border-emerald-800 transition-all cursor-pointer group shadow-2xs"
-                title="Buka Kalender Transaksi Lengkap (Klik untuk membuka)"
+                title={isEn ? "Open Complete Transaction Calendar" : "Buka Kalender Transaksi Lengkap (Klik untuk membuka)"}
               >
                 <GeometricIcon name="calendar" size="xs" active />
               </Link>
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-extrabold text-sm sm:text-base text-foreground tracking-tight">
-                    Aktivitas Bulanan {currentMonth.getFullYear()}
+                    {isEn ? "Monthly Activity" : "Aktivitas Bulanan"} {currentMonth.getFullYear()}
                   </h3>
                   {/* Pemilih Tahun Cepat */}
                   <div className="flex items-center gap-0.5 bg-muted/60 p-0.5 rounded-md border border-border/40">
@@ -1353,7 +1362,7 @@ export default function OverviewPage() {
                       type="button"
                       onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear() - 1, currentMonth.getMonth(), 1))}
                       className="h-5 w-5 rounded-xs flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-background/80 transition-colors"
-                      title="Tahun sebelumnya"
+                      title={isEn ? "Previous year" : "Tahun sebelumnya"}
                     >
                       <ChevronLeft className="h-3 w-3" />
                     </button>
@@ -1364,7 +1373,7 @@ export default function OverviewPage() {
                       type="button"
                       onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear() + 1, currentMonth.getMonth(), 1))}
                       className="h-5 w-5 rounded-xs flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-background/80 transition-colors"
-                      title="Tahun berikutnya"
+                      title={isEn ? "Next year" : "Tahun berikutnya"}
                     >
                       <ChevronRight className="h-3 w-3" />
                     </button>
@@ -1390,7 +1399,7 @@ export default function OverviewPage() {
                         ? "bg-primary text-white shadow-xs"
                         : "text-muted-foreground hover:text-foreground hover:bg-background/60"
                     }`}
-                    title={`Buka ${q.title} (${q.range})`}
+                    title={isEn ? `Open ${q.title} (${q.range})` : `Buka ${q.title} (${q.range})`}
                   >
                     {q.label}
                   </button>
@@ -1405,7 +1414,7 @@ export default function OverviewPage() {
                   type="button"
                   onClick={() => setHeatmapPage((prev) => (prev > 0 ? prev - 1 : 3))}
                   className="h-7 w-7 rounded-md border-border/70 hover:border-primary/50 hover:text-primary hover:bg-primary/5 active:scale-95 transition-all"
-                  title="Halaman sebelumnya"
+                  title={isEn ? "Previous page" : "Halaman sebelumnya"}
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                 </Button>
@@ -1415,7 +1424,7 @@ export default function OverviewPage() {
                   type="button"
                   onClick={() => setHeatmapPage((prev) => (prev < 3 ? prev + 1 : 0))}
                   className="h-7 w-7 rounded-md border-border/70 hover:border-primary/50 hover:text-primary hover:bg-primary/5 active:scale-95 transition-all"
-                  title="Halaman berikutnya"
+                  title={isEn ? "Next page" : "Halaman berikutnya"}
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
@@ -1425,10 +1434,10 @@ export default function OverviewPage() {
               <Link
                 href="/calendar"
                 className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md border border-border/70 bg-card hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-all text-muted-foreground"
-                title="Buka Halaman Kalender Transaksi Lengkap"
+                title={isEn ? "Open Complete Transaction Calendar" : "Buka Halaman Kalender Transaksi Lengkap"}
               >
                 <Calendar className="h-3 w-3 text-primary" />
-                <span>Kalender Harian</span>
+                <span>{isEn ? "Daily Calendar" : "Kalender Harian"}</span>
               </Link>
             </div>
           </div>
@@ -1437,10 +1446,10 @@ export default function OverviewPage() {
           <div className="flex items-center justify-between gap-1.5 mb-3 px-2 py-1.5 rounded-md bg-muted/30 border border-border/50 overflow-x-auto text-xs">
             <span className="text-[11px] font-bold text-muted-foreground whitespace-nowrap flex items-center gap-1 shrink-0">
               <Calendar className="h-3 w-3 text-primary" />
-              Pilih Langsung:
+              {isEn ? "Direct Select:" : "Pilih Langsung:"}
             </span>
             <div className="flex items-center gap-1 overflow-x-auto py-0.5 flex-1 justify-start sm:justify-center">
-              {MONTHS_ID.map((m) => {
+              {(isEn ? MONTHS_EN : MONTHS_ID).map((m) => {
                 const isSelected =
                   datePreset === "this_month" &&
                   currentMonth.getMonth() === m.index;
@@ -1464,7 +1473,7 @@ export default function OverviewPage() {
                         ? "bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20"
                         : "text-muted-foreground hover:text-foreground hover:bg-background/80"
                     }`}
-                    title={`Pilih ${m.name} ${currentMonth.getFullYear()}`}
+                    title={isEn ? `Select ${m.name} ${currentMonth.getFullYear()}` : `Pilih ${m.name} ${currentMonth.getFullYear()}`}
                   >
                     {m.short}
                     {isRealCurrentMonth && !isSelected && (
@@ -1495,7 +1504,7 @@ export default function OverviewPage() {
                         datePreset === "this_month" &&
                         currentMonth.getMonth() === m.monthIndex;
 
-                      const fullMonthName = new Intl.DateTimeFormat("id-ID", { month: "long" }).format(
+                      const fullMonthName = new Intl.DateTimeFormat(isEn ? "en-US" : "id-ID", { month: "long" }).format(
                         new Date(currentMonth.getFullYear(), m.monthIndex, 1)
                       );
 
@@ -1511,7 +1520,7 @@ export default function OverviewPage() {
                               ? "border-primary bg-primary/[0.04] ring-1 ring-primary/40 shadow-xs"
                               : "border-border/70 bg-card hover:bg-primary/[0.015] hover:border-primary/40"
                           }`}
-                          title={`Klik untuk memfilter tampilan ke ${fullMonthName}`}
+                          title={isEn ? `Click to filter view to ${fullMonthName}` : `Klik untuk memfilter tampilan ke ${fullMonthName}`}
                         >
                           {/* Top Line Indicator saat bulan aktif / dibuka */}
                           <div
@@ -1529,14 +1538,14 @@ export default function OverviewPage() {
                                 {fullMonthName}
                               </div>
                               <div className="text-[10px] font-medium text-muted-foreground mt-0.5 truncate">
-                                Tahun {currentMonth.getFullYear()} • {m.txCount} transaksi
+                                {isEn ? `Year ${currentMonth.getFullYear()} • ${m.txCount} transactions` : `Tahun ${currentMonth.getFullYear()} • ${m.txCount} transaksi`}
                               </div>
                             </div>
 
                             {/* Status Badge Keuangan */}
                             {m.txCount === 0 ? (
                               <span className="px-2.5 py-0.5 rounded-sm text-[10px] font-medium bg-muted/60 text-muted-foreground border border-border/40 shrink-0">
-                                Kosong
+                                {isEn ? "Empty" : "Kosong"}
                               </span>
                             ) : net > 0 ? (
                               <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
@@ -1544,11 +1553,11 @@ export default function OverviewPage() {
                               </span>
                             ) : net < 0 ? (
                               <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 shrink-0">
-                                Defisit
+                                {isEn ? "Deficit" : "Defisit"}
                               </span>
                             ) : (
                               <span className="px-2 py-0.5 rounded-sm text-[10px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20 shrink-0">
-                                Seimbang
+                                {isEn ? "Balanced" : "Seimbang"}
                               </span>
                             )}
                           </div>
@@ -1568,7 +1577,7 @@ export default function OverviewPage() {
                           {/* Bottom Row: Arus Kas Bersih */}
                           <div className="pt-2 border-t border-border/50 flex items-center justify-between gap-2 mt-auto">
                             <span className="text-[10px] font-semibold text-muted-foreground">
-                              Arus Kas Bersih
+                              {isEn ? "Net Cash Flow" : "Arus Kas Bersih"}
                             </span>
                             <span
                               className={`text-xs sm:text-sm font-extrabold tracking-tight ${
@@ -1595,7 +1604,7 @@ export default function OverviewPage() {
           {/* Footer Carousel: Indicator Dots & Page Quick Navigation */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 pt-3 border-t border-border/60 text-xs">
             <div className="text-muted-foreground font-medium text-center sm:text-left text-[11px]">
-              Menampilkan <span className="text-foreground font-bold">{quarterMetadata[heatmapPage]?.title}</span> ({quarterMetadata[heatmapPage]?.range})
+              {isEn ? "Showing" : "Menampilkan"} <span className="text-foreground font-bold">{quarterMetadata[heatmapPage]?.title}</span> ({quarterMetadata[heatmapPage]?.range})
             </div>
 
             {/* Interactive Carousel Dots */}
@@ -1610,15 +1619,19 @@ export default function OverviewPage() {
                       ? "w-6 h-2 bg-primary"
                       : "w-2 h-2 bg-muted-foreground/30 hover:bg-muted-foreground/60"
                   }`}
-                  title={`Ke Halaman ${idx + 1} (${quarterMetadata[idx]?.label})`}
-                  aria-label={`Halaman ${idx + 1}`}
+                  title={isEn ? `Go to Page ${idx + 1} (${quarterMetadata[idx]?.label})` : `Ke Halaman ${idx + 1} (${quarterMetadata[idx]?.label})`}
+                  aria-label={isEn ? `Page ${idx + 1}` : `Halaman ${idx + 1}`}
                 />
               ))}
             </div>
 
             {/* Total Transaksi Info */}
             <div className="text-muted-foreground font-medium text-center sm:text-right text-[11px]">
-              Total <strong className="text-foreground">{heatmapData.reduce((acc, m) => acc + m.txCount, 0)}</strong> transaksi tahun {currentMonth.getFullYear()}
+              {isEn ? (
+                <>Total <strong className="text-foreground">{heatmapData.reduce((acc, m) => acc + m.txCount, 0)}</strong> transactions in {currentMonth.getFullYear()}</>
+              ) : (
+                <>Total <strong className="text-foreground">{heatmapData.reduce((acc, m) => acc + m.txCount, 0)}</strong> transaksi tahun {currentMonth.getFullYear()}</>
+              )}
             </div>
           </div>
         </Card>
@@ -1631,11 +1644,11 @@ export default function OverviewPage() {
         <div className="flex items-center justify-between">
           <h3 className="font-extrabold text-sm sm:text-base flex items-center gap-2">
             <GeometricIcon name="categories" size="xs" active />
-            Kategori Terbanyak
+            {isEn ? "Top Categories" : "Kategori Terbanyak"}
           </h3>
 
           <div className="text-xs text-muted-foreground font-semibold">
-            Rentang: <strong className="text-foreground font-bold">{periodLabel}</strong>
+            {isEn ? "Range:" : "Rentang:"} <strong className="text-foreground font-bold">{periodLabel}</strong>
           </div>
         </div>
 
@@ -1644,7 +1657,7 @@ export default function OverviewPage() {
           <Card data-tour="overview-expense-ranks" className="p-4 sm:p-5 rounded-2xl border-border/80 shadow-2xs">
             <div className="flex items-center justify-between mb-3 border-b border-border/60 pb-2">
               <span className="font-bold text-xs text-rose-600 flex items-center gap-1.5">
-                <GeometricIcon name="trend-down" size="xs" active /> Pengeluaran Teratas
+                <GeometricIcon name="trend-down" size="xs" active /> {isEn ? "Top Expenses" : "Pengeluaran Teratas"}
               </span>
               <span className="text-xs font-bold text-foreground">
                 Total: {formatCurrency(effectiveExpenseRanks?.grandTotal || 0)}
@@ -1667,7 +1680,7 @@ export default function OverviewPage() {
                     })
                   }
                   className="flex flex-col gap-1 text-xs text-left p-2 rounded-xl hover:bg-muted/50 transition-all cursor-pointer group"
-                  title={`Klik untuk melihat detail transaksi kategori ${rank.name}`}
+                  title={isEn ? `Click to view transaction details for ${rank.name}` : `Klik untuk melihat detail transaksi kategori ${rank.name}`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-foreground group-hover:text-rose-600 transition-colors flex items-center gap-1.5">
@@ -1692,7 +1705,7 @@ export default function OverviewPage() {
 
               {(!effectiveExpenseRanks?.ranks || effectiveExpenseRanks.ranks.length === 0) && (
                 <div className="py-6 text-center text-xs text-muted-foreground">
-                  Belum ada pengeluaran di cakupan ini.
+                  {isEn ? "No expenses in this range yet." : "Belum ada pengeluaran di cakupan ini."}
                 </div>
               )}
             </div>
@@ -1702,7 +1715,7 @@ export default function OverviewPage() {
           <Card className="p-4 sm:p-5 rounded-2xl border-border/80 shadow-2xs">
             <div className="flex items-center justify-between mb-3 border-b border-border/60 pb-2">
               <span className="font-bold text-xs text-primary flex items-center gap-1.5">
-                <GeometricIcon name="trend-up" size="xs" active /> Pemasukan Teratas
+                <GeometricIcon name="trend-up" size="xs" active /> {isEn ? "Top Income" : "Pemasukan Teratas"}
               </span>
               <span className="text-xs font-bold text-foreground">
                 Total: {formatCurrency(effectiveIncomeRanks?.grandTotal || 0)}
@@ -1725,7 +1738,7 @@ export default function OverviewPage() {
                     })
                   }
                   className="flex flex-col gap-1 text-xs text-left p-2 rounded-xl hover:bg-muted/50 transition-all cursor-pointer group"
-                  title={`Klik untuk melihat detail transaksi kategori ${rank.name}`}
+                  title={isEn ? `Click to view transaction details for ${rank.name}` : `Klik untuk melihat detail transaksi kategori ${rank.name}`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5">
@@ -1750,7 +1763,7 @@ export default function OverviewPage() {
 
               {(!effectiveIncomeRanks?.ranks || effectiveIncomeRanks.ranks.length === 0) && (
                 <div className="py-6 text-center text-xs text-muted-foreground">
-                  Belum ada pemasukan di cakupan ini.
+                  {isEn ? "No income in this range yet." : "Belum ada pemasukan di cakupan ini."}
                 </div>
               )}
             </div>

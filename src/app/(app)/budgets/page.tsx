@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { ChevronRight as ChevronRightIcon } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
-import { formatCurrency } from "@/lib/utils";
+import { useTranslation } from "@/i18n";
 import { GeometricIcon } from "@/components/ui/GeometricIcon";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import { Progress } from "@/components/ui/progress";
 import { CategorySelect } from "@/components/transactions/CategorySelect";
 
 export default function BudgetsPage() {
+  const { t, locale, formatCurrency } = useTranslation();
+  const isEn = locale === "en";
   const utils = trpc.useUtils();
   const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
 
@@ -62,10 +64,12 @@ export default function BudgetsPage() {
             <div className="h-8 w-8 rounded-xl bg-[#A7F3D0]/40 flex items-center justify-center text-[#064E3B] shrink-0">
               <GeometricIcon name="budgets" className="h-4 w-4" />
             </div>
-            <h1 className="text-lg sm:text-2xl font-black tracking-tight text-foreground">Perencanaan &amp; Anggaran</h1>
+            <h1 className="text-lg sm:text-2xl font-black tracking-tight text-foreground">{t.budgets.title}</h1>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Alokasi pagu dan plafon pengeluaran per kategori untuk periode {currentMonth}.
+            {isEn
+              ? `Spending caps and limit allocations per category for ${currentMonth}.`
+              : `Alokasi pagu dan plafon pengeluaran per kategori untuk periode ${currentMonth}.`}
           </p>
         </div>
 
@@ -74,7 +78,7 @@ export default function BudgetsPage() {
           className="bg-primary hover:bg-[#047857] text-white gap-2 shadow-xs text-xs rounded-xl font-bold h-10 px-4 active:scale-95 transition-all self-start sm:self-auto cursor-pointer"
         >
           <GeometricIcon name="plus" className="h-3.5 w-3.5" />
-          <span>Pasang Batas Baru</span>
+          <span>{t.budgets.newBudget}</span>
         </Button>
       </div>
 
@@ -84,17 +88,17 @@ export default function BudgetsPage() {
           <div className="flex items-center justify-between">
             <div>
               <span className="font-extrabold text-sm sm:text-base text-foreground tracking-tight">
-                Dompet &amp; Rekening
+                {isEn ? "Wallets & Accounts" : "Dompet & Rekening"}
               </span>
               <p className="text-[11px] text-muted-foreground">
-                {accountsData.accounts.filter((a) => !a.isHidden).length} Rekening Aktif
+                {accountsData.accounts.filter((a) => !a.isHidden).length} {isEn ? "Active Accounts" : "Rekening Aktif"}
               </p>
             </div>
             <Link
               href="/accounts"
               className="text-xs text-primary font-bold hover:underline flex items-center gap-1 active:scale-95"
             >
-              <span>Lihat Semua</span>
+              <span>{isEn ? "View All" : "Lihat Semua"}</span>
               <ChevronRightIcon className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -127,7 +131,7 @@ export default function BudgetsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Total Plafon Anggaran</span>
+            <span className="text-xs font-semibold text-muted-foreground">{isEn ? "Total Budget Cap" : "Total Plafon Anggaran"}</span>
             <div className="h-8 w-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300">
               <GeometricIcon name="budgets" className="h-4 w-4" />
             </div>
@@ -136,13 +140,13 @@ export default function BudgetsPage() {
             {formatCurrency(budgetData?.totalBudget || 0)}
           </div>
           <span className="text-[11px] text-muted-foreground mt-0.5 block">
-            Target pagu belanja periode ini
+            {isEn ? "Target spending ceiling this period" : "Target pagu belanja periode ini"}
           </span>
         </Card>
 
         <Card className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Realisasi Belanja</span>
+            <span className="text-xs font-semibold text-muted-foreground">{isEn ? "Actual Spending" : "Realisasi Belanja"}</span>
             <div className="h-8 w-8 rounded-xl bg-[#BA1A1A]/10 flex items-center justify-center text-[#BA1A1A]">
               <GeometricIcon name="trend-down" className="h-4 w-4" />
             </div>
@@ -151,13 +155,13 @@ export default function BudgetsPage() {
             {formatCurrency(budgetData?.totalSpent || 0)}
           </div>
           <span className="text-[11px] text-muted-foreground mt-0.5 block">
-            Akumulasi transaksi keluar tercatat
+            {isEn ? "Accumulated outgoing transactions recorded" : "Akumulasi transaksi keluar tercatat"}
           </span>
         </Card>
 
         <Card className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Sisa Alokasi Kas</span>
+            <span className="text-xs font-semibold text-muted-foreground">{isEn ? "Remaining Cash Allocation" : "Sisa Alokasi Kas"}</span>
             <div className="h-8 w-8 rounded-xl bg-[#A7F3D0]/40 flex items-center justify-center text-[#064E3B]">
               <GeometricIcon name="trend-up" className="h-4 w-4" />
             </div>
@@ -166,7 +170,7 @@ export default function BudgetsPage() {
             {formatCurrency(budgetData?.totalRemaining || 0)}
           </div>
           <span className="text-[11px] text-muted-foreground mt-0.5 block">
-            Dana yang masih aman dibelanjakan
+            {isEn ? "Safe available funds to spend" : "Dana yang masih aman dibelanjakan"}
           </span>
         </Card>
       </div>
@@ -176,10 +180,10 @@ export default function BudgetsPage() {
         <div className="flex items-center justify-between pt-1">
           <div>
             <h2 className="font-extrabold text-sm sm:text-base text-foreground tracking-tight">
-              Batas Anggaran Kategori
+              {isEn ? "Category Budget Limits" : "Batas Anggaran Kategori"}
             </h2>
             <p className="text-[11px] text-muted-foreground">
-              Progres realisasi belanja terhadap plafon
+              {isEn ? "Spending progress against ceiling" : "Progres realisasi belanja terhadap plafon"}
             </p>
           </div>
           <Button
@@ -188,7 +192,7 @@ export default function BudgetsPage() {
             className="bg-primary hover:bg-[#047857] text-white gap-1.5 shadow-xs text-xs rounded-xl font-bold h-9 px-3 active:scale-95 transition-all cursor-pointer"
           >
             <GeometricIcon name="plus" className="h-3 w-3" />
-            <span>+ Tambah</span>
+            <span>+ {isEn ? "Add" : "Tambah"}</span>
           </Button>
         </div>
         {budgetData?.items?.map((item) => {
@@ -200,14 +204,14 @@ export default function BudgetsPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="h-8 w-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-300 font-bold text-[11px]">
-                      {item.categoryName?.slice(0, 2).toUpperCase() || "UM"}
+                      {item.categoryName?.slice(0, 2).toUpperCase() || (isEn ? "GEN" : "UM")}
                     </div>
                     <span className="font-bold text-sm text-foreground">
-                      {item.categoryName || "Umum"}
+                      {item.categoryName || (isEn ? "General" : "Umum")}
                     </span>
                     {isOver && (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#BA1A1A] bg-[#BA1A1A]/10 px-2.5 py-0.5 rounded-full border border-rose-500/20">
-                        Melewati Plafon
+                        {t.budgets.statusOver}
                       </span>
                     )}
                   </div>
@@ -225,13 +229,13 @@ export default function BudgetsPage() {
 
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                   <span className="font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] text-foreground">
-                    {item.percent}% terserap
+                    {item.percent}% {isEn ? "used" : "terserap"}
                   </span>
                   <span>
                     {isOver ? (
-                      <span className="text-[#BA1A1A] font-semibold">Defisit: {formatCurrency(item.actualSpent - item.budgetAmount)}</span>
+                      <span className="text-[#BA1A1A] font-semibold">{isEn ? "Deficit: " : "Defisit: "}{formatCurrency(item.actualSpent - item.budgetAmount)}</span>
                     ) : (
-                      <span>Sisa: <strong className="text-foreground">{formatCurrency(item.remaining)}</strong></span>
+                      <span>{isEn ? "Remaining: " : "Sisa: "}<strong className="text-foreground">{formatCurrency(item.remaining)}</strong></span>
                     )}
                   </span>
                 </div>
@@ -245,14 +249,14 @@ export default function BudgetsPage() {
             <div className="mx-auto h-10 w-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-muted-foreground mb-2.5">
               <GeometricIcon name="budgets" className="h-5 w-5" />
             </div>
-            Belum ada batasan anggaran tersimpan untuk bulan {currentMonth}.
+            {isEn ? `No budget limits saved for ${currentMonth}.` : `Belum ada batasan anggaran tersimpan untuk bulan ${currentMonth}.`}
             <div className="mt-3">
               <Button
                 onClick={() => setIsModalOpen(true)}
                 variant="outline"
                 className="h-10 rounded-xl text-xs font-semibold border-[#059669] text-[#059669] hover:bg-[#A7F3D0]/20 px-4 active:scale-95"
               >
-                Atur Plafon Pertama
+                {isEn ? "Set First Budget" : "Atur Plafon Pertama"}
               </Button>
             </div>
           </div>
@@ -265,35 +269,35 @@ export default function BudgetsPage() {
           <div
             role="dialog"
             aria-modal="true"
-            aria-label="Tentukan Anggaran Kategori"
+            aria-label={t.budgets.allocateBudget}
             className="relative w-full max-w-md rounded-t-3xl sm:rounded-2xl bg-card border border-border/80 shadow-2xl p-5 text-card-foreground max-h-[90vh] overflow-y-auto pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5"
           >
             {/* Visual Drag Handle Pill on Mobile */}
             <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-muted-foreground/30 sm:hidden" />
 
-            <h2 className="text-sm font-bold text-foreground mb-1">Tentukan Anggaran Kategori</h2>
+            <h2 className="text-sm font-bold text-foreground mb-1">{t.budgets.allocateBudget}</h2>
             <p className="text-xs text-muted-foreground mb-3.5">
-              Tentukan batas maksimum pengeluaran untuk periode {currentMonth}.
+              {isEn ? `Set maximum spending limit for period ${currentMonth}.` : `Tentukan batas maksimum pengeluaran untuk periode ${currentMonth}.`}
             </p>
             <form onSubmit={handleSave} className="space-y-3.5 text-xs">
               <div>
-                <label className="font-semibold text-foreground">Kategori Pengeluaran</label>
+                <label className="font-semibold text-foreground">{isEn ? "Expense Category" : "Kategori Pengeluaran"}</label>
                 <div className="mt-1">
                   <CategorySelect
                     categories={categoriesList || []}
                     value={categoryId}
                     onChange={(newId) => setCategoryId(newId)}
                     txType="expense"
-                    placeholder="Pilih Kategori Pengeluaran..."
+                    placeholder={isEn ? "Select Expense Category..." : "Pilih Kategori Pengeluaran..."}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="font-semibold text-foreground">Nominal Anggaran Bulanan (IDR)</label>
+                <label className="font-semibold text-foreground">{isEn ? "Monthly Budget Amount" : "Nominal Anggaran Bulanan"} (IDR)</label>
                 <Input
                   type="number"
-                  placeholder="Contoh: 1500000"
+                  placeholder={isEn ? "e.g. 1500000" : "Contoh: 1500000"}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="mt-1 h-9 rounded-md"
@@ -308,13 +312,13 @@ export default function BudgetsPage() {
                   className="w-1/2 rounded-md h-8 sm:h-9 text-xs"
                   onClick={() => setIsModalOpen(false)}
                 >
-                  Batal
+                  {t.common.cancel}
                 </Button>
                 <Button
                   type="submit"
                   className="w-1/2 bg-[#059669] hover:bg-[#047857] text-white rounded-md h-8 sm:h-9 text-xs font-semibold shadow-xs"
                 >
-                  Simpan Anggaran
+                  {isEn ? "Save Budget" : "Simpan Anggaran"}
                 </Button>
               </div>
             </form>

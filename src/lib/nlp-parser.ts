@@ -55,6 +55,111 @@ interface ParserOptions {
 }
 
 /**
+ * Daftar kata ulang sah dalam Bahasa Indonesia yang wajar muncul dalam transaksi finansial.
+ * Kata-kata ini diizinkan berulang MAKSIMAL 2 KALI (misal: "oleh-oleh", "jalan-jalan", "hati-hati").
+ * Pengulangan 3 kali atau lebih SELALU dianggap sebagai glitch/redundansi rekaman mic.
+ */
+export const ALLOWED_INDONESIAN_REDUPLICATIONS = new Set([
+  "oleh", "jalan", "makan", "cumi", "gado", "onde", "sayur", "buah",
+  "biji", "anak", "toko", "buku", "uang", "hati", "kira", "tiba",
+  "pelan", "sama", "kadang", "pura", "buru", "rata", "sia", "rempah",
+  "abu", "kupu", "gula", "laba", "mata", "kura", "paru", "biri",
+  "bagi", "cita", "pagi", "siang", "malam", "warna", "kisi", "reka",
+]);
+
+/**
+ * Membersihkan pengulangan kata atau frasa yang redundan dari input suara (SpeechRecognition glitch).
+ * Contoh kasus bug sistem:
+ * - "kopi kopi kopi" -> "kopi"
+ * - "kopi kopi" -> "kopi"
+ * - "beli kopi 25rb beli kopi 25rb" -> "beli kopi 25rb"
+ * - "kopi 25rb kopi 25rb" -> "kopi 25rb"
+ * - "oleh-oleh" -> tetap "oleh-oleh" (kata ulang sah)
+ * - "oleh oleh oleh" -> "oleh oleh" (dibatasi maks 2 kali)
+ */
+export function deduplicateTranscript(text: string): string {
+  if (!text) return "";
+  let clean = text.trim();
+  if (!clean) return "";
+
+  // 0. Bersihkan pengulangan kata ber-tanda hubung yang tidak sah (misal "kopi-kopi" -> "kopi")
+  clean = clean.replace(/\b([a-zA-Z]+)-(\1)\b/gi, (match, p1) => {
+    if (ALLOWED_INDONESIAN_REDUPLICATIONS.has(p1.toLowerCase())) {
+      return match;
+    }
+    return p1;
+  });
+
+  // 1. Tangani pengulangan frasa (multi-word n-gram repetitions)
+  // Contoh: "beli kopi 25 ribu beli kopi 25 ribu" -> "beli kopi 25 ribu"
+  let phraseChanged = true;
+  let phrasePasses = 0;
+  while (phraseChanged && phrasePasses < 5) {
+    phraseChanged = false;
+    phrasePasses++;
+    const currentWords = clean.split(/\s+/);
+    if (currentWords.length < 4) break;
+
+    const maxBlockSize = Math.floor(currentWords.length / 2);
+    for (let blockSize = Math.min(maxBlockSize, 8); blockSize >= 2; blockSize--) {
+      for (let i = 0; i <= currentWords.length - 2 * blockSize; i++) {
+        const blockA = currentWords.slice(i, i + blockSize).map(w => w.toLowerCase().replace(/^[^\w]+|[^\w]+$/g, "")).join(" ");
+        const blockB = currentWords.slice(i + blockSize, i + 2 * blockSize).map(w => w.toLowerCase().replace(/^[^\w]+|[^\w]+$/g, "")).join(" ");
+        if (blockA && blockA === blockB) {
+          currentWords.splice(i + blockSize, blockSize);
+          clean = currentWords.join(" ");
+          phraseChanged = true;
+          break;
+        }
+      }
+      if (phraseChanged) break;
+    }
+  }
+
+  // 2. Tangani pengulangan kata tunggal berturut-turut (single-word repetitions)
+  // Contoh: "kopi kopi kopi" -> "kopi"
+  const tokens = clean.split(/\s+/);
+  const resultTokens: string[] = [];
+  let i = 0;
+
+  while (i < tokens.length) {
+    const currentToken = tokens[i];
+    const normalizedCurrent = currentToken.toLowerCase().replace(/^[^\w]+|[^\w]+$/g, "");
+
+    if (!normalizedCurrent) {
+      resultTokens.push(currentToken);
+      i++;
+      continue;
+    }
+
+    let repeatCount = 1;
+    while (
+      i + repeatCount < tokens.length &&
+      tokens[i + repeatCount].toLowerCase().replace(/^[^\w]+|[^\w]+$/g, "") === normalizedCurrent
+    ) {
+      repeatCount++;
+    }
+
+    if (repeatCount > 1) {
+      const isAllowedKataUlang = ALLOWED_INDONESIAN_REDUPLICATIONS.has(normalizedCurrent);
+      if (isAllowedKataUlang) {
+        resultTokens.push(tokens[i].replace(/[,\.\-—:]+$/, ""));
+        resultTokens.push(tokens[i + 1].replace(/[,\.\-—:]+$/, ""));
+      } else {
+        resultTokens.push(tokens[i].replace(/[,\.\-—:]+$/, ""));
+      }
+      i += repeatCount;
+    } else {
+      resultTokens.push(currentToken);
+      i++;
+    }
+  }
+
+  return resultTokens.join(" ").replace(/[,\.\-—:]+$/, "").trim();
+}
+
+
+/**
  * Ekstrak nominal uang dari teks bahasa Indonesia.
  * Menangani format: Rp 30.000, 30.000, 30000, 30rb, 30k, 2.5jt, tiga puluh ribu, dll.
  */
@@ -1649,7 +1754,8 @@ export function extractDateTimeFromText(
 export function cleanSpeechToNote(text: string): string {
   if (!text) return "";
 
-  const trimmed = text.trim();
+  const dedupedText = deduplicateTranscript(text);
+  const trimmed = dedupedText.trim();
 
   // Pola transfer khusus:
   // "transfer ke dana 50rb dari akun blue" -> "Transfer ke Dana"
@@ -1739,9 +1845,9 @@ export function cleanSpeechToNote(text: string): string {
     ""
   );
 
-  // 7. Hapus deklarasi akun & metode pembayaran (termasuk "lewat blu bca", "pake kartu blu", "dari akun blue")
+  // 7. Hapus deklarasi akun & metode pembayaran (termasuk "lewat blu bca", "pake kartu blu", "dari akun blue", "bayar bca")
   cleaned = cleaned.replace(
-    /\b(?:ke|dari|dengan|pake|pakai|menggunakan|lewat|melalui|via|bayar\s+pake|bayar\s+pakai|bayar\s+lewat|bayar\s+via)\s+(?:akun\s+|rekening\s+|kartu\s+|bank\s+)?(?:blu\s+bca|blue\s+bca|bca\s+digital|bank\s+\w+|blue|blu|cash|tunai|kas\s+tunai|kas|dana|gopay|ovo|shopee|shopeepay|spay|bca|mandiri|bri|bni|jago|seabank|cimb(?:\s+niaga)?|permata|danamon|bsi|btn|jenius|linkaja|rekening(?:\s+\w+)?)\b/gi,
+    /\b(?:ke|dari|dengan|pake|pakai|menggunakan|lewat|melalui|via|bayar\s+pake|bayar\s+pakai|bayar\s+lewat|bayar\s+via|bayar)\s+(?:akun\s+|rekening\s+|kartu\s+|bank\s+)?(?:blu\s+bca|blue\s+bca|bca\s+digital|bank\s+\w+|blue|blu|cash|tunai|kas\s+tunai|kas|dana|gopay|ovo|shopee|shopeepay|spay|bca|mandiri|bri|bni|jago|seabank|cimb(?:\s+niaga)?|permata|danamon|bsi|btn|jenius|linkaja|rekening(?:\s+\w+)?)\b/gi,
     ""
   );
   cleaned = cleaned.replace(
@@ -1791,8 +1897,9 @@ export function cleanSpeechToNote(text: string): string {
     }
   }
 
-  // Kapitalisasi huruf pertama
-  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  // Bersihkan kembali sisa kata redundan dan kapitalisasi huruf pertama
+  const finalCleaned = deduplicateTranscript(cleaned);
+  return finalCleaned.charAt(0).toUpperCase() + finalCleaned.slice(1);
 }
 
 interface AmountMatch {
@@ -2077,15 +2184,16 @@ export function smartParseIndonesianTransaction(
   text: string,
   options?: ParserOptions
 ): ParsedTransactionResult {
-  const normalized = normalizeSpokenIndonesian(text);
+  const dedupedText = deduplicateTranscript(text);
+  const normalized = normalizeSpokenIndonesian(dedupedText);
 
   // 1. Cek apakah ada multi-item transaksi dalam satu input
   // (misal: "beli kopi dan nasi goreng 3 ribu dan 5 ribu")
-  const multiResult = parseMultipleItemsAndAmounts(text) || parseMultipleItemsAndAmounts(normalized);
+  const multiResult = parseMultipleItemsAndAmounts(dedupedText) || parseMultipleItemsAndAmounts(normalized);
 
   const amount = multiResult
     ? multiResult.totalAmount
-    : (extractAmountFromText(normalized) || extractAmountFromText(text));
+    : (extractAmountFromText(normalized) || extractAmountFromText(dedupedText));
 
   const txType = detectTxType(normalized);
   const { categoryHint, matchedCategoryId, recommendedCategory, isDatasetMatch } = detectCategory(normalized, txType, options?.categories);
@@ -2094,7 +2202,7 @@ export function smartParseIndonesianTransaction(
 
   const cleanedNote = multiResult
     ? multiResult.combinedNote
-    : cleanSpeechToNote(text);
+    : cleanSpeechToNote(dedupedText);
 
   return {
     txType,
@@ -2112,7 +2220,7 @@ export function smartParseIndonesianTransaction(
     happenedAtFormatted,
     cleanNote: cleanedNote,
     note: cleanedNote,
-    rawText: text,
+    rawText: dedupedText,
     items: multiResult?.items,
     isMultipleItems: Boolean(multiResult && multiResult.items.length >= 2),
   };

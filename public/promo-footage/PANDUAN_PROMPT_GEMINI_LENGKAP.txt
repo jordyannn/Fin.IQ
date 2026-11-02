@@ -1,79 +1,111 @@
 ================================================================================
-KUMPULAN FOOTAGE & PROMPT RESMI FIN.IQ UNTUK GOOGLE GEMINI (VEO / VIDS / CHAT)
-Folder: public/promo-footage/
+KATALOG LENGKAP FOOTAGE & PANDUAN PROMPT FIN.IQ UNTUK GOOGLE GEMINI (VEO / VIDS)
+Folder Root: public/promo-footage/
 ================================================================================
 
-PETUNJUK PENGGUNAAN:
-1. Buka Gemini (gemini.google.com) atau Google Vids (vids.google.com).
-2. Upload gambar aset sesuai nomor adegan (01 sampai 06).
-3. Salin teks PROMPT GEMINI di bawah ini ke kotak chat/instruksi.
+Folder ini berisi seluruh screenshot footage beresolusi tinggi (Retina 2x Desktop & iPhone 13 Mobile) serta ekspresi lucu maskot Bang Peci saat surplus cuan maupun minus boncos:
 
 --------------------------------------------------------------------------------
-SCENE 1: HOOK SATIR TANGGAL TUA (00:00 - 00:08)
-File Aset:
-- 01_mascot_boncos.png
-Teks Prompt Gemini:
-"Create a humorous 8-second motion scene. Start with an empty leather wallet blowing cold wind and floating receipts. Then pop in this mascot character (01_mascot_boncos.png) in panic holding its head. Large comic text pop-up: 'GAJI BARU 3 HARI, KOK DOMPET UDAH KERING?!'. Background should feel dramatic and comical with red warning alarm lighting. Vertical 9:16 aspect ratio."
-Voiceover:
-"Gaji baru masuk tiga hari... kok saldo udah kembali ke setelan pabrik?! Tenang, lu gak sendirian yang ngerasa uangnya hilang ghaib!"
+📁 1. EKSPRESI LUCU MASKOT BANG PECI (public/promo-footage/01_MASCOT_EKSPRESI_LUCU/)
 --------------------------------------------------------------------------------
+A. Subfolder SURPLUS_CUAN/:
+   - bang_peci_cuan_koin_emas.png       -> Tersenyum bangga memeluk koin emas berkilau
+   - bang_peci_badge_cuan_gemerlap.png   -> Badge koin emas melayang di udara
+   - bang_peci_senyum_bahagia.png        -> Wajah gembira berseri-seri saat arus kas positif
+   - bang_peci_hemat_senyum.png          -> Ekspresi hemat bijak mengacungkan jempol
+   - bang_peci_analisis_kacamata.png     -> Mode kacamata analis data keuangan cerdas
+   - bang_peci_kas_seimbang.png          -> Ekspresi santai kas stabil
+   - bang_peci_salam_ramah.png           -> Melambaikan tangan menyapa dengan peci hitam
+
+B. Subfolder MINUS_BONCOS/:
+   - bang_peci_boncos_pegang_kepala.png  -> Pusing memegang kepala, panik saldo menipis
+   - bang_peci_sedih_menangis_defisit.png-> Menangis sedih melihat arus kas defisit
+   - bang_peci_bingung_dompet_kering.png -> Mata cengo kebingungan uang cepat habis
+   - bang_peci_warning_ekor_tegang.png   -> Tanda seru bahaya, ekor tegang kasih warning
+   - bang_peci_rpg_kecewa.png            -> Kecewa melihat pengeluaran impulsif tanggal tua
+
+C. Subfolder ANIMASI_RUTIN/:
+   - bang_peci_tidur_pulas_kasur.png     -> Tidur pulas mendengkur Zzz di kasur bulat
+   - kasur_kucing_kosong.png             -> Kasur kosong saat Bang Peci melompat bangun
+   - bang_peci_jalan_step1.png           -> Animasi kaki melangkah patroli (frame 1)
+   - bang_peci_jalan_step2.png           -> Animasi kaki melangkah patroli (frame 2)
+   - logo_bang_peci_official.png         -> Logo resmi Fin.IQ Bang Peci
+
+Prompt Gemini untuk Interaksi Maskot:
+"Animate this cat mascot (bang_peci_cuan_koin_emas.png vs bang_peci_boncos_pegang_kepala.png). When cashflow is positive, show the cat celebrating happily with floating gold coins and thumbs up. When cashflow drops into negative, transition the cat into holding its head in comical shock with red warning alarm lighting. Vertical 9:16 format."
 
 --------------------------------------------------------------------------------
-SCENE 2: BANG PECI TURUN GUNUNG (00:08 - 00:20)
-File Aset:
-- 02_bang_peci_tidur_kasur.png
-- 02_kasur_kucing_kosong.png
-- 02_bang_peci_halo.png
-- 02_logo_bang_peci.png
-Teks Prompt Gemini:
-"Animate a cute tuxedo cat wearing a black Indonesian peci cap waking up from a round cat bed (02_bang_peci_tidur_kasur.png), stretching, jumping playfully into the foreground, fixing its black peci, and waving hello with a friendly big smile (02_bang_peci_halo.png). Upbeat, bright modern fintech lighting, pop-art stickers: 'KENALIN: BANG PECI! Satpam Pribadi Arus Kas'. Vertical 9:16 format."
-Voiceover:
-"Kenalin, gua Bang Peci! Kucing yang bakal jadi satpam pribadi arus kas lu di Fin.IQ! Stop pusing mikirin duit sendirian, biar gua yang kawal dompet lu tiap hari!"
+📁 2. FITUR AGEN CASHFLOW (public/promo-footage/02_FITUR_AGEN_CASHFLOW/)
 --------------------------------------------------------------------------------
+File Aset:
+- desktop_overview_dashboard.png        -> Tampilan dashboard lengkap arus kas
+- desktop_card_net_cashflow_surplus.png -> Zoom kartu Net Cash Flow surplus hijau
+- mobile_overview_cashflow.png          -> Tampilan arus kas di layar smartphone
+
+Prompt Gemini:
+"Show a smooth camera pan zooming into this financial Net Cashflow metric card. Highlight the surplus green numbers with a glowing pulse. Pop in the cat mascot with glasses pointing at the positive growth. Dynamic motion graphics, modern fintech UI aesthetic. Vertical 9:16."
 
 --------------------------------------------------------------------------------
-SCENE 3: DUAL-VIEW: DESKTOP & MOBILE PWA (00:20 - 00:35)
-File Aset:
-- 03_desktop_dashboard_overview.png
-- 03_mobile_pwa_overview.png
-Teks Prompt Gemini:
-"Create a seamless 3D dual-screen showcase. In the upper half/background, display a sleek laptop showing the full fintech analytics dashboard (03_desktop_dashboard_overview.png). In the bottom/foreground, an iPhone slides in showing the clean mobile PWA interface (03_mobile_pwa_overview.png). Text overlay: 'LAPTOP LUAS, HP SAT-SET - SINKRON REALTIME'. Vertical 9:16 video."
-Voiceover:
-"Kerennya, Fin.IQ punya dua tampilan mantap! Mau evaluasi bulanan di Laptop dengan grafik lebar yang jernih? Ada! Mau catat sat-set pas di jalan lewat HP? Tinggal buka versi Mobile PWA-nya. Semuanya sinkron realtime!"
+📁 3. FITUR AI ADVISOR (public/promo-footage/03_FITUR_AI_ADVISOR/)
 --------------------------------------------------------------------------------
+File Aset:
+- desktop_ai_advisor_studio_full.png    -> Studio konsultasi AI Fin.IQ (Chat & Model Selector)
+- mobile_ai_advisor_chat.png            -> Konsultasi AI versi mobile smartphone
+
+Fitur yang Ditampilkan:
+- Prompt Chips Otomatis: "Audit Pos Boros & Kebocoran", "Batas Belanja Harian", "Alokasi Tabungan Pasti", "Ketahanan Kas (Runway)".
+- Pilihan model AI responsif (MiniMax, Gemini, dsb).
+
+Prompt Gemini:
+"Showcase the AI Financial Advisor screen (desktop_ai_advisor_studio_full.png and mobile_ai_advisor_chat.png). Animate glowing chat bubbles providing instant smart financial advice on how to stop overspending and save more. Floating holographic sparkles and clean tech UI. Vertical 9:16."
 
 --------------------------------------------------------------------------------
-SCENE 4: FITUR UTAMA - AGEN CASHFLOW BANG PECI (00:35 - 00:52)
-File Aset:
-- 04_desktop_net_cashflow_card.png
-- 04_bang_peci_analisis_kacamata.png
-- 04_bang_peci_cuan_jempol.png
-- 04_bang_peci_warning_boncos.png
-Teks Prompt Gemini:
-"Zoom into the financial net cashflow metric card (04_desktop_net_cashflow_card.png). Transition the cat mascot into wearing analyst spectacles (04_bang_peci_analisis_kacamata.png) examining green surplus numbers. Then show golden coins and thumbs up (04_bang_peci_cuan_jempol.png). Suddenly switch to caution mode with flashing amber warning border and alert mascot (04_bang_peci_warning_boncos.png) with text: 'OVERBUDGET! REM BELANJA!'. Vertical 9:16 video."
-Voiceover:
-"Nah, ini fitur jagoan gua: Agen Cashflow! Tiap hari gua patroli pantau saldo masuk dan keluar. Kalo lagi cuan surplus, gua kasih jempol. Tapi kalo pos kopi lu mulai boncos bocor halus... ekor gua langsung tegang kasih sinyal bahaya!"
+📁 4. FITUR VOICE TRANSACTION (public/promo-footage/04_FITUR_VOICE_TRANSACTION/)
 --------------------------------------------------------------------------------
+File Aset:
+- desktop_modal_catat_transaksi.png     -> Modal transaksi lengkap dengan tombol Mic Dikte Suara
+- desktop_toolbar_dikte_suara_ai.png    -> Zoom in tombol Dikte Suara AI
+- mobile_voice_quick_add_modal.png      -> Modal dikte suara versi mobile PWA
+
+Prompt Gemini:
+"Animate a pulsating audio wave ripple around the microphone button in this dialog (desktop_toolbar_dikte_suara_ai.png). As a speech voiceover says 'Makan Padang 25 ribu pakai Blu', the transaction form fields automatically type in and populate instantly. Snappy and high-tech UI animation. Vertical 9:16."
 
 --------------------------------------------------------------------------------
-SCENE 5: FITUR PENDUKUNG - AI VOICE, OCR STRUK & MULTI-AKUN (00:52 - 01:05)
-File Aset:
-- 05_mobile_quick_add_suara_ocr.png
-- 05_mobile_multi_akun_cash_blu_dana.png
-- 05_mobile_budget_monitoring.png
-Teks Prompt Gemini:
-"Fast-cut motion showcase of smart input features. Show the transaction dialog (05_mobile_quick_add_suara_ocr.png) with a glowing voice dictation wave icon, then a scanner laser effect capturing a paper receipt. Transition smoothly to the multi-account balance card showing Cash, Blu Bank, and Dana (05_mobile_multi_akun_cash_blu_dana.png). Dynamic, fast-paced modern fintech UI animation. Vertical 9:16."
-Voiceover:
-"Malas ngetik angka? Tinggal sebutin: 'Makan siang 35 ribu pake Blu'... atau cukup foto struk belanja lu, AI Fin.IQ langsung beresin! Saldo Cash, Bank Blu, sampe Dana lu auto-rapi tanpa ribet."
+📁 5. FITUR FOTO BILLS / SCAN STRUK OCR (public/promo-footage/05_FITUR_FOTO_BILLS_OCR/)
 --------------------------------------------------------------------------------
+File Aset:
+- desktop_modal_catat_transaksi.png     -> Modal dengan tombol Kamera & Galeri Foto
+- desktop_toolbar_kamera_galeri_struk.png-> Zoom in tombol Kamera & Galeri Struk
+- mobile_bills_quick_add_modal.png      -> Scan struk versi smartphone
+
+Prompt Gemini:
+"Create a motion sequence where a paper store receipt is scanned with a glowing emerald laser bar over the camera button (desktop_toolbar_kamera_galeri_struk.png). The items, prices, and grand total extract smoothly into organized digital ledger rows with a satisfying chime. Vertical 9:16."
 
 --------------------------------------------------------------------------------
-SCENE 6: CALL TO ACTION & PENUTUP (01:05 - 01:15)
+📁 6. DUAL VIEW: DESKTOP & MOBILE PWA (public/promo-footage/06_DUAL_VIEW_DESKTOP_MOBILE/)
+--------------------------------------------------------------------------------
 File Aset:
-- 06_bang_peci_cuan_outro.png
-- 06_icon_finiq_app.png
-Teks Prompt Gemini:
-"Grand finale outro. The cat mascot (06_bang_peci_cuan_outro.png) cheerfully winks and points down toward a glowing emerald green button: 'COBA GRATIS SEKARANG - KLIK LINK DI BIO'. Fin.IQ logo glows at top. Confetti, gold sparkles, professional and inviting. Vertical 9:16 video."
-Voiceover:
-"Mulai hari ini, stop drama tanggal tua! Yuk naik kelas kelola duit bareng gua. Coba Fin.IQ gratis sekarang—klik link di bio ya!"
+- desktop_overview_full_dashboard.png   -> Layar lebar 1920x1080 Desktop
+- mobile_overview_pwa_screen.png        -> Layar responsif iPhone 13 Mobile PWA
+
+Prompt Gemini:
+"Split-screen 3D presentation: Upper screen shows the spacious laptop desktop interface (desktop_overview_full_dashboard.png). Lower screen shows the handheld iPhone mobile PWA interface (mobile_overview_pwa_screen.png). Both screens animate in sync showing seamless realtime financial data synchronization. Vertical 9:16."
+
+--------------------------------------------------------------------------------
+📁 7. SEMUA FITUR LENGKAP SISTEM (public/promo-footage/07_FITUR_LENGKAP_LAINNYA/)
+--------------------------------------------------------------------------------
+File Aset Desktop & Mobile:
+- desktop_budgets_progress_monitoring.png & mobile_budgets_monitoring.png:
+  -> Monitoring Anggaran Belanja (progress bar visual warna kategori)
+- desktop_accounts_cash_blu_dana.png & mobile_accounts_cash_blu_dana.png:
+  -> Manajemen Multi-Akun (Cash, Bank Blu BCA, Dana, Kartu Kredit)
+- desktop_analytics_breakdown_pos.png & mobile_analytics_breakdown.png:
+  -> Laporan Analisis Bulanan (Diagram porsi pengeluaran & tren saldo)
+- desktop_calendar_mutasi_harian.png & mobile_calendar_mutasi.png:
+  -> Kalender Aktivitas Belanja (Heatmap frekuensi transaksi)
+- desktop_import_bank_csv_ocr.png & mobile_import_bank_csv.png:
+  -> Hub Impor Rekening (Mendukung CSV & PDF mutasi bank otomatis)
+
+Prompt Gemini:
+"Fast-paced carousel showcase featuring multiple financial management modules: Budget progress meters, Multi-account wallets (Cash, Blu, Dana), Category pie charts, and Calendar heatmaps. Sleek modern fintech motion graphics, smooth transitions between cards. Vertical 9:16."
 ================================================================================

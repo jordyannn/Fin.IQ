@@ -128,8 +128,12 @@ export async function createContext(opts?: { req?: Request }): Promise<Context> 
     }
   }
 
-  // 5. Fallback for DEMO_USER_ID if configured and no session token present
-  if (!authenticatedUserId && process.env.DEMO_USER_ID) {
+  // 5. Fallback for DEMO_USER_ID only if explicitly enabled (demo deployment) or in test mode
+  if (
+    !authenticatedUserId &&
+    process.env.DEMO_USER_ID &&
+    (process.env.ALLOW_ANONYMOUS_DEMO === "true" || process.env.NODE_ENV === "test")
+  ) {
     const demoId = process.env.DEMO_USER_ID.trim();
     if (demoId) {
       await ensureUserProvisioned(demoId, "owner@finiq.app");
