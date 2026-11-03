@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { users, userProfiles } from "@/server/db/schema";
+import { users, userProfiles, analyticsEvents } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { verifyPassword, createSessionToken } from "@/server/auth";
 import {
@@ -67,6 +67,15 @@ export async function POST(req: Request) {
 
       if (userRecords.length === 0) {
         await recordLoginAttempt(rateLimitIdentifier, false);
+        try {
+          await db.insert(analyticsEvents).values({
+            eventType: "login_failed",
+            eventName: "login_failed",
+            metadata: { email: emailLower, reason: "user_not_found" },
+            ipAddress: ip.slice(0, 45),
+            userAgent: req.headers.get("user-agent")?.slice(0, 512) || null,
+          });
+        } catch {}
         return NextResponse.json(
           { success: false, error: "Email atau kata sandi tidak cocok." },
           { status: 401 }
@@ -112,6 +121,16 @@ export async function POST(req: Request) {
     const isMatch = verifyPassword(String(password), authUser.passwordHash);
     if (!isMatch) {
       await recordLoginAttempt(rateLimitIdentifier, false);
+      try {
+        await db.insert(analyticsEvents).values({
+          userId: authUser.id,
+          eventType: "login_failed",
+          eventName: "login_failed",
+          metadata: { email: emailLower, reason: "invalid_password" },
+          ipAddress: ip.slice(0, 45),
+          userAgent: req.headers.get("user-agent")?.slice(0, 512) || null,
+        });
+      } catch {}
       return NextResponse.json(
         { success: false, error: "Email atau kata sandi tidak cocok." },
         { status: 401 }
@@ -120,6 +139,16 @@ export async function POST(req: Request) {
 
     // Login Sukses: Bersihkan catatan percobaan gagal di Redis
     await recordLoginAttempt(rateLimitIdentifier, true);
+    try {
+      await db.insert(analyticsEvents).values({
+        userId: authUser.id,
+        eventType: "login",
+        eventName: "login_success",
+        metadata: { source, email: emailLower, isAdmin: authUser.isAdmin },
+        ipAddress: ip.slice(0, 45),
+        userAgent: req.headers.get("user-agent")?.slice(0, 512) || null,
+      });
+    } catch {}
 
     // 4. Generate Session Token & Simpan Sesi ke Redis
     const token = createSessionToken({ userId: authUser.id, email: authUser.email });
@@ -146,6 +175,7 @@ export async function POST(req: Request) {
         email: authUser.email,
         displayName: authUser.displayName,
         primaryCurrency: authUser.primaryCurrency,
+        isAdmin: authUser.isAdmin,
       },
     });
 

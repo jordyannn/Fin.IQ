@@ -80,13 +80,14 @@ export default function LoginPage() {
         } catch {}
       }
 
+      const destination = data.user?.isAdmin ? "/admin/monitor" : "/overview";
       setSuccessMessage(
-        isEn
-          ? "Signed in successfully! Redirecting to overview..."
-          : "Berhasil masuk! Mengarahkan ke halaman ringkasan..."
+        data.user?.isAdmin
+          ? (isEn ? "Signed in as Admin! Redirecting to monitor dashboard..." : "Masuk sebagai Admin! Mengarahkan ke dashboard monitor...")
+          : (isEn ? "Signed in successfully! Redirecting to overview..." : "Berhasil masuk! Mengarahkan ke halaman ringkasan...")
       );
       setTimeout(() => {
-        router.push("/overview");
+        router.push(destination);
         router.refresh();
       }, 700);
     } catch {
@@ -196,8 +197,8 @@ export default function LoginPage() {
 
         setSuccessMessage(
           isEn
-            ? "Signed in as Demo Account (Owner). Opening dashboard..."
-            : "Masuk sebagai Akun Demo (Owner). Membuka dashboard..."
+            ? "Signed in as Demo Account. Opening dashboard..."
+            : "Masuk sebagai Akun Demo. Membuka dashboard..."
         );
         setTimeout(() => {
           router.push("/overview");

@@ -318,4 +318,30 @@ export const aiChatMessages = mysqlTable(
   })
 );
 
+// ============================================================================
+// 9. Analytics Event Tracking (Admin Monitor)
+// ============================================================================
+
+export const analyticsEvents = mysqlTable(
+  "analytics_events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: varchar("user_id", { length: 36 }),
+    sessionId: varchar("session_id", { length: 64 }), // browser session fingerprint
+    eventType: varchar("event_type", { length: 50 }).notNull(),
+    // eventType: 'page_view' | 'login' | 'login_failed' | 'register' | 'feature_use' | 'click' | etc.
+    eventName: varchar("event_name", { length: 255 }).notNull(), // e.g. "/overview", "btn_add_transaction"
+    metadata: json("metadata").$type<Record<string, unknown>>(),
+    ipAddress: varchar("ip_address", { length: 45 }),
+    userAgent: varchar("user_agent", { length: 512 }),
+    referrer: varchar("referrer", { length: 512 }),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    typeIdx: index("idx_ae_type_time").on(table.eventType, table.createdAt),
+    userIdx: index("idx_ae_user_time").on(table.userId, table.createdAt),
+    sessionIdx: index("idx_ae_session").on(table.sessionId),
+  })
+);
+
 

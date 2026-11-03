@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/server/db";
-import { users, userProfiles, ledgers, accounts, categories } from "@/server/db/schema";
+import { users, userProfiles, ledgers, accounts, categories, analyticsEvents } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { hashPassword, createSessionToken } from "@/server/auth";
 
@@ -145,6 +145,22 @@ export async function POST(req: Request) {
       30 * 86400
     );
 
+    // Track registration event
+    try {
+      const ip =
+        req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+        req.headers.get("x-real-ip") ||
+        "127.0.0.1";
+      await db.insert(analyticsEvents).values({
+        userId: newUserId,
+        eventType: "register",
+        eventName: "account_created",
+        metadata: { email: emailLower, currency: String(primaryCurrency) },
+        ipAddress: ip.slice(0, 45),
+        userAgent: req.headers.get("user-agent")?.slice(0, 512) || null,
+      });
+    } catch {}
+
     const response = NextResponse.json({
       success: true,
       user: {
@@ -152,6 +168,7 @@ export async function POST(req: Request) {
         email: emailLower,
         displayName: String(displayName).trim(),
         primaryCurrency: String(primaryCurrency),
+        isAdmin: false,
       },
     });
 

@@ -9,6 +9,7 @@ import { aiRouter } from "./ai";
 import { importRouter } from "./import";
 import { authRouter } from "./auth";
 import { userRouter } from "./user";
+import { adminRouter } from "./admin";
 
 export const appRouter = router({
   transactions: transactionsRouter,
@@ -21,6 +22,7 @@ export const appRouter = router({
   import: importRouter,
   auth: authRouter,
   user: userRouter,
+  admin: adminRouter,
 });
 
 export type AppRouter = typeof appRouter;
