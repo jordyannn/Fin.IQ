@@ -491,6 +491,19 @@ async function compressImageToBase64(
   });
 }
 
+async function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = (reader.result as string) || "";
+      const b64 = result.includes(",") ? result.split(",")[1] : result;
+      resolve(b64);
+    };
+    reader.onerror = () => reject(new Error("Gagal membaca berkas dokumen."));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function ImportPage() {
   const router = useRouter();
   const utils = trpc.useUtils();
@@ -869,69 +882,6 @@ export default function ImportPage() {
     };
   }, [screenshotTxs]);
 
-  // Ekstraktor teks digital dari file PDF di sisi browser (Super cepat & ringan)
-  const extractTextFromPdfInBrowser = (bytes: Uint8Array): string => {
-    let binary = "";
-    const chunkSize = 32768;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-      binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
-    }
-
-    const decodeHex = (hex: string): string => {
-      const clean = hex.replace(/[\s\r\n]+/g, "");
-      let out = "";
-      if (clean.length >= 4 && clean.startsWith("00")) {
-        for (let i = 0; i < clean.length; i += 4) {
-          const code = parseInt(clean.slice(i, i + 4), 16);
-          if (code >= 32 && code <= 126) out += String.fromCharCode(code);
-          else if (code === 10 || code === 13) out += " ";
-        }
-        if (out.trim()) return out;
-      }
-      for (let i = 0; i < clean.length; i += 2) {
-        const code = parseInt(clean.slice(i, i + 2), 16);
-        if (code >= 32 && code <= 126) out += String.fromCharCode(code);
-        else if (code === 10 || code === 13) out += " ";
-      }
-      return out;
-    };
-
-    const textChunks: string[] = [];
-
-    // 1. Literal string ( ... ) Tj
-    const tjRegex = /\(([^)]{1,500})\)\s*(?:Tj|'|")/g;
-    let m: RegExpExecArray | null;
-    while ((m = tjRegex.exec(binary)) !== null) {
-      if (m[1]?.trim()) textChunks.push(m[1].trim());
-    }
-
-    // 2. Hex string < ... > Tj
-    const hexTjRegex = /<([0-9a-fA-F\s]{2,800})>\s*(?:Tj|'|")/g;
-    while ((m = hexTjRegex.exec(binary)) !== null) {
-      const decoded = decodeHex(m[1]);
-      if (decoded.trim()) textChunks.push(decoded.trim());
-    }
-
-    // 3. Array TJ [ ... ] TJ
-    const arrayTjRegex = /\[([^\]]{1,3000})\]\s*TJ/g;
-    while ((m = arrayTjRegex.exec(binary)) !== null) {
-      const inner = m[1];
-      const parts = inner.match(/\(([^)]*)\)/g);
-      if (parts) {
-        const joined = parts.map((p) => p.slice(1, -1).trim()).filter(Boolean).join(" ");
-        if (joined) textChunks.push(joined);
-      }
-      const hexParts = inner.match(/<([0-9a-fA-F\s]+)>/g);
-      if (hexParts) {
-        const joined = hexParts.map((h) => decodeHex(h.slice(1, -1)).trim()).filter(Boolean).join(" ");
-        if (joined) textChunks.push(joined);
-      }
-    }
-
-    return textChunks.filter(Boolean).join(" ");
-  };
-
   // Convert document with AI / Deep Analysis
   const convertWithAi = async (
     file: File,
@@ -970,24 +920,12 @@ export default function ImportPage() {
     try {
       let b64 = base64Content;
       let text = textContent;
-      const mime = mimeTypeStr || file.type || "application/octet-stream";
+      let mime = mimeTypeStr || file.type || "application/octet-stream";
 
       if (!b64 && !text) {
-        if (file.name.toLowerCase().endsWith(".pdf")) {
-          const buf = await file.arrayBuffer();
-          const bytes = new Uint8Array(buf);
-          const extracted = extractTextFromPdfInBrowser(bytes);
-          if (extracted.length >= 60) {
-            text = extracted;
-          } else {
-            let binary = "";
-            const chunkSize = 32768;
-            for (let i = 0; i < bytes.byteLength; i += chunkSize) {
-              const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.byteLength));
-              binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
-            }
-            b64 = btoa(binary);
-          }
+        if (file.name.toLowerCase().endsWith(".pdf") || mime === "application/pdf") {
+          b64 = await readFileAsBase64(file);
+          mime = "application/pdf";
         } else {
           text = await file.text();
         }
@@ -1010,8 +948,8 @@ export default function ImportPage() {
         alert({
           title: isEn ? "No Transactions Found" : "Tidak Ada Transaksi Terbaca",
           description: isEn
-            ? "AI did not find valid transaction data in this document. Ensure the document includes mutations, dates, and amounts."
-            : "AI tidak menemukan data transaksi yang valid dalam dokumen ini. Pastikan dokumen memuat mutasi, tanggal, dan nominal.",
+            ? "AI did not find valid transaction data in this document. Ensure the document includes mutations, dates, and amounts, and is not password-protected."
+            : "AI tidak menemukan data transaksi yang valid dalam dokumen ini. Pastikan dokumen memuat mutasi, tanggal, nominal, serta tidak dikunci kata sandi (password).",
           variant: "warning",
         });
         return;
@@ -1091,37 +1029,17 @@ export default function ImportPage() {
     setFileSize(file.size);
     setFileType(isPdf ? "pdf" : isExcel ? "excel" : ext === "txt" ? "txt" : "csv");
 
-    // Case 1: PDF Document -> Fast Browser Text Extraction + AI Converter
+    // Case 1: PDF Document -> Fast Direct Base64 & AI Multimodal Document Converter
     if (isPdf) {
-      const buf = await file.arrayBuffer();
-      const bytes = new Uint8Array(buf);
-      const extractedText = extractTextFromPdfInBrowser(bytes);
-
-      let b64: string | undefined = undefined;
-      // Hanya encode base64 jika teks hasil ekstraksi kurang dari 60 karakter (misal PDF hasil scan)
-      if (extractedText.length < 60) {
-        let binary = "";
-        const chunkSize = 32768;
-        for (let i = 0; i < bytes.byteLength; i += chunkSize) {
-          const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.byteLength));
-          binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
-        }
-        b64 = btoa(binary);
-      }
+      const b64 = await readFileAsBase64(file);
 
       setCurrentFileRaw({
         file,
         base64: b64,
-        text: extractedText.length >= 60 ? extractedText : undefined,
         mimeType: "application/pdf",
       });
 
-      await convertWithAi(
-        file,
-        b64,
-        extractedText.length >= 60 ? extractedText : undefined,
-        extractedText.length >= 60 ? "text/plain" : "application/pdf"
-      );
+      await convertWithAi(file, b64, undefined, "application/pdf");
       return;
     }
 

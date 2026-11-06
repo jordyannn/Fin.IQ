@@ -29,6 +29,62 @@ function decodePdfHex(hex: string): string {
   return out;
 }
 
+function parseJsonSafe(text: string): any {
+  if (!text || !text.trim()) return {};
+  const cleaned = text
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const match = cleaned.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+    if (match) {
+      try {
+        return JSON.parse(match[0]);
+      } catch {}
+    }
+  }
+  return {};
+}
+
+function parseHappenedAt(rawDate: string | undefined, currentYear: number): string {
+  if (!rawDate || !rawDate.trim()) {
+    return new Date().toISOString();
+  }
+  const clean = rawDate.trim();
+  // Standard ISO YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
+    const d = new Date(clean);
+    if (!isNaN(d.getTime())) return d.toISOString();
+  }
+  // DD/MM/YYYY or DD-MM-YYYY (Indonesian bank statement standard)
+  const dmyMatch = clean.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10);
+    const month = parseInt(dmyMatch[2], 10) - 1;
+    const year = parseInt(dmyMatch[3], 10);
+    const hour = dmyMatch[4] ? parseInt(dmyMatch[4], 10) : 12;
+    const min = dmyMatch[5] ? parseInt(dmyMatch[5], 10) : 0;
+    const sec = dmyMatch[6] ? parseInt(dmyMatch[6], 10) : 0;
+    const d = new Date(Date.UTC(year, month, day, hour, min, sec));
+    if (!isNaN(d.getTime())) return d.toISOString();
+  }
+  // DD/MM or DD-MM without year
+  const dmMatch = clean.match(/^(\d{1,2})[\/\-](\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?/);
+  if (dmMatch) {
+    const day = parseInt(dmMatch[1], 10);
+    const month = parseInt(dmMatch[2], 10) - 1;
+    const hour = dmMatch[3] ? parseInt(dmMatch[3], 10) : 12;
+    const min = dmMatch[4] ? parseInt(dmMatch[4], 10) : 0;
+    const d = new Date(Date.UTC(currentYear, month, day, hour, min, 0));
+    if (!isNaN(d.getTime())) return d.toISOString();
+  }
+  const fallback = new Date(clean);
+  return isNaN(fallback.getTime()) ? new Date().toISOString() : fallback.toISOString();
+}
+
 /**
  * Ekstraktor teks digital dari file PDF tanpa binary eksternal
  */
@@ -57,7 +113,7 @@ export function extractTextFromPdfBuffer(pdfBuffer: Buffer): string {
     const tjRegex = /\(([^)]*)\)\s*(?:Tj|'|")/g;
     let tjMatch: RegExpExecArray | null;
     while ((tjMatch = tjRegex.exec(text)) !== null) {
-      if (tjMatch[1]) textChunks.push(tjMatch[1]);
+      if (tjMatch[1]?.trim()) textChunks.push(tjMatch[1].trim());
     }
 
     // 2. Hex text Tj: <hex> Tj
@@ -73,11 +129,13 @@ export function extractTextFromPdfBuffer(pdfBuffer: Buffer): string {
     while ((atjMatch = arrayTjRegex.exec(text)) !== null) {
       const parts = atjMatch[1].match(/\(([^)]*)\)/g);
       if (parts) {
-        textChunks.push(parts.map((p) => p.slice(1, -1)).join(" "));
+        const line = parts.map((p) => p.slice(1, -1).trim()).filter(Boolean).join(" ");
+        if (line) textChunks.push(line);
       }
       const hexParts = atjMatch[1].match(/<([0-9a-fA-F\s]+)>/g);
       if (hexParts) {
-        textChunks.push(hexParts.map((h) => decodePdfHex(h.slice(1, -1))).join(" "));
+        const line = hexParts.map((h) => decodePdfHex(h.slice(1, -1)).trim()).filter(Boolean).join(" ");
+        if (line) textChunks.push(line);
       }
     }
   }
@@ -86,7 +144,7 @@ export function extractTextFromPdfBuffer(pdfBuffer: Buffer): string {
     const directTj = /\(([^)]+)\)\s*(?:Tj|'|"|TJ)/g;
     let dMatch: RegExpExecArray | null;
     while ((dMatch = directTj.exec(binary)) !== null) {
-      textChunks.push(dMatch[1]);
+      if (dMatch[1]?.trim()) textChunks.push(dMatch[1].trim());
     }
     const directHex = /<([0-9a-fA-F\s]{4,})>\s*(?:Tj|'|"|TJ)/g;
     while ((dMatch = directHex.exec(binary)) !== null) {
@@ -98,7 +156,7 @@ export function extractTextFromPdfBuffer(pdfBuffer: Buffer): string {
   return textChunks
     .map((t) => t.replace(/\\([()\\])/g, "$1").trim())
     .filter(Boolean)
-    .join(" ");
+    .join("\n");
 }
 
 export function fuzzyMatchAccount(rawName: string | undefined, userAccounts: { id: string; name: string }[]): string {
@@ -537,48 +595,32 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
 
       let rawText = "";
       let modelUsedName = "";
+      let isEncryptedPdf = false;
 
-      // 1. Prioritaskan Model OpenRouter untuk import PDF / Excel
-      try {
-        const docSnippet = extractedDocText ? extractedDocText.slice(0, 50000) : "";
-        if (!docSnippet && isPdf) {
-          throw new Error("Teks digital PDF kosong, mencoba fallback Gemini Vision/PDF.");
-        }
+      if (isPdf && cleanBase64) {
+        try {
+          const rawBin = Buffer.from(cleanBase64, "base64").toString("latin1");
+          if (/\/Encrypt\s+\d+\s+\d+\s+R|\/Encrypt\s*<</i.test(rawBin)) {
+            isEncryptedPdf = true;
+          }
+        } catch {}
+      }
 
-        const openRouterRes = await generateOpenRouterCompletion({
-          systemPrompt: promptInstructions,
-          userPrompt: `Berikut adalah dokumen mutasi keuangan dari file "${input.fileName}" yang harus dikonversi ke format JSON Fin.IQ:\n\n=== ISI DOKUMEN ===\n${docSnippet || cleanBase64.slice(0, 50000)}\n\nIngat: HANYA kembalikan JSON valid sesuai struktur tanpa komentar Markdown atau teks pembuka.`,
-          temperature: 0.1,
-        });
-
-        rawText = openRouterRes.text;
-        modelUsedName = openRouterRes.modelUsed;
-      } catch (openRouterErr: any) {
-        console.warn("[convertAnyDocument] OpenRouter error, falling back to Gemini:", openRouterErr?.message);
-
-        // 2. Fallback aman ke Google Gemini jika OpenRouter rate limited atau dokumen PDF scan murni
+      // 1. Prioritas Utama untuk PDF: Google Gemini Multimodal PDF (Mendukung scan, e-statement BCA/Mandiri/BRI/BNI, tabel visual)
+      if (isPdf && cleanBase64) {
         try {
           const apiKey = await getEffectiveGeminiKey(ctx);
           const ai = new GoogleGenAI({ apiKey });
 
-          let promptContent: any[] = [];
-          if (isPdf && cleanBase64) {
-            promptContent = [
-              {
-                inlineData: {
-                  data: cleanBase64,
-                  mimeType: "application/pdf",
-                },
+          const promptContent = [
+            {
+              inlineData: {
+                data: cleanBase64,
+                mimeType: "application/pdf",
               },
-              { text: promptInstructions },
-            ];
-          } else {
-            promptContent = [
-              {
-                text: `${promptInstructions}\n\n=== ISI DOKUMEN (${input.fileName}) ===\n${(extractedDocText || cleanBase64).slice(0, 60000)}`,
-              },
-            ];
-          }
+            },
+            { text: promptInstructions },
+          ];
 
           const geminiRes = await generateWithFallback(ai, {
             preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
@@ -588,44 +630,110 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
             },
           });
 
-          rawText = geminiRes.text || "{}";
-          modelUsedName = "Google Gemini (Fallback)";
-        } catch (geminiErr: any) {
-          console.error("[convertAnyDocument] Both OpenRouter and Gemini failed:", geminiErr);
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: `Gagal membaca dokumen dengan AI (OpenRouter & Gemini): ${openRouterErr?.message || geminiErr?.message}`,
-          });
+          const resText = geminiRes.text || "{}";
+          const testParse = parseJsonSafe(resText);
+          const txs = Array.isArray(testParse)
+            ? testParse
+            : Array.isArray(testParse.transactions)
+            ? testParse.transactions
+            : [];
+
+          if (txs.length > 0) {
+            rawText = resText;
+            modelUsedName = "Google Gemini (Multimodal PDF)";
+          } else {
+            console.warn("[convertAnyDocument] Gemini Multimodal tidak menemukan transaksi di PDF, mencoba fallback teks...");
+          }
+        } catch (geminiPdfErr: any) {
+          console.warn("[convertAnyDocument] Gemini Multimodal PDF gagal:", geminiPdfErr?.message);
         }
       }
 
-      try {
-        const jsonStr = rawText
-          .replace(/^```json\s*/i, "")
-          .replace(/^```\s*/i, "")
-          .replace(/\s*```$/i, "")
-          .trim();
-
-        let parsedResult: any = {};
-        try {
-          parsedResult = JSON.parse(jsonStr);
-        } catch (jsonErr) {
-          const matchBraces = jsonStr.match(/\{[\s\S]*\}/);
-          if (matchBraces) {
-            try {
-              parsedResult = JSON.parse(matchBraces[0]);
-            } catch {
-              // ignore
-            }
-          }
-          if (!parsedResult || typeof parsedResult !== "object") {
-            console.error("Gagal parse JSON converter:", rawText, jsonErr);
-            throw new TRPCError({
-              code: "INTERNAL_SERVER_ERROR",
-              message: "Format jawaban AI tidak dapat dibaca sebagai JSON valid.",
-            });
+      // 2. Fallback untuk PDF atau pemrosesan Dokumen Teks/Excel
+      if (!rawText) {
+        if (isPdf && cleanBase64 && !extractedDocText) {
+          try {
+            const pdfBuf = Buffer.from(cleanBase64, "base64");
+            extractedDocText = extractTextFromPdfBuffer(pdfBuf);
+          } catch (pdfErr) {
+            console.warn("[convertAnyDocument] Gagal ekstraksi teks PDF lokal:", pdfErr);
           }
         }
+
+        const docSnippet = extractedDocText
+          ? extractedDocText.slice(0, 50000)
+          : isPdf
+          ? ""
+          : cleanBase64.slice(0, 50000);
+
+        // A. Coba OpenRouter dengan teks
+        if (docSnippet && docSnippet.trim().length > 10) {
+          try {
+            const openRouterRes = await generateOpenRouterCompletion({
+              systemPrompt: promptInstructions,
+              userPrompt: `Berikut adalah dokumen mutasi keuangan dari file "${input.fileName}" yang harus dikonversi ke format JSON Fin.IQ:\n\n=== ISI DOKUMEN ===\n${docSnippet}\n\nIngat: HANYA kembalikan JSON valid sesuai struktur tanpa komentar Markdown atau teks pembuka.`,
+              temperature: 0.1,
+            });
+
+            const testParse = parseJsonSafe(openRouterRes.text);
+            const txs = Array.isArray(testParse)
+              ? testParse
+              : Array.isArray(testParse.transactions)
+              ? testParse.transactions
+              : [];
+
+            if (txs.length > 0) {
+              rawText = openRouterRes.text;
+              modelUsedName = openRouterRes.modelUsed;
+            }
+          } catch (openRouterErr: any) {
+            console.warn("[convertAnyDocument] OpenRouter text fallback error:", openRouterErr?.message);
+          }
+        }
+
+        // B. Jika masih belum menghasilkan transaksi dan ada konten, coba Gemini Teks
+        if (!rawText && (docSnippet || cleanBase64)) {
+          try {
+            const apiKey = await getEffectiveGeminiKey(ctx);
+            const ai = new GoogleGenAI({ apiKey });
+
+            const geminiRes = await generateWithFallback(ai, {
+              preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
+              contents: [
+                {
+                  text: `${promptInstructions}\n\n=== ISI DOKUMEN (${input.fileName}) ===\n${(docSnippet || cleanBase64).slice(0, 60000)}`,
+                },
+              ],
+              config: {
+                responseMimeType: "application/json",
+              },
+            });
+
+            rawText = geminiRes.text || "{}";
+            modelUsedName = "Google Gemini (Text Prompt)";
+          } catch (geminiErr: any) {
+            console.error("[convertAnyDocument] Gemini text prompt failed:", geminiErr);
+          }
+        }
+      }
+
+      if (!rawText) {
+        if (isEncryptedPdf) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Dokumen PDF ini memiliki proteksi kata sandi (password). Silakan buka file PDF Anda di browser atau aplikasi PDF reader, simpan/cetak ulang tanpa kata sandi (fitur 'Print to PDF' / 'Simpan sebagai PDF'), lalu unggah kembali file hasil cetak tersebut.",
+          });
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            "Layanan AI tidak dapat membaca dokumen ini. Pastikan file dokumen jelas, tidak rusak, dan koneksi AI aktif.",
+        });
+      }
+
+      try {
+        const parsedResult = parseJsonSafe(rawText);
 
         const rawList = Array.isArray(parsedResult)
           ? parsedResult
@@ -652,10 +760,7 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
           const txType: "expense" | "income" | "transfer" =
             item.txType === "income" || item.txType === "transfer" ? item.txType : "expense";
 
-          let happenedAtStr = item.happenedAt;
-          if (!happenedAtStr || isNaN(new Date(happenedAtStr).getTime())) {
-            happenedAtStr = new Date().toISOString();
-          }
+          const happenedAtStr = parseHappenedAt(item.happenedAt, currentYear);
 
           const matchedAccName = fuzzyMatchAccount(
             item.accountName || defaultAccountName,
@@ -676,6 +781,14 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
             accountName: matchedAccName,
             toAccountName: matchedToAccName,
             note: (item.note || "").trim() || "Transaksi Impor Dokumen",
+          });
+        }
+
+        if (normalizedTxs.length === 0 && isEncryptedPdf) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Dokumen PDF ini memiliki proteksi kata sandi (password). Silakan buka file PDF Anda di browser atau aplikasi PDF reader, simpan/cetak ulang tanpa kata sandi (fitur 'Print to PDF' / 'Simpan sebagai PDF'), lalu unggah kembali file hasil cetak tersebut.",
           });
         }
 
