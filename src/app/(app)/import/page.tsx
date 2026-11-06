@@ -549,6 +549,7 @@ export default function ImportPage() {
   } | null>(null);
   const [isConvertingWithAi, setIsConvertingWithAi] = useState(false);
   const [aiConversionMessage, setAiConversionMessage] = useState("");
+  const [aiProgress, setAiProgress] = useState(0);
 
   // NLP & Category Selection states for File Tab
   const [fileTxs, setFileTxs] = useState<ParsedFileTxItem[]>([]);
@@ -868,17 +869,103 @@ export default function ImportPage() {
     };
   }, [screenshotTxs]);
 
-  // Convert document with AI (OpenRouter with Fallback) / Deep Analysis
+  // Ekstraktor teks digital dari file PDF di sisi browser (Super cepat & ringan)
+  const extractTextFromPdfInBrowser = (bytes: Uint8Array): string => {
+    let binary = "";
+    const chunkSize = 32768;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+      binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+    }
+
+    const decodeHex = (hex: string): string => {
+      const clean = hex.replace(/[\s\r\n]+/g, "");
+      let out = "";
+      if (clean.length >= 4 && clean.startsWith("00")) {
+        for (let i = 0; i < clean.length; i += 4) {
+          const code = parseInt(clean.slice(i, i + 4), 16);
+          if (code >= 32 && code <= 126) out += String.fromCharCode(code);
+          else if (code === 10 || code === 13) out += " ";
+        }
+        if (out.trim()) return out;
+      }
+      for (let i = 0; i < clean.length; i += 2) {
+        const code = parseInt(clean.slice(i, i + 2), 16);
+        if (code >= 32 && code <= 126) out += String.fromCharCode(code);
+        else if (code === 10 || code === 13) out += " ";
+      }
+      return out;
+    };
+
+    const textChunks: string[] = [];
+
+    // 1. Literal string ( ... ) Tj
+    const tjRegex = /\(([^)]{1,500})\)\s*(?:Tj|'|")/g;
+    let m: RegExpExecArray | null;
+    while ((m = tjRegex.exec(binary)) !== null) {
+      if (m[1]?.trim()) textChunks.push(m[1].trim());
+    }
+
+    // 2. Hex string < ... > Tj
+    const hexTjRegex = /<([0-9a-fA-F\s]{2,800})>\s*(?:Tj|'|")/g;
+    while ((m = hexTjRegex.exec(binary)) !== null) {
+      const decoded = decodeHex(m[1]);
+      if (decoded.trim()) textChunks.push(decoded.trim());
+    }
+
+    // 3. Array TJ [ ... ] TJ
+    const arrayTjRegex = /\[([^\]]{1,3000})\]\s*TJ/g;
+    while ((m = arrayTjRegex.exec(binary)) !== null) {
+      const inner = m[1];
+      const parts = inner.match(/\(([^)]*)\)/g);
+      if (parts) {
+        const joined = parts.map((p) => p.slice(1, -1).trim()).filter(Boolean).join(" ");
+        if (joined) textChunks.push(joined);
+      }
+      const hexParts = inner.match(/<([0-9a-fA-F\s]+)>/g);
+      if (hexParts) {
+        const joined = hexParts.map((h) => decodeHex(h.slice(1, -1)).trim()).filter(Boolean).join(" ");
+        if (joined) textChunks.push(joined);
+      }
+    }
+
+    return textChunks.filter(Boolean).join(" ");
+  };
+
+  // Convert document with AI / Deep Analysis
   const convertWithAi = async (
     file: File,
     base64Content?: string,
     textContent?: string,
     mimeTypeStr?: string
   ) => {
+    setAiProgress(0);
     setIsConvertingWithAi(true);
     setAiConversionMessage(
-      `AI (OpenRouter) sedang membaca ${file.name} dan mengekstrak transaksi mutasi...`
+      isEn ? "Extracting transaction data..." : "Mengekstrak data transaksi..."
     );
+
+    // Easing progress simulation: Cepat di awal, melambat di akhir
+    const startTime = Date.now();
+    const progressInterval = setInterval(() => {
+      setAiProgress((prev) => {
+        const elapsed = Date.now() - startTime;
+        let target = 0;
+        if (elapsed < 1000) {
+          target = (elapsed / 1000) * 42; // 0% -> 42% dalam 1 detik (sangat responsif di awal)
+        } else if (elapsed < 3000) {
+          target = 42 + ((elapsed - 1000) / 2000) * 28; // 42% -> 70% di detik ke-3
+        } else if (elapsed < 6000) {
+          target = 70 + ((elapsed - 3000) / 3000) * 16; // 70% -> 86% di detik ke-6
+        } else if (elapsed < 12000) {
+          target = 86 + ((elapsed - 6000) / 6000) * 8; // 86% -> 94% di detik ke-12
+        } else {
+          // Melambat perlahan merayap menuju 98%
+          target = Math.min(94 + ((elapsed - 12000) / 20000) * 4, 98);
+        }
+        return Math.min(Math.max(prev, target), 98);
+      });
+    }, 70);
 
     try {
       let b64 = base64Content;
@@ -888,12 +975,19 @@ export default function ImportPage() {
       if (!b64 && !text) {
         if (file.name.toLowerCase().endsWith(".pdf")) {
           const buf = await file.arrayBuffer();
-          let binary = "";
           const bytes = new Uint8Array(buf);
-          for (let i = 0; i < bytes.byteLength; i++) {
-            binary += String.fromCharCode(bytes[i]);
+          const extracted = extractTextFromPdfInBrowser(bytes);
+          if (extracted.length >= 60) {
+            text = extracted;
+          } else {
+            let binary = "";
+            const chunkSize = 32768;
+            for (let i = 0; i < bytes.byteLength; i += chunkSize) {
+              const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.byteLength));
+              binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+            }
+            b64 = btoa(binary);
           }
-          b64 = btoa(binary);
         } else {
           text = await file.text();
         }
@@ -907,11 +1001,17 @@ export default function ImportPage() {
         defaultAccountId: defaultAccountId || undefined,
       });
 
+      // Selesai! Langsung lompat ke 100%
+      clearInterval(progressInterval);
+      setAiProgress(100);
+      await new Promise((resolve) => setTimeout(resolve, 350));
+
       if (!res.transactions || res.transactions.length === 0) {
         alert({
-          title: "Tidak Ada Transaksi Terbaca",
-          description:
-            "AI tidak menemukan data transaksi yang valid dalam dokumen ini. Pastikan dokumen memuat mutasi, tanggal, dan nominal.",
+          title: isEn ? "No Transactions Found" : "Tidak Ada Transaksi Terbaca",
+          description: isEn
+            ? "AI did not find valid transaction data in this document. Ensure the document includes mutations, dates, and amounts."
+            : "AI tidak menemukan data transaksi yang valid dalam dokumen ini. Pastikan dokumen memuat mutasi, tanggal, dan nominal.",
           variant: "warning",
         });
         return;
@@ -946,13 +1046,26 @@ export default function ImportPage() {
         }
       }
     } catch (err: any) {
+      clearInterval(progressInterval);
+      setAiProgress(0);
       console.error("Gagal convert dengan AI:", err);
+      let desc = err.message || (isEn ? "Error contacting AI service." : "Terjadi kesalahan saat menghubungi layanan AI.");
+      if (
+        desc.includes("<!DOCTYPE") ||
+        desc.includes("is not valid JSON") ||
+        desc.includes("Unexpected token")
+      ) {
+        desc = isEn
+          ? "The document payload is too large or server is experiencing high load. Please upload a more compact PDF statement (1-3 pages) or use Excel (.xlsx) / CSV format."
+          : "Berkas dokumen terlalu besar atau server sedang mengalami antrean. Silakan unggah PDF mutasi yang lebih ringkas (1-3 halaman) atau gunakan format Excel (.xlsx) / CSV.";
+      }
       alert({
-        title: "Gagal Mengonversi Dokumen",
-        description: err.message || "Terjadi kesalahan saat menghubungi layanan AI.",
+        title: isEn ? "Failed to Convert Document" : "Gagal Mengonversi Dokumen",
+        description: desc,
         variant: "destructive",
       });
     } finally {
+      clearInterval(progressInterval);
       setIsConvertingWithAi(false);
       setAiConversionMessage("");
     }
@@ -978,23 +1091,37 @@ export default function ImportPage() {
     setFileSize(file.size);
     setFileType(isPdf ? "pdf" : isExcel ? "excel" : ext === "txt" ? "txt" : "csv");
 
-    // Case 1: PDF Document -> Direct to Gemini AI Converter
+    // Case 1: PDF Document -> Fast Browser Text Extraction + AI Converter
     if (isPdf) {
       const buf = await file.arrayBuffer();
-      let binary = "";
       const bytes = new Uint8Array(buf);
-      for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
+      const extractedText = extractTextFromPdfInBrowser(bytes);
+
+      let b64: string | undefined = undefined;
+      // Hanya encode base64 jika teks hasil ekstraksi kurang dari 60 karakter (misal PDF hasil scan)
+      if (extractedText.length < 60) {
+        let binary = "";
+        const chunkSize = 32768;
+        for (let i = 0; i < bytes.byteLength; i += chunkSize) {
+          const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.byteLength));
+          binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+        }
+        b64 = btoa(binary);
       }
-      const b64 = btoa(binary);
 
       setCurrentFileRaw({
         file,
         base64: b64,
+        text: extractedText.length >= 60 ? extractedText : undefined,
         mimeType: "application/pdf",
       });
 
-      await convertWithAi(file, b64, undefined, "application/pdf");
+      await convertWithAi(
+        file,
+        b64,
+        extractedText.length >= 60 ? extractedText : undefined,
+        extractedText.length >= 60 ? "text/plain" : "application/pdf"
+      );
       return;
     }
 
@@ -1588,17 +1715,52 @@ export default function ImportPage() {
 
         {/* AI Processing Overlay saat mengekstrak dokumen */}
         {isConvertingWithAi && (
-          <Card className="p-8 text-center bg-card/90 border-dashed border-2 border-primary/40 space-y-4 animate-in fade-in">
-            <div className="flex h-14 w-14 items-center justify-center rounded-md bg-primary/10 text-primary mx-auto animate-pulse">
-              <Loader2 className="h-7 w-7 animate-spin" />
+          <Card className="p-6 sm:p-8 text-center bg-card border border-border shadow-md space-y-5 animate-in fade-in rounded-2xl max-w-xl mx-auto my-4">
+            <div className="flex items-center justify-center">
+              <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
             </div>
-            <div>
-              <h4 className="text-base font-bold text-foreground">
-                {aiConversionMessage || "Membaca dan menyesuaikan format dokumen..."}
+
+            <div className="space-y-1.5">
+              <h4 className="text-base sm:text-lg font-extrabold text-foreground tracking-tight">
+                {aiProgress >= 100
+                  ? isEn
+                    ? "Extraction Complete!"
+                    : "Ekstraksi Selesai!"
+                  : isEn
+                  ? "Extracting Transaction Data..."
+                  : "Mengekstrak Data Transaksi..."}
               </h4>
-              <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1">
-                Mendeteksi tanggal, nominal debit/kredit, dan keterangan mutasi.
+              <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
+                {aiProgress >= 100
+                  ? isEn
+                    ? "Preparing transactions preview..."
+                    : "Menyiapkan pratinjau transaksi..."
+                  : isEn
+                  ? "Reading debit/credit mutations, dates, amounts, and merchant notes..."
+                  : "Membaca mutasi debit/kredit, tanggal, nominal, dan nama merchant..."}
               </p>
+            </div>
+
+            {/* Progress Bar with animated easing (cepat di awal, melambat di akhir) */}
+            <div className="space-y-1.5 max-w-md mx-auto pt-1">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="text-[11px] text-muted-foreground truncate max-w-[240px]">
+                  {fileName || (isEn ? "Processing document" : "Memproses dokumen")}
+                </span>
+                <span className="text-xs font-black text-primary font-mono shrink-0">
+                  {Math.round(aiProgress)}%
+                </span>
+              </div>
+              <div className="h-2.5 w-full rounded-full bg-muted/80 overflow-hidden p-0.5 border border-border/50">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ease-out ${
+                    aiProgress >= 100 ? "bg-emerald-500" : "bg-primary"
+                  }`}
+                  style={{ width: `${Math.min(aiProgress, 100)}%` }}
+                />
+              </div>
             </div>
           </Card>
         )}

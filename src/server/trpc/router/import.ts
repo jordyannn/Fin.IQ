@@ -10,6 +10,25 @@ import zlib from "zlib";
 import * as XLSX from "xlsx";
 import { generateOpenRouterCompletion } from "../../openrouter";
 
+function decodePdfHex(hex: string): string {
+  const clean = hex.replace(/[\s\r\n]+/g, "");
+  let out = "";
+  if (clean.length >= 4 && clean.startsWith("00")) {
+    for (let i = 0; i < clean.length; i += 4) {
+      const code = parseInt(clean.slice(i, i + 4), 16);
+      if (code >= 32 && code <= 126) out += String.fromCharCode(code);
+      else if (code === 10 || code === 13) out += " ";
+    }
+    if (out.trim()) return out;
+  }
+  for (let i = 0; i < clean.length; i += 2) {
+    const code = parseInt(clean.slice(i, i + 2), 16);
+    if (code >= 32 && code <= 126) out += String.fromCharCode(code);
+    else if (code === 10 || code === 13) out += " ";
+  }
+  return out;
+}
+
 /**
  * Ekstraktor teks digital dari file PDF tanpa binary eksternal
  */
@@ -34,18 +53,31 @@ export function extractTextFromPdfBuffer(pdfBuffer: Buffer): string {
 
     const text = decompressed.toString("latin1");
 
+    // 1. Literal text Tj: (text) Tj
     const tjRegex = /\(([^)]*)\)\s*(?:Tj|'|")/g;
     let tjMatch: RegExpExecArray | null;
     while ((tjMatch = tjRegex.exec(text)) !== null) {
       if (tjMatch[1]) textChunks.push(tjMatch[1]);
     }
 
+    // 2. Hex text Tj: <hex> Tj
+    const hexTjRegex = /<([0-9a-fA-F\s]+)>\s*(?:Tj|'|")/g;
+    while ((tjMatch = hexTjRegex.exec(text)) !== null) {
+      const decoded = decodePdfHex(tjMatch[1]);
+      if (decoded.trim()) textChunks.push(decoded.trim());
+    }
+
+    // 3. Array TJ: [ (text) 10 <hex> ] TJ
     const arrayTjRegex = /\[(.*?)\]\s*TJ/g;
     let atjMatch: RegExpExecArray | null;
     while ((atjMatch = arrayTjRegex.exec(text)) !== null) {
       const parts = atjMatch[1].match(/\(([^)]*)\)/g);
       if (parts) {
         textChunks.push(parts.map((p) => p.slice(1, -1)).join(" "));
+      }
+      const hexParts = atjMatch[1].match(/<([0-9a-fA-F\s]+)>/g);
+      if (hexParts) {
+        textChunks.push(hexParts.map((h) => decodePdfHex(h.slice(1, -1))).join(" "));
       }
     }
   }
@@ -55,6 +87,11 @@ export function extractTextFromPdfBuffer(pdfBuffer: Buffer): string {
     let dMatch: RegExpExecArray | null;
     while ((dMatch = directTj.exec(binary)) !== null) {
       textChunks.push(dMatch[1]);
+    }
+    const directHex = /<([0-9a-fA-F\s]{4,})>\s*(?:Tj|'|"|TJ)/g;
+    while ((dMatch = directHex.exec(binary)) !== null) {
+      const decoded = decodePdfHex(dMatch[1]);
+      if (decoded.trim()) textChunks.push(decoded.trim());
     }
   }
 
