@@ -9,7 +9,9 @@
  */
 
 export const DEFAULT_OPENROUTER_API_KEY =
-  process.env.OPENROUTER_API_KEY?.trim() || "";
+  process.env.OPENROUTER_API_KEY?.trim() ||
+  process.env.OPENROUTER?.trim() ||
+  "";
 
 export interface FreeModelInfo {
   id: string;

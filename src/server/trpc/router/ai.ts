@@ -29,6 +29,7 @@ import {
   GEMINI_VISION_MODEL,
   generateWithFallback,
   getEffectiveGeminiKey,
+  DEFAULT_GEMINI_API_KEY,
 } from "../../gemini";
 import {
   OPENROUTER_FREE_MODELS,
@@ -1048,7 +1049,10 @@ ATURAN EKSTRAKSI PENTING:
         console.warn("[askFinancialAssistant] OpenRouter error:", openRouterErr?.message);
 
         // 2. Coba Google Gemini jika user memiliki personal Gemini key atau ada env valid
-        const systemGeminiKey = process.env.GEMINI_API_KEY?.trim();
+        const systemGeminiKey =
+          process.env.GEMINI_API_KEY?.trim() ||
+          process.env.GEMINI?.trim() ||
+          DEFAULT_GEMINI_API_KEY;
         const effectiveGeminiKey = userGeminiKey || systemGeminiKey || undefined;
 
         if (effectiveGeminiKey) {

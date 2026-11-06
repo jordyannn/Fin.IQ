@@ -36,9 +36,17 @@ COPY . .
 # Diteruskan dari GitHub Actions lewat --build-arg, BUKAN ditulis di sini,
 # supaya tidak kebaked ke image final.
 ARG DATABASE_URL
+ARG OPENROUTER
+ARG GEMINI
+ARG OPENROUTER_API_KEY
+ARG GEMINI_API_KEY
 ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_ENV=production \
-    DATABASE_URL=$DATABASE_URL
+    DATABASE_URL=$DATABASE_URL \
+    OPENROUTER=$OPENROUTER \
+    GEMINI=$GEMINI \
+    OPENROUTER_API_KEY=$OPENROUTER_API_KEY \
+    GEMINI_API_KEY=$GEMINI_API_KEY
 
 RUN npm run build
 

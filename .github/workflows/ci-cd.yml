@@ -63,7 +63,10 @@ jobs:
           DEMO_USER_ID: ${{ secrets.DEMO_USER_ID || '9728be5f-a414-42f3-a827-4504a56c1370' }}
           NEXT_PUBLIC_DEFAULT_CURRENCY: "IDR"
           DATABASE_URL: ${{ secrets.DATABASE_URL || 'mysql://avnadmin:AVNS_CpIAQBJBbUy_hH9zbT8@finiq-1-jordanngz12-6510.c.aivencloud.com:12551/defaultdb' }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY || '' }}
+          OPENROUTER: ${{ secrets.OPENROUTER || secrets.OPENROUTER_API_KEY || '' }}
+          GEMINI: ${{ secrets.GEMINI || secrets.GEMINI_API_KEY || '' }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER || secrets.OPENROUTER_API_KEY || '' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI || secrets.GEMINI_API_KEY || '' }}
 
   # 2. Build, Push & Deploy Multi-Microservices ke k3s
   build-and-deploy:
@@ -96,6 +99,10 @@ jobs:
             ghcr.io/jordyannn/finiq-frontend:${{ github.sha }}
           build-args: |
             DATABASE_URL=${{ secrets.DATABASE_URL || 'mysql://avnadmin:AVNS_CpIAQBJBbUy_hH9zbT8@finiq-1-jordanngz12-6510.c.aivencloud.com:12551/defaultdb' }}
+            OPENROUTER=${{ secrets.OPENROUTER || secrets.OPENROUTER_API_KEY || '' }}
+            GEMINI=${{ secrets.GEMINI || secrets.GEMINI_API_KEY || '' }}
+            OPENROUTER_API_KEY=${{ secrets.OPENROUTER || secrets.OPENROUTER_API_KEY || '' }}
+            GEMINI_API_KEY=${{ secrets.GEMINI || secrets.GEMINI_API_KEY || '' }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
@@ -161,11 +168,15 @@ jobs:
       # Verifikasi image di containerd, template manifest, apply & rollout
       - name: Verifikasi containerd, apply manifest & rollout
         uses: appleboy/ssh-action@v1
+        env:
+          OPENROUTER: ${{ secrets.OPENROUTER || secrets.OPENROUTER_API_KEY }}
+          GEMINI: ${{ secrets.GEMINI || secrets.GEMINI_API_KEY }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USERNAME || 'ubuntu' }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
+          envs: OPENROUTER,GEMINI
           script: |
             set -euo pipefail
 
@@ -217,6 +228,18 @@ jobs:
             sed -i "s|ghcr.io/jordyannn/finiq-frontend:latest|ghcr.io/jordyannn/finiq-frontend:${{ github.sha }}|g" k8s/frontend/deployment.yaml
             sed -i "s|ghcr.io/jordyannn/finiq-core-api:latest|ghcr.io/jordyannn/finiq-core-api:${{ github.sha }}|g" k8s/core-api/deployment.yaml
             sed -i "s|ghcr.io/jordyannn/finiq-ai-service:latest|ghcr.io/jordyannn/finiq-ai-service:${{ github.sha }}|g" k8s/ai-service/deployment.yaml
+
+            echo "=== 3b. Sync Secrets OPENROUTER & GEMINI ke k3s finiq-secrets ==="
+            if [ -n "${OPENROUTER:-}" ]; then
+              echo "Patching OPENROUTER & OPENROUTER_API_KEY ke finiq-secrets..."
+              kubectl -n finiq patch secret finiq-secrets --type=merge -p "{\"stringData\":{\"OPENROUTER_API_KEY\":\"$OPENROUTER\",\"OPENROUTER\":\"$OPENROUTER\"}}" || \
+              kubectl -n finiq create secret generic finiq-secrets --from-literal=OPENROUTER_API_KEY="$OPENROUTER" --from-literal=OPENROUTER="$OPENROUTER" --dry-run=client -o yaml | kubectl apply -f -
+            fi
+            if [ -n "${GEMINI:-}" ]; then
+              echo "Patching GEMINI & GEMINI_API_KEY ke finiq-secrets..."
+              kubectl -n finiq patch secret finiq-secrets --type=merge -p "{\"stringData\":{\"GEMINI_API_KEY\":\"$GEMINI\",\"GEMINI\":\"$GEMINI\"}}" || \
+              kubectl -n finiq create secret generic finiq-secrets --from-literal=GEMINI_API_KEY="$GEMINI" --from-literal=GEMINI="$GEMINI" --dry-run=client -o yaml | kubectl apply -f -
+            fi
 
             echo "=== 4. Apply Manifests (Atomic Rolling Update) ==="
             kubectl apply -R -f k8s/

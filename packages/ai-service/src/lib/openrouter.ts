@@ -2,7 +2,9 @@ import { and, eq, gte, count, sql } from "drizzle-orm";
 import { db, aiChatMessages, aiPromptHistory } from "@finiq/shared";
 
 export const DEFAULT_OPENROUTER_API_KEY =
-  process.env.OPENROUTER_API_KEY?.trim() || "";
+  process.env.OPENROUTER_API_KEY?.trim() ||
+  process.env.OPENROUTER?.trim() ||
+  "";
 
 export interface FreeModelInfo {
   id: string;

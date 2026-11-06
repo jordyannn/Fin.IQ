@@ -6,6 +6,11 @@ export const GEMINI_MODEL = "gemini-3-flash-preview";
 export const GEMINI_AUDIO_MODEL = "gemini-3-flash-preview";
 export const GEMINI_VISION_MODEL = "gemini-3-flash-preview";
 
+export const DEFAULT_GEMINI_API_KEY =
+  process.env.GEMINI_API_KEY?.trim() ||
+  process.env.GEMINI?.trim() ||
+  "";
+
 export async function getEffectiveGeminiKey(userId: string): Promise<string> {
   const profileRecords = await db
     .select({ geminiApiKey: userProfiles.geminiApiKey })
@@ -15,7 +20,11 @@ export async function getEffectiveGeminiKey(userId: string): Promise<string> {
 
   const profile = profileRecords[0];
   const decryptedPersonalKey = profile?.geminiApiKey ? decryptSecret(profile.geminiApiKey).trim() : "";
-  const key = decryptedPersonalKey || process.env.GEMINI_API_KEY?.trim() || "";
+  const key =
+    (decryptedPersonalKey && !decryptedPersonalKey.startsWith("sk-or-") ? decryptedPersonalKey : "") ||
+    process.env.GEMINI_API_KEY?.trim() ||
+    process.env.GEMINI?.trim() ||
+    DEFAULT_GEMINI_API_KEY;
 
   if (!key) {
     throw new Error(

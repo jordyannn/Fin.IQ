@@ -7,6 +7,11 @@ export const GEMINI_MODEL = "gemini-3-flash-preview";
 export const GEMINI_AUDIO_MODEL = "gemini-3-flash-preview";
 export const GEMINI_VISION_MODEL = "gemini-3-flash-preview";
 
+export const DEFAULT_GEMINI_API_KEY =
+  process.env.GEMINI_API_KEY?.trim() ||
+  process.env.GEMINI?.trim() ||
+  "";
+
 export async function getEffectiveGeminiKey(ctx: { db: any; userId: string }): Promise<string> {
   const profileRecords = await ctx.db
     .select({ geminiApiKey: userProfiles.geminiApiKey })
@@ -20,7 +25,9 @@ export async function getEffectiveGeminiKey(ctx: { db: any; userId: string }): P
   const key =
     profileKey && !profileKey.startsWith("sk-or-")
       ? profileKey
-      : process.env.GEMINI_API_KEY?.trim() || "";
+      : process.env.GEMINI_API_KEY?.trim() ||
+        process.env.GEMINI?.trim() ||
+        DEFAULT_GEMINI_API_KEY;
 
   if (!key) {
     throw new TRPCError({
