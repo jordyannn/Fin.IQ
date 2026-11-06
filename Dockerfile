@@ -19,6 +19,9 @@ RUN apk add --no-cache libc6-compat
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/core-api/package.json ./packages/core-api/
+COPY packages/ai-service/package.json ./packages/ai-service/
 RUN npm ci --prefer-offline --no-audit
 
 # -----------------------------------------------------------------------------
