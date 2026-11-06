@@ -343,6 +343,7 @@ export async function generateOpenRouterCompletion(options: {
       : DEFAULT_MODEL_ID;
 
   // Daftar urutan fallback model free-tier aktif jika model utama mengalami rate-limit (429)
+  // Dibatasi maksimal 3 model kandidat dengan timeout 12s per model agar tidak menyebabkan timeout gateway
   const candidateModels = [
     targetModel,
     "nvidia/nemotron-3.5-lightning:free",
@@ -350,7 +351,9 @@ export async function generateOpenRouterCompletion(options: {
     "google/gemma-4-31b-it:free",
     "google/gemma-4-26b-a4b-it:free",
     "recursive/flint-v1.0:free",
-  ].filter((val, idx, arr) => arr.indexOf(val) === idx);
+  ]
+    .filter((val, idx, arr) => arr.indexOf(val) === idx)
+    .slice(0, 3);
 
   let lastError: Error | null = null;
 
@@ -358,6 +361,7 @@ export async function generateOpenRouterCompletion(options: {
     try {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
+        signal: AbortSignal.timeout(12000),
         headers: {
           Authorization: `Bearer ${activeKey}`,
           "Content-Type": "application/json",

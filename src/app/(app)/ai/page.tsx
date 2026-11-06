@@ -320,14 +320,25 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
       refetchSessions();
     },
     onError: (err) => {
+      let rawMsg = err.message || (isEn ? "Connection to AI interrupted." : "Koneksi ke AI terganggu.");
+      if (
+        rawMsg.includes("<!DOCTYPE") ||
+        rawMsg.includes("is not valid JSON") ||
+        rawMsg.includes("Unexpected token")
+      ) {
+        rawMsg = isEn
+          ? "The AI server is experiencing high traffic or a temporary gateway delay. Please try resending your message."
+          : "Layanan AI sedang mengalami lonjakan beban atau jeda koneksi gateway. Silakan kirim kembali pertanyaan Anda.";
+      }
+
       setChatMessages((prev) => [
         ...prev,
         {
           id: `err-${Date.now()}`,
           role: "assistant",
           text: isEn
-            ? `Failed to process data: ${err.message || "Connection to AI interrupted."}`
-            : `Gagal memproses data: ${err.message || "Koneksi ke AI terganggu."}`,
+            ? `Failed to process data: ${rawMsg}`
+            : `Gagal memproses data: ${rawMsg}`,
           time: new Date().toLocaleTimeString(isEn ? "en-US" : "id-ID", { hour: "2-digit", minute: "2-digit" }),
         },
       ]);

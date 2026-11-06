@@ -148,12 +148,20 @@ export function AIAdvisorDrawer() {
       mascotSound.playPop();
     },
     onError: (err) => {
+      let rawMsg = err.message || "Koneksi ke AI terganggu.";
+      if (
+        rawMsg.includes("<!DOCTYPE") ||
+        rawMsg.includes("is not valid JSON") ||
+        rawMsg.includes("Unexpected token")
+      ) {
+        rawMsg = "Layanan AI sedang mengalami lonjakan beban atau jeda koneksi gateway. Silakan kirim kembali pertanyaan Anda.";
+      }
       setMessages((prev) => [
         ...prev,
         {
           id: `err-${Date.now()}`,
           role: "assistant",
-          content: `Maaf bos, terjadi kendala: ${err.message || "Koneksi ke AI terganggu."}`,
+          content: `Maaf bos, terjadi kendala: ${rawMsg}`,
           time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
         },
       ]);

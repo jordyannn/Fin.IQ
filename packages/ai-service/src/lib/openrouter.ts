@@ -265,7 +265,9 @@ export async function generateOpenRouterCompletion(options: {
     "nvidia/nemotron-3.5-lightning:free",
     "dots-studio/dots-3-note-preview:free",
     "recursive/flint-v1.0:free",
-  ].filter((val, idx, arr) => arr.indexOf(val) === idx);
+  ]
+    .filter((val, idx, arr) => arr.indexOf(val) === idx)
+    .slice(0, 3);
 
   let lastError: Error | null = null;
 
@@ -273,6 +275,7 @@ export async function generateOpenRouterCompletion(options: {
     try {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
+        signal: AbortSignal.timeout(12000),
         headers: {
           Authorization: `Bearer ${DEFAULT_OPENROUTER_API_KEY}`,
           "Content-Type": "application/json",

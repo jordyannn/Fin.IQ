@@ -1034,47 +1034,64 @@ ATURAN EKSTRAKSI PENTING:
       let answerText = "";
       let modelUsedName = "";
 
-      // 1. Coba OpenRouter (menggunakan personal key user jika ada, atau system key)
+      // 1. Coba Cloud AI (OpenRouter dengan fallback Gemini) dengan batas waktu maksimum 24 detik
+      // Menjamin respon tidak pernah melewati batas timeout Nginx/K8s proxy (Zero-Gateway-Timeout)
       try {
-        const result = await generateOpenRouterCompletion({
-          model: input.model,
-          systemPrompt,
-          userPrompt,
-          temperature: 0.2,
-          apiKey: userOpenRouterKey,
-        });
-        answerText = result.text;
-        modelUsedName = result.modelUsed;
-      } catch (openRouterErr: any) {
-        console.warn("[askFinancialAssistant] OpenRouter error:", openRouterErr?.message);
-
-        // 2. Coba Google Gemini jika user memiliki personal Gemini key atau ada env valid
-        const systemGeminiKey =
-          process.env.GEMINI_API_KEY?.trim() ||
-          process.env.GEMINI?.trim() ||
-          DEFAULT_GEMINI_API_KEY;
-        const effectiveGeminiKey = userGeminiKey || systemGeminiKey || undefined;
-
-        if (effectiveGeminiKey) {
+        const cloudAiTask = (async () => {
           try {
-            const ai = new GoogleGenAI({ apiKey: effectiveGeminiKey });
-            const response = await generateWithFallback(ai, {
-              preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
-              contents: `${systemPrompt}\n\n${userPrompt}`,
+            const result = await generateOpenRouterCompletion({
+              model: input.model,
+              systemPrompt,
+              userPrompt,
+              temperature: 0.2,
+              apiKey: userOpenRouterKey,
             });
-            answerText = response.text || "Tidak ada respon dari AI.";
-            modelUsedName = "Google Gemini (Personal Fallback)";
-          } catch (geminiErr: any) {
-            console.warn("[askFinancialAssistant] Gemini fallback error:", geminiErr?.message);
-          }
-        }
+            return { text: result.text, modelUsed: result.modelUsed };
+          } catch (openRouterErr: any) {
+            console.warn("[askFinancialAssistant] OpenRouter error:", openRouterErr?.message);
 
-        // 3. Fallback Cerdas: Bang Peci Local Financial Telemetry Advisor (Zero-Crash Guarantee)
-        // Setiap akun di Fin-IQ dijamin selalu mendapatkan analisa finansial komprehensif
-        if (!answerText) {
-          answerText = generateTelemetryFinancialAnswer(telemetry, input.question, isEnglish);
-          modelUsedName = "Bang Peci Telemetry Advisor (Offline Mode)";
+            const systemGeminiKey =
+              process.env.GEMINI_API_KEY?.trim() ||
+              process.env.GEMINI?.trim() ||
+              DEFAULT_GEMINI_API_KEY;
+            const effectiveGeminiKey = userGeminiKey || systemGeminiKey || undefined;
+
+            if (effectiveGeminiKey && !effectiveGeminiKey.startsWith("AQ.")) {
+              try {
+                const ai = new GoogleGenAI({ apiKey: effectiveGeminiKey });
+                const response = await generateWithFallback(ai, {
+                  preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
+                  contents: `${systemPrompt}\n\n${userPrompt}`,
+                });
+                if (response.text) {
+                  return { text: response.text, modelUsed: "Google Gemini (Fallback)" };
+                }
+              } catch (geminiErr: any) {
+                console.warn("[askFinancialAssistant] Gemini fallback error:", geminiErr?.message);
+              }
+            }
+            return null;
+          }
+        })();
+
+        const timeoutTask = new Promise<null>((resolve) =>
+          setTimeout(() => resolve(null), 24000)
+        );
+
+        const cloudRes = await Promise.race([cloudAiTask, timeoutTask]);
+        if (cloudRes?.text) {
+          answerText = cloudRes.text;
+          modelUsedName = cloudRes.modelUsed;
         }
+      } catch (err: any) {
+        console.warn("[askFinancialAssistant] Cloud AI attempt error:", err?.message || err);
+      }
+
+      // 3. Fallback Cerdas: Bang Peci Local Financial Telemetry Advisor (Zero-Crash Guarantee)
+      // Setiap akun di Fin-IQ dijamin selalu mendapatkan analisa finansial komprehensif
+      if (!answerText) {
+        answerText = generateTelemetryFinancialAnswer(telemetry, input.question, isEnglish);
+        modelUsedName = "Bang Peci Telemetry Advisor (Offline Mode)";
       }
 
       // Simpan jawaban assistant ke session & audit history
