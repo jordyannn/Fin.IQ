@@ -442,9 +442,9 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-base text-foreground">
-                    Google Gemini AI Studio Token
+                    AI Financial Advisor &amp; API Key
                   </h3>
-                  <p className="text-[11px] text-muted-foreground">{isEn ? "OCR & Financial AI model connection" : "Koneksi model OCR & Financial AI"}</p>
+                  <p className="text-[11px] text-muted-foreground">{isEn ? "OpenRouter (Recommended) & Google Gemini connection" : "Koneksi OpenRouter (Direkomendasikan) & Google Gemini"}</p>
                 </div>
               </div>
 
@@ -452,8 +452,8 @@ export default function SettingsPage() {
                 <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-none font-semibold text-[10px] gap-1 rounded-sm">
                   <CheckCircle2 className="h-3 w-3" />
                   {geminiStatus.source === "personal"
-                    ? (isEn ? "Personal Token Active" : "Token Pribadi Aktif")
-                    : (isEn ? "Server Token Active" : "Token Server Aktif")}
+                    ? (isEn ? "Personal Key Active" : "Key Pribadi Aktif")
+                    : (isEn ? "Server AI Active" : "AI Aktif")}
                 </Badge>
               ) : (
                 <Badge variant="outline" className="text-amber-600 border-amber-300 text-[10px] gap-1 rounded-sm">
@@ -465,8 +465,8 @@ export default function SettingsPage() {
 
             <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
               {isEn
-                ? "Connect your Google Gemini API Key to enable Fin.IQ AI Financial Advisor and intelligent generative AI recommendations."
-                : "Sambungkan API Key Google Gemini Anda untuk mengaktifkan Fin.IQ AI Financial Advisor dan rekomendasi keuangan cerdas berbasis Generative AI."}
+                ? "Fin.IQ uses OpenRouter with free-tier models (Gemma 4, Nemotron, Flint) by default. You can connect your own personal OpenRouter API Key (sk-or-v1-...) or Google Gemini API Key (AIzaSy...) for dedicated priority access."
+                : "Fin.IQ menggunakan OpenRouter dengan model free-tier (Gemma 4, Nemotron, Flint) secara otomatis untuk setiap akun. Anda juga dapat memasukkan API Key pribadi OpenRouter (sk-or-v1-...) atau Google Gemini (AIzaSy...) untuk akses prioritas."}
             </p>
 
             {/* Token status feedback */}
@@ -492,7 +492,7 @@ export default function SettingsPage() {
               <div className="p-3 rounded-sm bg-muted/40 border border-border/60 mb-4 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] uppercase font-semibold text-muted-foreground block">
-                    {isEn ? "Currently Saved Token" : "Token Tersimpan Saat Ini"}
+                    {isEn ? "Currently Saved Key" : "API Key Tersimpan Saat Ini"}
                   </span>
                   <span className="font-mono text-xs font-bold text-foreground">
                     {profile.geminiApiKeyMasked}
@@ -505,10 +505,10 @@ export default function SettingsPage() {
                   disabled={removeGeminiKeyMutation.isPending}
                   onClick={async () => {
                     const ok = await confirm({
-                      title: isEn ? "Disconnect Gemini AI Token?" : "Putuskan Token Gemini AI?",
+                      title: isEn ? "Disconnect AI API Key?" : "Putuskan API Key AI?",
                       description: isEn
-                        ? "Your Gemini API Key token will be removed from your account. AI features will fallback to server defaults or prompt for a new token."
-                        : "Token API Key Gemini Anda akan dihapus dari akun. Fitur AI akan kembali menggunakan konfigurasi sistem atau meminta token baru.",
+                        ? "Your personal API Key will be removed from your account. AI features will fallback to server defaults."
+                        : "API Key pribadi Anda akan dihapus dari akun. Fitur AI akan kembali menggunakan konfigurasi bawaan.",
                       confirmText: isEn ? "Disconnect" : "Putuskan Sambungan",
                       variant: "warning",
                       icon: "unlink",
@@ -537,15 +537,15 @@ export default function SettingsPage() {
               <div>
                 <label className="text-xs font-semibold text-foreground block mb-1">
                   {profile?.geminiApiKeyMasked
-                    ? (isEn ? "Replace Gemini API Key" : "Ganti Token Gemini API Key")
-                    : (isEn ? "Enter Gemini API Key" : "Masukkan Gemini API Key")}
+                    ? (isEn ? "Replace AI API Key" : "Ganti API Key AI")
+                    : (isEn ? "Enter OpenRouter or Gemini API Key" : "Masukkan API Key OpenRouter atau Gemini")}
                 </label>
                 <div className="relative">
                   <Input
                     type={showGeminiKey ? "text" : "password"}
                     value={geminiKeyInput}
                     onChange={(e) => setGeminiKeyInput(e.target.value)}
-                    placeholder={isEn ? "Enter Gemini API Key (e.g. AIzaSy...)" : "Masukkan Gemini API Key (misal: AIzaSy...)"}
+                    placeholder={isEn ? "Paste OpenRouter (sk-or-v1-...) or Gemini (AIzaSy...)" : "Tempel OpenRouter (sk-or-v1-...) atau Gemini (AIzaSy...)"}
                     className="h-9 sm:h-10 text-xs rounded-md pr-10 font-mono"
                     required
                   />
@@ -568,7 +568,7 @@ export default function SettingsPage() {
                   {setGeminiKeyMutation.isPending ? (
                     <>
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      {isEn ? "Verifying Token..." : "Memverifikasi Token..."}
+                      {isEn ? "Verifying Key..." : "Memverifikasi Key..."}
                     </>
                   ) : (
                     <>
@@ -577,23 +577,35 @@ export default function SettingsPage() {
                     </>
                   )}
                 </Button>
-                <a
-                  href="https://aistudio.google.com/apikey"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] text-[#059669] hover:underline font-medium sm:ml-auto"
-                >
-                  {isEn ? "Get Key from Google AI Studio" : "Ambil Key di Google AI Studio"}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
+                <div className="flex items-center gap-3 sm:ml-auto">
+                  <a
+                    href="https://openrouter.ai/keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] text-[#059669] hover:underline font-medium"
+                  >
+                    OpenRouter Keys
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                  <span className="text-muted-foreground/40 text-[11px]">•</span>
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] text-[#059669] hover:underline font-medium"
+                  >
+                    Google AI Studio
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
               </div>
             </form>
           </div>
 
           <div className="pt-4 border-t mt-4 text-[11px] text-muted-foreground">
             {isEn
-              ? <>Active models: <span className="font-semibold text-foreground">Gemini 3 Flash &amp; 3.8</span>. Token is securely saved to your account profile.</>
-              : <>Model aktif: <span className="font-semibold text-foreground">Gemini 3 Flash &amp; 3.8</span>. Token tersimpan aman di database profil Anda.</>}
+              ? <>Active AI Models: <span className="font-semibold text-foreground">Google Gemma 4, Nemotron 3.5, Gemini 3 Flash</span>. Auto-fallback ensures zero downtime for all accounts.</>
+              : <>Model AI Aktif: <span className="font-semibold text-foreground">Google Gemma 4, Nemotron 3.5, Gemini 3 Flash</span>. Dilengkapi auto-fallback agar AI selalu aktif untuk setiap akun.</>}
           </div>
         </Card>
 

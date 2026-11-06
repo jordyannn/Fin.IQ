@@ -13,7 +13,7 @@ import {
   aiChatMessages,
 } from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
-import { buildUserFinancialTelemetry } from "../../ai-telemetry";
+import { buildUserFinancialTelemetry, generateTelemetryFinancialAnswer } from "../../ai-telemetry";
 import { GoogleGenAI } from "@google/genai";
 import {
   smartParseIndonesianTransaction,
@@ -1019,97 +1019,92 @@ ATURAN EKSTRAKSI PENTING:
         : telemetry.systemPromptId;
       const userPrompt = telemetry.getUserPrompt(input.question, isEnglish);
 
+      // Cek apakah user memiliki API key personal (OpenRouter / Gemini)
+      const userProfile = await ctx.db.query.userProfiles.findFirst({
+        where: eq(userProfiles.userId, ctx.userId),
+      });
+      const userSavedKey = userProfile?.geminiApiKey?.trim();
+      const userOpenRouterKey = userSavedKey?.startsWith("sk-or-") ? userSavedKey : undefined;
+      const userGeminiKey =
+        userSavedKey && !userSavedKey.startsWith("sk-or-")
+          ? userSavedKey
+          : undefined;
+
+      let answerText = "";
+      let modelUsedName = "";
+
+      // 1. Coba OpenRouter (menggunakan personal key user jika ada, atau system key)
       try {
         const result = await generateOpenRouterCompletion({
           model: input.model,
           systemPrompt,
           userPrompt,
           temperature: 0.2,
+          apiKey: userOpenRouterKey,
         });
+        answerText = result.text;
+        modelUsedName = result.modelUsed;
+      } catch (openRouterErr: any) {
+        console.warn("[askFinancialAssistant] OpenRouter error:", openRouterErr?.message);
 
-        // Simpan jawaban assistant ke session & audit history
-        try {
-          await ctx.db.insert(aiChatMessages).values({
-            sessionId: activeSessionId,
-            userId: ctx.userId,
-            role: "assistant",
-            content: result.text,
-            modelUsed: result.modelUsed,
-            guardrailBlocked: false,
-          });
-          await ctx.db
-            .update(aiChatSessions)
-            .set({ updatedAt: new Date() })
-            .where(eq(aiChatSessions.id, activeSessionId));
-          await ctx.db.insert(aiPromptHistory).values({
-            userId: ctx.userId,
-            question: input.question,
-            answer: result.text,
-            modelUsed: result.modelUsed,
-            guardrailBlocked: false,
-          });
-        } catch (dbErr) {
-          console.error("[AI History Save Error]", dbErr);
+        // 2. Coba Google Gemini jika user memiliki personal Gemini key atau ada env valid
+        const systemGeminiKey = process.env.GEMINI_API_KEY?.trim();
+        const effectiveGeminiKey = userGeminiKey || systemGeminiKey || undefined;
+
+        if (effectiveGeminiKey) {
+          try {
+            const ai = new GoogleGenAI({ apiKey: effectiveGeminiKey });
+            const response = await generateWithFallback(ai, {
+              preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
+              contents: `${systemPrompt}\n\n${userPrompt}`,
+            });
+            answerText = response.text || "Tidak ada respon dari AI.";
+            modelUsedName = "Google Gemini (Personal Fallback)";
+          } catch (geminiErr: any) {
+            console.warn("[askFinancialAssistant] Gemini fallback error:", geminiErr?.message);
+          }
         }
 
-        return {
-          answer: result.text,
-          modelUsed: result.modelUsed,
-          quota: await getAiQuota(ctx.db, ctx.userId),
-          guardrailBlocked: false,
-          sessionId: activeSessionId,
-        };
-      } catch (err: any) {
-        // Fallback ke Gemini jika user menyetel API key personal
-        try {
-          const geminiKey = await getEffectiveGeminiKey(ctx);
-          const ai = new GoogleGenAI({ apiKey: geminiKey });
-          const response = await generateWithFallback(ai, {
-            preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
-            contents: `${systemPrompt}\n\n${userPrompt}`,
-          });
-
-          const answerText = response.text || "Tidak ada respon dari AI.";
-          const modelUsedName = "gemini-3-flash-preview (Personal Fallback)";
-
-          try {
-            await ctx.db.insert(aiChatMessages).values({
-              sessionId: activeSessionId,
-              userId: ctx.userId,
-              role: "assistant",
-              content: answerText,
-              modelUsed: modelUsedName,
-              guardrailBlocked: false,
-            });
-            await ctx.db
-              .update(aiChatSessions)
-              .set({ updatedAt: new Date() })
-              .where(eq(aiChatSessions.id, activeSessionId));
-            await ctx.db.insert(aiPromptHistory).values({
-              userId: ctx.userId,
-              question: input.question,
-              answer: answerText,
-              modelUsed: modelUsedName,
-              guardrailBlocked: false,
-            });
-          } catch (dbErr) {
-            console.error("[AI History Save Error]", dbErr);
-          }
-
-          return {
-            answer: answerText,
-            modelUsed: modelUsedName,
-            quota: await getAiQuota(ctx.db, ctx.userId),
-            guardrailBlocked: false,
-            sessionId: activeSessionId,
-          };
-        } catch {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: `Gagal memproses pertanyaan dengan AI: ${err.message || "Penyedia model sedang sibuk"}`,
-          });
+        // 3. Fallback Cerdas: Bang Peci Local Financial Telemetry Advisor (Zero-Crash Guarantee)
+        // Setiap akun di Fin-IQ dijamin selalu mendapatkan analisa finansial komprehensif
+        if (!answerText) {
+          answerText = generateTelemetryFinancialAnswer(telemetry, input.question, isEnglish);
+          modelUsedName = "Bang Peci Telemetry Advisor (Offline Mode)";
         }
       }
+
+      // Simpan jawaban assistant ke session & audit history
+      try {
+        await ctx.db.insert(aiChatMessages).values({
+          sessionId: activeSessionId,
+          userId: ctx.userId,
+          role: "assistant",
+          content: answerText,
+          modelUsed: modelUsedName,
+          guardrailBlocked: false,
+        });
+        await ctx.db
+          .update(aiChatSessions)
+          .set({ updatedAt: new Date() })
+          .where(eq(aiChatSessions.id, activeSessionId));
+        await ctx.db.insert(aiPromptHistory).values({
+          userId: ctx.userId,
+          question: input.question,
+          answer: answerText,
+          modelUsed: modelUsedName,
+          guardrailBlocked: false,
+        });
+      } catch (dbErr) {
+        console.error("[AI History Save Error]", dbErr);
+      }
+
+      return {
+        answer: answerText,
+        modelUsed: modelUsedName,
+        quota: await getAiQuota(ctx.db, ctx.userId),
+        guardrailBlocked: false,
+        sessionId: activeSessionId,
+      };
     }),
 
   parseTextWithGemini: protectedProcedure

@@ -16,10 +16,11 @@ interface OverviewMascotMoodProps {
 }
 
 const CUAN_QUOTES_ID = [
-  "Cuan mengalir deras bos! Jangan lupa sisihkan buat dana darurat ya! 🚀",
-  "Alhamdulillah surplus! Saatnya perkuat tabungan atau investasi nih. 💰",
-  "Arus kas positif! Pengeluaranmu bulan ini terkontrol dengan sangat baik. 🌟",
-  "Gaya hidup terkendali, dompet pun berseri-seri! Lanjutkan bos! 👏",
+  "Anjay cuan ngalir deras cuy! Jangan lupa sisihkan buat dana darurat ya.",
+  "Alhamdulillah surplus! Saatnya tebelin tabungan atau invest, jangan langsung kalap checkout olshop.",
+  "Arus kas ijo royo-royo! Pengeluaranmu bulan ini rapi banget, Bang Peci bangga.",
+  "Gaya hidup terkendali, dompet pun berseri-seri! Mantap jiwa, lanjutkan bos.",
+  "Dompet lagi tebel nih cuy! Pertahankan ritmenya biar gak ngenes makan mie instan pas tanggal tua.",
 ];
 
 const CUAN_QUOTES_EN = [
@@ -30,10 +31,11 @@ const CUAN_QUOTES_EN = [
 ];
 
 const DEFICIT_QUOTES_ID = [
-  "Waduh minus nih bos! Yuk kita evaluasi dan rem jajan kopinya dulu. 💸",
-  "Pengeluaran lagi lebih besar dari pemasukan. Cek menu Anggaran ya! 📉",
-  "Jangan panik bos! Masih ada waktu buat hemat dan seimbangkan kas. 🛡️",
-  "Boncos tipis-tipis? Tenang, Bang Peci siap temani atur strategi hemat! 🧐",
+  "Waduh minus nih bos! Dompet mulai menjerit, rem dulu jajan kopi susunya ya.",
+  "Pengeluaran lebih gede dari pemasukan nih cuy. Cek menu Anggaran sebelum ambyar.",
+  "Jangan panik dulu bos! Masih ada waktu buat ngerem belanjaan dan bikin kas seimbang lagi.",
+  "Boncos tipis-tipis? Tenang cuy, Bang Peci siap temani atur strategi hemat biar gak puyeng.",
+  "Aduh dompet lagi bocor halus nih! Yuk ngobrol sama Bang Peci buat bedah pos mana yang bikin tekor.",
 ];
 
 const DEFICIT_QUOTES_EN = [
@@ -44,9 +46,10 @@ const DEFICIT_QUOTES_EN = [
 ];
 
 const STABLE_QUOTES_ID = [
-  "Arus kas pas seimbang! Pemasukan dan pengeluaran sama kuatnya. ⚖️",
-  "Kondisi aman terkendali. Usahakan ada sisa surplus buat tabungan ya! 🛡️",
-  "Ritme stabil bos! Tetap disiplin catat setiap transaksi kecil. ✨",
+  "Arus kas pas seimbang! Pemasukan sama pengeluaran lagi kejar-kejaran nih.",
+  "Kondisi aman sentosa, tapi usahain ada sisa surplus buat tabungan ya cuy.",
+  "Ritme stabil bos! Tetep disiplin catat transaksi sekecil apa pun biar gak kecolongan.",
+  "Nafas dompet lagi anteng. Jaga terus ritmenya biar gak mendadak jebol.",
 ];
 
 const STABLE_QUOTES_EN = [
@@ -78,7 +81,7 @@ export function OverviewMascotMood({
         badgeColor: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
         defaultQuote: isEn
           ? `Solid surplus of ${formatCurrency(netCashflow)}! Savings reserves are expanding nicely! 🚀`
-          : `Alhamdulillah surplus ${formatCurrency(netCashflow)}! Tabungan makin tebal nih, mantap bos! 🚀`,
+          : `Alhamdulillah surplus ${formatCurrency(netCashflow)}! Tabungan makin tebal nih, mantap jiwa bos!`,
         statusEmoji: "🤑",
       };
     } else if (netCashflow < 0) {
@@ -90,7 +93,7 @@ export function OverviewMascotMood({
         badgeColor: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
         defaultQuote: isEn
           ? `Notice: net outflow deficit of ${formatCurrency(Math.abs(netCashflow))}. Time to pause impulsive spendings! 💸`
-          : `Waduh arus kas minus ${formatCurrency(Math.abs(netCashflow))}. Yuk rem belanja & jajan dulu ya! 💸`,
+          : `Waduh arus kas tekor minus ${formatCurrency(Math.abs(netCashflow))} nih cuy. Yuk rem jajan dulu ya!`,
         statusEmoji: isSevere ? "😡" : "🥺",
       };
     } else {
@@ -101,7 +104,7 @@ export function OverviewMascotMood({
         badgeColor: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
         defaultQuote: isEn
           ? `Cash flow is break-even. Maintain this discipline and avoid impulse purchases! ⚖️`
-          : `Arus kas imbang seimbang nih bos. Jaga terus ritme dan hindari belanja impulsif ya! ⚖️`,
+          : `Arus kas imbang seimbang nih bos. Jaga ritme dan tahan diri dari diskon olshop ya!`,
         statusEmoji: "👌",
       };
     }
@@ -155,7 +158,7 @@ export function OverviewMascotMood({
             className={`relative p-0 transition-transform duration-300 active:scale-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
               isWiggling ? "animate-mascot-wiggle" : "animate-mascot-bounce-playful"
             }`}
-            title={isEn ? "Click Bang Peci for financial commentary!" : "Klik Bang Peci untuk celetukan finansial!"}
+            title={isEn ? "Click Bang Peci for financial commentary!" : "Klik Bang Peci buat celetukan seru!"}
             aria-label="Bang Peci Fin.IQ"
           >
             <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center">
@@ -225,7 +228,7 @@ export function OverviewMascotMood({
               className="text-primary hover:underline font-semibold shrink-0 ml-2 flex items-center gap-1 text-[11px]"
             >
               <Sparkles className="h-3 w-3" />
-              {isEn ? "Quick Tour" : "Panduan Pemula"}
+              {isEn ? "Quick Tour" : "Tur Bareng Bang Peci"}
             </button>
           </div>
         </div>

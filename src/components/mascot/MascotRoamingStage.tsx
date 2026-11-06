@@ -16,25 +16,28 @@ interface MascotRoamingStageProps {
 
 // Koleksi celetukan kontekstual Bang Peci saat patroli RPG 2D (ID)
 const SURPLUS_ROAM_QUOTES_ID = [
-  "Alhamdulillah surplus! Tabungan makin tebal nih, mantap bos! 🚀",
-  "Arus kas positif! Pengeluaran bulan ini terkontrol rapi. 💰",
-  "Cuan mengalir stabil! Jangan lupa sisihkan dana darurat ya. ✨",
-  "Gaya hidup sehat, dompet berseri-seri! Lanjutkan bos! 👏",
-  "Patroli aman! Keuanganmu berada di jalur yang sangat baik. 🛡️",
+  "Alhamdulillah surplus! Tabungan makin tebal nih, mantap jiwa bos!",
+  "Arus kas ijo royo-royo! Pengeluaran bulan ini terkontrol rapi, mantap!",
+  "Cuan mengalir stabil! Jangan lupa sisihkan dana darurat ya, jangan diabisin!",
+  "Gaya hidup sehat, dompet berseri-seri! Lanjutkan bos, Bang Peci seneng liatnya!",
+  "Patroli aman! Dompetmu lagi sehat walafiat, cuan ngalir lancar!",
+  "Anjay, saldomu nambah lagi nih! Tetep santuy tapi jangan khilaf ya!",
 ];
 
 const WARNING_ROAM_QUOTES_ID = [
-  "Arus kas pas seimbang! Jaga terus ritme belanja harianmu. ⚖️",
-  "Kondisi aman terkendali, hindari belanja impulsif dulu ya! 🛡️",
-  "Tetap disiplin catat transaksi, pos penting harus tetap aman. 🧐",
-  "Patroli mendeteksi kas seimbang. Yuk perkuat pos tabungan! 💡",
+  "Arus kas pas seimbang! Jaga terus ritme jajan harianmu, jangan kalap!",
+  "Kondisi aman sentosa, tapi tahan diri dari diskon olshop dulu ya!",
+  "Tetep disiplin catat transaksi, pos penting jangan sampe jebol!",
+  "Patroli mendeteksi kas pas-pasan. Yuk perkuat pos tabungan sekarang!",
+  "Lagi gak tekor sih, tapi awas jangan gatel pengen checkout barang aneh-aneh!",
 ];
 
 const CRITICAL_ROAM_QUOTES_ID = [
-  "Waduh minus nih bos! Ekor Bang Peci tegang waspada! 💸",
-  "Pengeluaran lagi lebih besar dari pemasukan. Cek menu Anggaran ya! 📉",
-  "Boncos tipis-tipis? Tenang, klik aku buat tanya strategi hemat ke AI! 🛡️",
-  "Bang Peci siap temani bedah pos pengeluaran yang bocor halus! 🧐",
+  "Waduh minus nih bos! Ekor Bang Peci tegang waspada, dompet mulai nangis!",
+  "Pengeluaran lebih gede dari pemasukan! Cek menu Plafon Anggaran sebelum ambyar!",
+  "Boncos tipis-tipis? Santuy, klik Bang Peci buat tanya strategi hemat ke AI!",
+  "Bang Peci siap temani bedah pos pengeluaran yang bocor halus, yuk diskusi!",
+  "Aduh alarm boncos bunyi! Rem belanja dulu cuy, jangan sampe makan tabungan!",
 ];
 
 // Contextual roaming quotes (EN)
@@ -242,7 +245,7 @@ export function MascotRoamingStage({
             if (willSleep) {
               setIsSleeping(true);
               mascotSound.playPop();
-              setSpeechText("Hoaaam... Mau rebahan di kasur bulat bentar... Zzz 🐾");
+              setSpeechText("Hoaaam... Mau rebahan di kasur bulat bentar ya... Ngantuk berat.");
               setTimeout(() => setSpeechText(null), 3500);
 
               // Bang Peci tidur selama 15 detik, lalu bangun dan lanjut roaming
@@ -250,7 +253,7 @@ export function MascotRoamingStage({
               sleepTimerRef.current = setTimeout(() => {
                 setIsSleeping(false);
                 mascotSound.playChime();
-                setSpeechText("Hoaaam... Segar! Bang Peci siap patroli lagi! 😸");
+                setSpeechText("Hoaaam... Segar! Bang Peci melek lagi dan siap patroli jaga cuanmu.");
                 setTimeout(() => setSpeechText(null), 4000);
                 scheduleNextRoam(5000);
               }, 15000);
@@ -311,7 +314,7 @@ export function MascotRoamingStage({
       setIsLanded(true);
       setTimeout(() => setIsLanded(false), 450);
       mascotSound.playChime();
-      setSpeechText("Hoaaam... Segar! Bang Peci siap patroli lagi! 😸");
+      setSpeechText("Hoaaam... Segar! Bang Peci melek lagi dan siap patroli jaga cuanmu.");
       setTimeout(() => setSpeechText(null), 4000);
       scheduleNextRoam(4000);
     }

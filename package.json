@@ -21,6 +21,7 @@
     "db:push": "drizzle-kit push --force",
     "db:studio": "drizzle-kit studio",
     "seed:accounts": "tsx scripts/seed-accounts.ts",
+    "sync:ai-keys": "tsx scripts/sync-ai-keys.ts",
     "import:transactions": "tsx scripts/import-transactions.ts",
     "test": "vitest run",
     "test:watch": "vitest",

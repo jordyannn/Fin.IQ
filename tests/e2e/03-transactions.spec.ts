@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test.describe("03. Fitur Halaman Transaksi UI", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/transactions", { waitUntil: "domcontentloaded" });
-    await page.locator("h1:has-text('Transaksi'), main").first().waitFor({ state: "visible", timeout: 15000 });
+    await page.locator("h1:has-text('Transaksi'):visible, main").first().waitFor({ state: "visible", timeout: 15000 });
     // Pastikan query transaksi dan hidrasi React selesai
     await page.locator("text='Memuat transaksi...'").waitFor({ state: "detached", timeout: 20000 }).catch(() => {});
   });

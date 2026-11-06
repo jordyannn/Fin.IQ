@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, ChevronDown, Calendar as CalendarIcon } from
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MonthYearPicker } from "@/components/ui/MonthYearPicker";
+import { MonthlyActivityHeatmap } from "@/components/calendar/MonthlyActivityHeatmap";
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -153,6 +154,12 @@ export default function CalendarPage() {
           })}
         </div>
       </Card>
+
+      {/* Monthly Activity Overview & Quarterly Heatmap */}
+      <MonthlyActivityHeatmap
+        currentDate={currentDate}
+        onSelectMonth={(d) => setCurrentDate(d)}
+      />
     </div>
   );
 }

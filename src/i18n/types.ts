@@ -388,4 +388,34 @@ export interface TranslationDictionary {
     quickAddAction: string;
     toggleThemeAction: string;
   };
+  milestones: {
+    title: string;
+    addNew: string;
+    trackBy: string;
+    account: string;
+    category: string;
+    targetAmount: string;
+    deadline: string;
+    daysLeft: string;
+    completed: string;
+    overdue: string;
+    savingsGoal: string;
+    spendingLimit: string;
+    noMilestones: string;
+    milestoneTitle: string;
+    createMilestone: string;
+    directionLabel: string;
+    selectAccount: string;
+    selectCategory: string;
+    markDone: string;
+    deleteConfirm: string;
+  };
+  quickActions: {
+    addTransaction: string;
+    import: string;
+    ai: string;
+    budget: string;
+    analytics: string;
+    calendar: string;
+  };
 }

@@ -67,6 +67,16 @@ export const userRouter = router({
 
     const transactionCount = Number(txRecords[0]?.count || 0);
 
+    const rawKey =
+      profile?.geminiApiKey?.trim() ||
+      process.env.OPENROUTER_API_KEY?.trim() ||
+      process.env.GEMINI_API_KEY?.trim() ||
+      "";
+    const activeAiKey =
+      rawKey === "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"
+        ? ""
+        : rawKey;
+
     return {
       id: user.id,
       email: user.email,
@@ -79,10 +89,10 @@ export const userRouter = router({
       accountCount: userAccounts.length,
       transactionCount,
       totalBalance,
-      geminiApiKeyMasked: profile?.geminiApiKey
-        ? `${profile.geminiApiKey.slice(0, 6)}••••${profile.geminiApiKey.slice(-4)}`
+      geminiApiKeyMasked: activeAiKey
+        ? `${activeAiKey.slice(0, 6)}••••${activeAiKey.slice(-4)}`
         : null,
-      hasGeminiKey: Boolean(profile?.geminiApiKey?.trim() || process.env.GEMINI_API_KEY),
+      hasGeminiKey: Boolean(activeAiKey),
       isPersonalKey: Boolean(profile?.geminiApiKey?.trim()),
     };
   }),
@@ -188,19 +198,43 @@ export const userRouter = router({
   setGeminiKey: protectedProcedure
     .input(z.object({ apiKey: z.string().trim().min(8, "API Key minimal 8 karakter") }))
     .mutation(async ({ ctx, input }) => {
-      // 1. Verifikasi langsung ke Google Gemini API
-      try {
-        const { GoogleGenAI } = await import("@google/genai");
-        const ai = new GoogleGenAI({ apiKey: input.apiKey });
-        await generateWithFallback(ai, {
-          preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
-          contents: "ping",
-        });
-      } catch (err: any) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Gagal memverifikasi token dengan Google Gemini: ${err?.message || "Token tidak valid"}`,
-        });
+      const trimmedKey = input.apiKey.trim();
+      const isOpenRouter = trimmedKey.startsWith("sk-or-");
+
+      if (isOpenRouter) {
+        // 1a. Verifikasi langsung ke OpenRouter API
+        try {
+          const resp = await fetch("https://openrouter.ai/api/v1/auth/key", {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${trimmedKey}`,
+            },
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok) {
+            throw new Error(data?.error?.message || `HTTP ${resp.status}`);
+          }
+        } catch (err: any) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Gagal memverifikasi API Key OpenRouter: ${err?.message || "Token tidak valid"}`,
+          });
+        }
+      } else {
+        // 1b. Verifikasi langsung ke Google Gemini API
+        try {
+          const { GoogleGenAI } = await import("@google/genai");
+          const ai = new GoogleGenAI({ apiKey: trimmedKey });
+          await generateWithFallback(ai, {
+            preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
+            contents: "ping",
+          });
+        } catch (err: any) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Gagal memverifikasi token dengan Google Gemini: ${err?.message || "Token tidak valid"}`,
+          });
+        }
       }
 
       // 2. Simpan token ke database user_profiles
@@ -214,18 +248,20 @@ export const userRouter = router({
         await ctx.db.insert(userProfiles).values({
           userId: ctx.userId,
           displayName: "Pengguna Fin.IQ",
-          geminiApiKey: input.apiKey,
+          geminiApiKey: trimmedKey,
         });
       } else {
         await ctx.db
           .update(userProfiles)
-          .set({ geminiApiKey: input.apiKey, updatedAt: new Date() })
+          .set({ geminiApiKey: trimmedKey, updatedAt: new Date() })
           .where(eq(userProfiles.userId, ctx.userId));
       }
 
       return {
         success: true,
-        message: "Token Google Gemini berhasil diverifikasi dan tersambung!",
+        message: isOpenRouter
+          ? "API Key OpenRouter berhasil diverifikasi dan tersambung!"
+          : "Token Google Gemini berhasil diverifikasi dan tersambung!",
       };
     }),
 
@@ -237,7 +273,7 @@ export const userRouter = router({
 
     return {
       success: true,
-      message: "Token Google Gemini berhasil diputuskan.",
+      message: "API Key AI berhasil diputuskan.",
     };
   }),
 
@@ -248,22 +284,51 @@ export const userRouter = router({
 
     const personalKey = profile?.geminiApiKey?.trim();
     if (personalKey) {
+      const isOpenRouter = personalKey.startsWith("sk-or-");
       return {
         connected: true,
         source: "personal" as const,
+        provider: isOpenRouter ? "openrouter" : "gemini",
         maskedKey: `${personalKey.slice(0, 6)}••••${personalKey.slice(-4)}`,
-        model: "Personal Gemini / OpenRouter",
-        message: "Koneksi AI aktif dengan API Key personal.",
+        model: isOpenRouter ? "OpenRouter (Personal Key)" : "Google Gemini (Personal Key)",
+        message: isOpenRouter
+          ? "Koneksi OpenRouter aktif dengan API Key personal Anda."
+          : "Koneksi Google Gemini aktif dengan API Key personal Anda.",
       };
     }
 
-    // Default demo: OpenRouter Free Tier selalu aktif untuk semua user
+    const envOpenRouter = process.env.OPENROUTER_API_KEY?.trim();
+    const envGemini = process.env.GEMINI_API_KEY?.trim();
+    const activeEnvKey =
+      envOpenRouter &&
+      envOpenRouter !== "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"
+        ? envOpenRouter
+        : envGemini || null;
+
+    if (activeEnvKey) {
+      const isOpenRouter = activeEnvKey.startsWith("sk-or-");
+      return {
+        connected: true,
+        source: "system" as const,
+        provider: isOpenRouter ? "openrouter" : "gemini",
+        maskedKey: `${activeEnvKey.slice(0, 6)}••••${activeEnvKey.slice(-4)}`,
+        model: isOpenRouter
+          ? "OpenRouter Free Tier (Gemma 4 / Nemotron)"
+          : "Google Gemini (Server Default)",
+        message: isOpenRouter
+          ? "Koneksi OpenRouter aktif untuk seluruh akun Fin.IQ."
+          : "Koneksi Google Gemini aktif untuk seluruh akun Fin.IQ.",
+      };
+    }
+
+    // Default: AI selalu aktif untuk setiap akun di Fin-IQ via telemetri
     return {
       connected: true,
-      source: "system" as const,
-      maskedKey: "sk-or-••••d0f4",
-      model: "OpenRouter Free Tier",
-      message: "Koneksi OpenRouter Free Tier aktif & siap digunakan.",
+      source: "telemetry" as const,
+      provider: "openrouter",
+      maskedKey: null,
+      model: "Fin.IQ AI Telemetry Advisor (Aktif)",
+      message: "AI aktif untuk akun ini (Mode Analisis Telemetri Finansial Otomatis).",
     };
   }),
 });

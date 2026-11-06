@@ -597,7 +597,7 @@ Mengirim pertanyaan keuangan pribadi ke AI dengan konteks telemetri keuangan use
 {
   "question": "Bagaimana evaluasi arus kas saya bulan ini dan apa pos yang perlu dihemat?",
   "sessionId": "optional-uuid-sesi",
-  "model": "minimax/minimax-m3.1-flash:free",
+  "model": "google/gemma-4-26b-a4b-it:free",
   "lang": "id"
 }
 ```
@@ -608,7 +608,7 @@ Mengirim pertanyaan keuangan pribadi ke AI dengan konteks telemetri keuangan use
   "success": true,
   "data": {
     "answer": "Berdasarkan data keuangan Anda:\n1. Total pengeluaran Anda bulan ini mencapai Rp 3.250.000...\n2. Pos pengeluaran terbesar adalah 'Dining' (42%). Rekomendasi...",
-    "modelUsed": "minimax/minimax-m3.1-flash:free",
+    "modelUsed": "google/gemma-4-26b-a4b-it:free",
     "quota": {
       "limit": 20,
       "used": 4,
@@ -651,7 +651,7 @@ Mengirim pertanyaan keuangan pribadi ke AI dengan konteks telemetri keuangan use
 ```json
 {
   "title": "Analisis Pengeluaran Maret",
-  "model": "minimax/minimax-m3.1-flash:free"
+  "model": "google/gemma-4-26b-a4b-it:free"
 }
 ```
 
@@ -707,13 +707,13 @@ Menampilkan model OpenRouter gratis yang aktif dan model default fallback.
 {
   "success": true,
   "data": {
-    "defaultModel": "minimax/minimax-m3.1-flash:free",
+    "defaultModel": "google/gemma-4-26b-a4b-it:free",
     "models": [
       {
-        "id": "minimax/minimax-m3.1-flash:free",
-        "name": "MiniMax M3.1 Flash (Free)",
-        "provider": "MiniMax",
-        "contextLength": 1000000
+        "id": "google/gemma-4-26b-a4b-it:free",
+        "name": "Google Gemma 4 26B (Free)",
+        "provider": "Google",
+        "contextLength": 131072
       },
       {
         "id": "meta-llama/llama-3.3-70b-instruct:free",

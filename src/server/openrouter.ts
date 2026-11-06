@@ -9,8 +9,7 @@
  */
 
 export const DEFAULT_OPENROUTER_API_KEY =
-  process.env.OPENROUTER_API_KEY?.trim() ||
-  "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";
+  process.env.OPENROUTER_API_KEY?.trim() || "";
 
 export interface FreeModelInfo {
   id: string;
@@ -22,32 +21,11 @@ export interface FreeModelInfo {
 
 export const OPENROUTER_FREE_MODELS: FreeModelInfo[] = [
   {
-    id: "minimax/minimax-m3.1-flash:free",
-    name: "MiniMax M3.1 Flash",
-    provider: "MiniMax",
+    id: "google/gemma-4-26b-a4b-it:free",
+    name: "Google Gemma 4 26B",
+    provider: "Google",
     tag: "Rekomendasi / Responsif",
     description: "Model cepat, stabil, dan sangat natural dalam memahami konteks keuangan Indonesia.",
-  },
-  {
-    id: "recursive/flint-v1.0:free",
-    name: "Recursive Flint v1.0",
-    provider: "Recursive",
-    tag: "Ultra Cepat",
-    description: "Latensi minimal untuk analisis ringkas dan perbandingan pos pengeluaran.",
-  },
-  {
-    id: "dots-studio/dots-3-note-preview:free",
-    name: "Dots Studio 3 Note",
-    provider: "Dots Studio",
-    tag: "Analitis",
-    description: "Sintesis data transaksi terstruktur dengan fokus laporan ringkas & objektif.",
-  },
-  {
-    id: "nvidia/nemotron-3.5-lightning:free",
-    name: "NVIDIA Nemotron 3.5 Lightning",
-    provider: "NVIDIA",
-    tag: "Deep Reasoning",
-    description: "Penalaran finansial mendalam untuk evaluasi target tabungan dan alokasi dana.",
   },
   {
     id: "google/gemma-4-31b-it:free",
@@ -57,15 +35,36 @@ export const OPENROUTER_FREE_MODELS: FreeModelInfo[] = [
     description: "Model parameter besar Google dengan kapabilitas analitis komprehensif.",
   },
   {
-    id: "google/gemma-4-26b-a4b-it:free",
-    name: "Google Gemma 4 26B",
-    provider: "Google",
-    tag: "Seimbang",
-    description: "Model dialog efisien dan seimbang untuk konsultasi harian.",
+    id: "nvidia/nemotron-3.5-lightning:free",
+    name: "NVIDIA Nemotron 3.5 Lightning",
+    provider: "NVIDIA",
+    tag: "Deep Reasoning",
+    description: "Penalaran finansial mendalam untuk evaluasi target tabungan dan alokasi dana.",
+  },
+  {
+    id: "dots-studio/dots-3-note-preview:free",
+    name: "Dots Studio 3 Note",
+    provider: "Dots Studio",
+    tag: "Analitis",
+    description: "Sintesis data transaksi terstruktur dengan fokus laporan ringkas & objektif.",
+  },
+  {
+    id: "recursive/flint-v1.0:free",
+    name: "Recursive Flint v1.0",
+    provider: "Recursive",
+    tag: "Ultra Cepat",
+    description: "Latensi minimal untuk analisis ringkas dan perbandingan pos pengeluaran.",
+  },
+  {
+    id: "liquid/lfm-2.5-2.6b:free",
+    name: "LiquidAI LFM 2.5",
+    provider: "LiquidAI",
+    tag: "Ringan & Cepat",
+    description: "Model efisien untuk evaluasi cepat data transaksi.",
   },
 ];
 
-export const DEFAULT_MODEL_ID = "minimax/minimax-m3.1-flash:free";
+export const DEFAULT_MODEL_ID = "google/gemma-4-26b-a4b-it:free";
 
 import { and, eq, gte, count, sql } from "drizzle-orm";
 import { aiChatMessages, aiPromptHistory } from "./db/schema";
@@ -270,7 +269,7 @@ export async function consumeAiQuota(
 // ============================================================================
 
 export const GUARDRAIL_REFUSAL_MESSAGE =
-  "Maaf, sebagai Fin.IQ AI Financial Advisor saya hanya melayani analisis dan konsultasi terkait pengelolaan keuangan pribadi, arus kas, transaksi, dan anggaran Anda. Silakan ajukan pertanyaan seputar keuangan pribadi Anda.";
+  "Waduh bro, Bang Peci ini kucing cerdas yang cuma paham urusan cuan, belanjaan, dan arus kas pribadi. Kalo nanya topik di luar keuangan mah Bang Peci angkat tangan wkwk! Yuk tanya seputar keuangan atau dompetmu aja ya!";
 
 /**
  * Pre-filter cepat untuk mendeteksi permintaan di luar konteks keuangan
@@ -322,19 +321,33 @@ export async function generateOpenRouterCompletion(options: {
   systemPrompt: string;
   userPrompt: string;
   temperature?: number;
+  apiKey?: string;
 }): Promise<{ text: string; modelUsed: string }> {
+  const activeKey =
+    options.apiKey?.trim() ||
+    DEFAULT_OPENROUTER_API_KEY ||
+    process.env.OPENROUTER_API_KEY?.trim() ||
+    "";
+
+  if (!activeKey) {
+    throw new Error(
+      "Kunci API OpenRouter belum dikonfigurasi. Silakan tambahkan OPENROUTER_API_KEY di .env.local atau masukkan API Key di menu Pengaturan & Profil."
+    );
+  }
+
   const targetModel =
     options.model && OPENROUTER_FREE_MODELS.some((m) => m.id === options.model)
       ? options.model
       : DEFAULT_MODEL_ID;
 
-  // Daftar urutan fallback model free-tier jika model utama mengalami rate-limit (429)
+  // Daftar urutan fallback model free-tier aktif jika model utama mengalami rate-limit (429)
   const candidateModels = [
     targetModel,
-    "minimax/minimax-m3.1-flash:free",
-    "recursive/flint-v1.0:free",
-    "dots-studio/dots-3-note-preview:free",
     "nvidia/nemotron-3.5-lightning:free",
+    "dots-studio/dots-3-note-preview:free",
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "recursive/flint-v1.0:free",
   ].filter((val, idx, arr) => arr.indexOf(val) === idx);
 
   let lastError: Error | null = null;
@@ -344,7 +357,7 @@ export async function generateOpenRouterCompletion(options: {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${DEFAULT_OPENROUTER_API_KEY}`,
+          Authorization: `Bearer ${activeKey}`,
           "Content-Type": "application/json",
           "HTTP-Referer": "https://finiq.app",
           "X-Title": "Fin.IQ Financial Advisor",
@@ -358,6 +371,15 @@ export async function generateOpenRouterCompletion(options: {
           temperature: options.temperature ?? 0.3,
         }),
       });
+
+      if (response.status === 401) {
+        const errJson = await response.json().catch(() => ({}));
+        const rawMsg = errJson?.error?.message || "";
+        console.warn(`[OpenRouter Auth Error] 401: ${rawMsg}`);
+        throw new Error(
+          "Kunci API OpenRouter tidak valid atau telah kedaluwarsa (OpenRouter: User not found). Silakan periksa kembali API Key Anda di Pengaturan & Profil."
+        );
+      }
 
       if (response.status === 429) {
         console.warn(`[OpenRouter Fallback] Model ${model} rate-limited (429), mencoba model cadangan...`);
@@ -384,6 +406,9 @@ export async function generateOpenRouterCompletion(options: {
         lastError = new Error(`Respon model ${model} kosong.`);
       }
     } catch (fetchErr: any) {
+      if (fetchErr.message?.includes("Kunci API OpenRouter tidak valid")) {
+        throw fetchErr;
+      }
       console.warn(`[OpenRouter Fallback] Gagal memanggil ${model}:`, fetchErr?.message || fetchErr);
       lastError = fetchErr;
     }

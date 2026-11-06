@@ -868,7 +868,7 @@ export default function ImportPage() {
     };
   }, [screenshotTxs]);
 
-  // Convert document with Gemini AI Fallback / Deep Analysis
+  // Convert document with AI (OpenRouter with Fallback) / Deep Analysis
   const convertWithAi = async (
     file: File,
     base64Content?: string,
@@ -877,7 +877,7 @@ export default function ImportPage() {
   ) => {
     setIsConvertingWithAi(true);
     setAiConversionMessage(
-      `Gemini AI sedang membaca ${file.name} dan mengekstrak transaksi mutasi...`
+      `AI (OpenRouter) sedang membaca ${file.name} dan mengekstrak transaksi mutasi...`
     );
 
     try {
@@ -911,7 +911,7 @@ export default function ImportPage() {
         alert({
           title: "Tidak Ada Transaksi Terbaca",
           description:
-            "Gemini AI tidak menemukan data transaksi yang valid dalam dokumen ini. Pastikan dokumen memuat mutasi, tanggal, dan nominal.",
+            "AI tidak menemukan data transaksi yang valid dalam dokumen ini. Pastikan dokumen memuat mutasi, tanggal, dan nominal.",
           variant: "warning",
         });
         return;
@@ -949,7 +949,7 @@ export default function ImportPage() {
       console.error("Gagal convert dengan AI:", err);
       alert({
         title: "Gagal Mengonversi Dokumen",
-        description: err.message || "Terjadi kesalahan saat menghubungi Gemini AI.",
+        description: err.message || "Terjadi kesalahan saat menghubungi layanan AI.",
         variant: "destructive",
       });
     } finally {
@@ -1019,6 +1019,7 @@ export default function ImportPage() {
         rows = sheetData.map((row) =>
           row.map((cell) => (cell !== undefined && cell !== null ? String(cell) : ""))
         );
+        rawText = rows.map((r) => r.join("\t")).join("\n");
 
         let binary = "";
         const bytes = new Uint8Array(arrayBuffer);
@@ -1660,7 +1661,7 @@ export default function ImportPage() {
                     }
                     disabled={isConvertingWithAi}
                     className="text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/5"
-                    title={isEn ? "Rerun smart analysis with Gemini AI for maximum accuracy" : "Jalankan ulang analisis cerdas dengan Gemini AI untuk akurasi maksimal"}
+                    title={isEn ? "Rerun smart analysis with AI for maximum accuracy" : "Jalankan ulang analisis cerdas dengan AI untuk akurasi maksimal"}
                   >
                     <Sparkles className="h-3.5 w-3.5" />
                     {isEn ? "Enhance with AI" : "Tingkatkan dengan AI"}

@@ -2,8 +2,7 @@ import { and, eq, gte, count, sql } from "drizzle-orm";
 import { db, aiChatMessages, aiPromptHistory } from "@finiq/shared";
 
 export const DEFAULT_OPENROUTER_API_KEY =
-  process.env.OPENROUTER_API_KEY?.trim() ||
-  "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";
+  process.env.OPENROUTER_API_KEY?.trim() || "";
 
 export interface FreeModelInfo {
   id: string;
@@ -15,32 +14,11 @@ export interface FreeModelInfo {
 
 export const OPENROUTER_FREE_MODELS: FreeModelInfo[] = [
   {
-    id: "minimax/minimax-m3.1-flash:free",
-    name: "MiniMax M3.1 Flash",
-    provider: "MiniMax",
+    id: "google/gemma-4-26b-a4b-it:free",
+    name: "Google Gemma 4 26B",
+    provider: "Google",
     tag: "Rekomendasi / Responsif",
     description: "Model cepat, stabil, dan sangat natural dalam memahami konteks keuangan Indonesia.",
-  },
-  {
-    id: "recursive/flint-v1.0:free",
-    name: "Recursive Flint v1.0",
-    provider: "Recursive",
-    tag: "Ultra Cepat",
-    description: "Latensi minimal untuk analisis ringkas dan perbandingan pos pengeluaran.",
-  },
-  {
-    id: "dots-studio/dots-3-note-preview:free",
-    name: "Dots Studio 3 Note",
-    provider: "Dots Studio",
-    tag: "Analitis",
-    description: "Sintesis data transaksi terstruktur dengan fokus laporan ringkas & objektif.",
-  },
-  {
-    id: "nvidia/nemotron-3.5-lightning:free",
-    name: "NVIDIA Nemotron 3.5 Lightning",
-    provider: "NVIDIA",
-    tag: "Deep Reasoning",
-    description: "Penalaran finansial mendalam untuk evaluasi target tabungan dan alokasi dana.",
   },
   {
     id: "google/gemma-4-31b-it:free",
@@ -50,15 +28,36 @@ export const OPENROUTER_FREE_MODELS: FreeModelInfo[] = [
     description: "Model parameter besar Google dengan kapabilitas analitis komprehensif.",
   },
   {
-    id: "google/gemma-4-26b-a4b-it:free",
-    name: "Google Gemma 4 26B",
-    provider: "Google",
-    tag: "Seimbang",
-    description: "Model dialog efisien dan seimbang untuk konsultasi harian.",
+    id: "nvidia/nemotron-3.5-lightning:free",
+    name: "NVIDIA Nemotron 3.5 Lightning",
+    provider: "NVIDIA",
+    tag: "Deep Reasoning",
+    description: "Penalaran finansial mendalam untuk evaluasi target tabungan dan alokasi dana.",
+  },
+  {
+    id: "dots-studio/dots-3-note-preview:free",
+    name: "Dots Studio 3 Note",
+    provider: "Dots Studio",
+    tag: "Analitis",
+    description: "Sintesis data transaksi terstruktur dengan fokus laporan ringkas & objektif.",
+  },
+  {
+    id: "recursive/flint-v1.0:free",
+    name: "Recursive Flint v1.0",
+    provider: "Recursive",
+    tag: "Ultra Cepat",
+    description: "Latensi minimal untuk analisis ringkas dan perbandingan pos pengeluaran.",
+  },
+  {
+    id: "liquid/lfm-2.5-2.6b:free",
+    name: "LiquidAI LFM 2.5",
+    provider: "LiquidAI",
+    tag: "Ringan & Cepat",
+    description: "Model efisien untuk evaluasi cepat data transaksi.",
   },
 ];
 
-export const DEFAULT_MODEL_ID = "minimax/minimax-m3.1-flash:free";
+export const DEFAULT_MODEL_ID = "google/gemma-4-26b-a4b-it:free";
 
 export const DAILY_PROMPT_LIMIT = 20;
 const ROLLING_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -259,10 +258,11 @@ export async function generateOpenRouterCompletion(options: {
 
   const candidateModels = [
     targetModel,
-    "minimax/minimax-m3.1-flash:free",
-    "recursive/flint-v1.0:free",
-    "dots-studio/dots-3-note-preview:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "google/gemma-4-31b-it:free",
     "nvidia/nemotron-3.5-lightning:free",
+    "dots-studio/dots-3-note-preview:free",
+    "recursive/flint-v1.0:free",
   ].filter((val, idx, arr) => arr.indexOf(val) === idx);
 
   let lastError: Error | null = null;

@@ -15,10 +15,12 @@ export async function getEffectiveGeminiKey(ctx: { db: any; userId: string }): P
     .limit(1);
 
   const profile = profileRecords[0];
+  const profileKey = profile?.geminiApiKey?.trim();
+  // Jika profil menyimpan OpenRouter key (sk-or-...), jangan gunakan untuk Gemini SDK
   const key =
-    profile?.geminiApiKey?.trim() ||
-    process.env.GEMINI_API_KEY?.trim() ||
-    "AQ.Ab8RN6IGdjST8WXK9I-8LIULXF8TAcbXlz-NeN2H6d1v__yN8A";
+    profileKey && !profileKey.startsWith("sk-or-")
+      ? profileKey
+      : process.env.GEMINI_API_KEY?.trim() || "";
 
   if (!key) {
     throw new TRPCError({

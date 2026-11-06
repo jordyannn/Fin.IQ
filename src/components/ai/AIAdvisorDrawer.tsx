@@ -70,7 +70,7 @@ export function AIAdvisorDrawer() {
       id: "welcome-1",
       role: "assistant",
       content:
-        "Halo bos! **Mau ngapain hari ini?** Bang Peci siap bantu bedah arus kas, audit pos pengeluaran, atau cari strategi biar tabungan makin tebal! 🚀",
+        "Halo bos! **Mau ngulik duit apa hari ini?** Bang Peci siap bantu bedah arus kas, audit pos boncos, atau cari jurus biar tabungan makin tebel!",
       time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
     },
   ]);
@@ -276,7 +276,7 @@ export function AIAdvisorDrawer() {
           {askAssistantMutation.isPending && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/40 p-2.5 rounded-xl border border-border/60 w-fit">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-              <span>Bang Peci sedang menganalisis data keuanganmu...</span>
+              <span>Bang Peci lagi ngitung dan bedah data keuanganmu...</span>
             </div>
           )}
 
@@ -297,7 +297,7 @@ export function AIAdvisorDrawer() {
               type="text"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
-              placeholder="Tanya Bang Peci seputar keuangan..."
+              placeholder="Tanya Bang Peci seputar duit atau cara hemat..."
               className="flex-1 text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-border/80 bg-muted/40 text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:bg-background transition-all"
               disabled={askAssistantMutation.isPending}
             />
@@ -313,7 +313,7 @@ export function AIAdvisorDrawer() {
           </form>
 
           <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-2 px-1">
-            <span>Jawaban AI berdasarkan riwayat transaksi lokalmu</span>
+            <span>Dihitung murni dari data riil buku kasmu, no halu!</span>
             <Link
               href="/ai"
               onClick={() => setAIDrawerOpen(false)}

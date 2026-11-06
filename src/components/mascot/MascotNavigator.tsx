@@ -39,11 +39,12 @@ import {
 import { useTranslation } from "@/i18n";
 
 const RANDOM_TIPS_ID = [
-  "Aturan 50/30/20: 50% kebutuhan, 30% keinginan, 20% tabungan.",
-  "Catat belanja langsung setelah transaksi biar tidak terlewat.",
-  "Punya struk fisik? Scan lewat tombol Catat Transaksi.",
-  "Atur batas anggaran di awal bulan untuk pos yang rawan boros.",
-  "Siapkan dana darurat minimal 3 bulan biaya hidup rutin.",
+  "Rumus 50/30/20: 50% kebutuhan hidup, 30% jajan senang-senang, 20% wajib amankan ke tabungan!",
+  "Abis belanja langsung dicatet cuy, jangan nunggu besok biar duit gak ghaib tanpa jejak!",
+  "Dapet struk kasir Indomaret/resto? Foto langsung pake tombol Catat Sat-Set, sat-set banget!",
+  "Pasang rem plafon anggaran pas awal gajian, biar gak ngenes makan mie instan di akhir bulan.",
+  "Amankan dana darurat minimal 3x biaya hidup bulanan, biar kalo ada musibah gak kalang kabut!",
+  "Kalo lagi laper mata pengen checkout olshop, tunggu 24 jam dulu. Siapa tau cuma lapar sesaat!",
 ];
 
 const RANDOM_TIPS_EN = [
@@ -768,15 +769,15 @@ export function MascotNavigator() {
               <div className="mt-2">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
                   <Sparkles className="h-3 w-3" />
-                  {isEn ? "Fin.IQ Assistant & Guide" : "Asisten & Pemandu Fin.IQ"}
+                  {isEn ? "Fin.IQ Assistant & Guide" : "Kucing Finansial & Pemandu Fin.IQ"}
                 </span>
                 <h3 className="text-xl sm:text-2xl font-black tracking-tight text-foreground mt-2.5">
-                  {isEn ? "Hi! I'm Bang Peci 👋" : "Halo! Kenalin, Aku Bang Peci 👋"}
+                  {isEn ? "Hi! I'm Bang Peci" : "Halo! Kenalin, Gue Bang Peci"}
                 </h3>
                 <p className="text-xs sm:text-sm text-muted-foreground mt-2 leading-relaxed max-w-sm">
                   {isEn
                     ? "Your smart personal financial companion in Fin.IQ. I'm here to help you monitor cash flow, control expenses, and provide tailored financial advice!"
-                    : "Asisten cerdas keuanganmu di Fin.IQ. Aku siap nemenin kamu memantau arus kas, mengontrol pengeluaran, dan kasih saran finansial yang pas!"}
+                    : "Kucing oren berpeci pendamping keuanganmu di Fin.IQ! Gue siap nemenin lu mantau arus kas, ngerem belanja impulsif, dan ngasih celetukan finansial biar gak boncos!"}
                 </p>
                 <div className="mt-3 p-2.5 rounded-xl bg-primary/10 border border-primary/20 text-xs font-semibold text-primary">
                   {isEn
@@ -796,7 +797,7 @@ export function MascotNavigator() {
                   className="relative w-full flex-1 py-3 px-4 rounded-xl font-bold text-sm bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer animate-button-ripple"
                 >
                   <Compass className="h-4 w-4" />
-                  {isEn ? "Start Tour with Bang Peci 🚀" : "Mulai Tur Bersama Bang Peci 🚀"}
+                  {isEn ? "Start Tour with Bang Peci" : "Gas Tur Bareng Bang Peci"}
                 </button>
                 <button
                   onClick={() => {
@@ -805,7 +806,7 @@ export function MascotNavigator() {
                   }}
                   className="w-full sm:w-auto py-2.5 px-4 rounded-xl font-semibold text-xs text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
                 >
-                  {isEn ? "Maybe Later" : "Nanti Saja"}
+                  {isEn ? "Maybe Later" : "Nanti Aja Deh"}
                 </button>
               </div>
             </div>
@@ -853,12 +854,12 @@ export function MascotNavigator() {
                   {isEn ? "Mid-Tour Checkpoint" : "Checkpoint Pertengahan Tur"}
                 </span>
                 <h3 className="text-xl font-extrabold tracking-tight text-foreground mt-2.5">
-                  {isEn ? "Ready to Continue the Tour?" : "Masih Mau Lanjut Tur?"}
+                  {isEn ? "Ready to Continue the Tour?" : "Masih Mau Lanjut Keliling?"}
                 </h3>
                 <p className="text-xs sm:text-sm text-muted-foreground mt-2 leading-relaxed max-w-sm">
                   {isEn
                     ? "You've seen core cash flow features & balance trends. Ready to explore intelligent analytics & the AI assistant, or try exploring on your own now?"
-                    : "Kamu sudah melihat fitur inti keuangan & tren saldo harian. Mau lanjut keliling fitur analisis cerdas & asisten AI, atau mau coba eksplor sendiri sekarang?"}
+                    : "Mantap jiwa! Lu udah liat fitur inti keuangan & grafik saldo harian. Mau lanjut intip fitur analisis cerdas & asisten AI Bang Peci, atau mau coba ngulik sendiri dulu nih?"}
                 </p>
               </div>
 
@@ -871,7 +872,7 @@ export function MascotNavigator() {
                   className="relative w-full flex-1 py-2.5 px-4 rounded-xl font-bold text-sm bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer animate-button-ripple"
                 >
                   <Compass className="h-4 w-4" />
-                  {isEn ? "Continue Tour: Smart Features 🚀" : "Lanjut Tur Fitur Cerdas 🚀"}
+                  {isEn ? "Continue Tour: Smart Features" : "Lanjut Gas Fitur Cerdas"}
                 </button>
                 <button
                   onClick={() => {
@@ -879,7 +880,7 @@ export function MascotNavigator() {
                   }}
                   className="w-full sm:w-auto py-2.5 px-4 rounded-xl font-semibold text-xs border border-border bg-card text-foreground hover:bg-muted transition-colors cursor-pointer"
                 >
-                  {isEn ? "Explore on My Own" : "Eksplor Sendiri Dulu"}
+                  {isEn ? "Explore on My Own" : "Mau Ngulik Sendiri Dulu"}
                 </button>
               </div>
             </div>
@@ -1384,13 +1385,13 @@ export function MascotNavigator() {
                 <div className="flex items-center justify-between text-[11px] font-bold text-muted-foreground mb-1">
                   <span className="flex items-center gap-1 text-primary">
                     <Lightbulb className="h-3.5 w-3.5" />
-                    {isEn ? "Bang Peci Tips" : "Tips Bang Peci"}
+                    {isEn ? "Bang Peci Tips" : "Wejangan Bang Peci"}
                   </span>
                   <button
                     onClick={nextTip}
                     className="hover:underline text-[10px] font-semibold text-foreground"
                   >
-                    {isEn ? "Next Tip" : "Ganti Tip"}
+                    {isEn ? "Next Tip" : "Ganti Wejangan"}
                   </button>
                 </div>
                 <p className="text-xs text-foreground/90 leading-relaxed font-medium">
@@ -1425,7 +1426,7 @@ export function MascotNavigator() {
                 >
                   <span className="flex items-center gap-2">
                     <Receipt className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                    {isEn ? "Transaction Form Guide (6 Steps)" : "Panduan Form Transaksi (6 Langkah)"}
+                    {isEn ? "Transaction Form Guide (6 Steps)" : "Panduan Catat Transaksi (6 Langkah)"}
                   </span>
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>

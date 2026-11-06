@@ -6,6 +6,63 @@ import { eq, sql } from "drizzle-orm";
 import { GoogleGenAI } from "@google/genai";
 import { getEffectiveGeminiKey, generateWithFallback } from "../../gemini";
 import { cleanNumericAmount } from "@/lib/utils";
+import zlib from "zlib";
+import * as XLSX from "xlsx";
+import { generateOpenRouterCompletion } from "../../openrouter";
+
+/**
+ * Ekstraktor teks digital dari file PDF tanpa binary eksternal
+ */
+export function extractTextFromPdfBuffer(pdfBuffer: Buffer): string {
+  const binary = pdfBuffer.toString("binary");
+  const textChunks: string[] = [];
+
+  const streamRegex = /stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g;
+  let match: RegExpExecArray | null;
+  while ((match = streamRegex.exec(binary)) !== null) {
+    const rawStream = Buffer.from(match[1], "binary");
+    let decompressed: Buffer;
+    try {
+      decompressed = zlib.inflateSync(rawStream);
+    } catch {
+      try {
+        decompressed = zlib.inflateRawSync(rawStream);
+      } catch {
+        decompressed = rawStream;
+      }
+    }
+
+    const text = decompressed.toString("latin1");
+
+    const tjRegex = /\(([^)]*)\)\s*(?:Tj|'|")/g;
+    let tjMatch: RegExpExecArray | null;
+    while ((tjMatch = tjRegex.exec(text)) !== null) {
+      if (tjMatch[1]) textChunks.push(tjMatch[1]);
+    }
+
+    const arrayTjRegex = /\[(.*?)\]\s*TJ/g;
+    let atjMatch: RegExpExecArray | null;
+    while ((atjMatch = arrayTjRegex.exec(text)) !== null) {
+      const parts = atjMatch[1].match(/\(([^)]*)\)/g);
+      if (parts) {
+        textChunks.push(parts.map((p) => p.slice(1, -1)).join(" "));
+      }
+    }
+  }
+
+  if (textChunks.length === 0) {
+    const directTj = /\(([^)]+)\)\s*(?:Tj|'|"|TJ)/g;
+    let dMatch: RegExpExecArray | null;
+    while ((dMatch = directTj.exec(binary)) !== null) {
+      textChunks.push(dMatch[1]);
+    }
+  }
+
+  return textChunks
+    .map((t) => t.replace(/\\([()\\])/g, "$1").trim())
+    .filter(Boolean)
+    .join(" ");
+}
 
 export function fuzzyMatchAccount(rawName: string | undefined, userAccounts: { id: string; name: string }[]): string {
   if (!rawName || !rawName.trim()) {
@@ -324,9 +381,6 @@ ATURAN EKSTRAKSI PENTING:
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const apiKey = await getEffectiveGeminiKey(ctx);
-      const ai = new GoogleGenAI({ apiKey });
-
       const userAccounts = await ctx.db
         .select({ id: accounts.id, name: accounts.name, group: accounts.group })
         .from(accounts)
@@ -354,8 +408,50 @@ ATURAN EKSTRAKSI PENTING:
       const isPdf =
         input.mimeType === "application/pdf" ||
         input.fileName.toLowerCase().endsWith(".pdf");
+      const isExcel =
+        input.fileName.toLowerCase().endsWith(".xlsx") ||
+        input.fileName.toLowerCase().endsWith(".xls") ||
+        input.mimeType.includes("spreadsheet") ||
+        input.mimeType.includes("excel");
 
-      let promptContent: Array<{ text: string } | { inlineData: { data: string; mimeType: string } }> = [];
+      // Ekstraksi teks dari berbagai tipe dokumen (PDF, Excel, CSV, Teks)
+      let extractedDocText = "";
+
+      if (isPdf && cleanBase64) {
+        try {
+          const pdfBuf = Buffer.from(cleanBase64, "base64");
+          extractedDocText = extractTextFromPdfBuffer(pdfBuf);
+        } catch (pdfErr) {
+          console.warn("[convertAnyDocument] Gagal ekstraksi teks PDF lokal:", pdfErr);
+        }
+      } else if (isExcel && cleanBase64) {
+        try {
+          const excelBuf = Buffer.from(cleanBase64, "base64");
+          const wb = XLSX.read(excelBuf, { type: "buffer" });
+          const sheetsCsv: string[] = [];
+          for (const sheetName of wb.SheetNames) {
+            const sheet = wb.Sheets[sheetName];
+            if (sheet) {
+              sheetsCsv.push(`=== Sheet: ${sheetName} ===\n` + XLSX.utils.sheet_to_csv(sheet));
+            }
+          }
+          extractedDocText = sheetsCsv.join("\n\n");
+        } catch (excelErr) {
+          console.warn("[convertAnyDocument] Gagal ekstraksi teks Excel:", excelErr);
+        }
+      }
+
+      if (!extractedDocText) {
+        if (input.fileText) {
+          extractedDocText = input.fileText;
+        } else if (cleanBase64) {
+          try {
+            extractedDocText = Buffer.from(cleanBase64, "base64").toString("utf-8");
+          } catch {
+            extractedDocText = cleanBase64;
+          }
+        }
+      }
 
       const promptInstructions = `Kamu adalah sistem analisis dokumen keuangan dan konversi mutasi transaksi profesional untuk aplikasi Fin.IQ di Indonesia.
 Tugasmu adalah menganalisis dokumen atau file mutasi keuangan yang diunggah (${input.fileName}) dengan template/format APAPUN (BCA, Mandiri Livin', BRImo, BNI, e-wallet, Jenius, rekening koran bank internasional, CSV acak, atau spreadsheet pengguna), lalu mengekstrak SELURUH baris data transaksi ke dalam format JSON standar Fin.IQ.
@@ -402,41 +498,71 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
   ]
 }`;
 
-      if (isPdf) {
-        promptContent = [
-          {
-            inlineData: {
-              data: cleanBase64,
-              mimeType: "application/pdf",
-            },
-          },
-          { text: promptInstructions },
-        ];
-      } else {
-        let textContent = "";
-        try {
-          textContent = Buffer.from(cleanBase64, "base64").toString("utf-8");
-        } catch {
-          textContent = cleanBase64;
+      let rawText = "";
+      let modelUsedName = "";
+
+      // 1. Prioritaskan Model OpenRouter untuk import PDF / Excel
+      try {
+        const docSnippet = extractedDocText ? extractedDocText.slice(0, 50000) : "";
+        if (!docSnippet && isPdf) {
+          throw new Error("Teks digital PDF kosong, mencoba fallback Gemini Vision/PDF.");
         }
 
-        promptContent = [
-          {
-            text: `${promptInstructions}\n\n=== ISI DOKUMEN (${input.fileName}) ===\n${textContent.slice(0, 60000)}`,
-          },
-        ];
+        const openRouterRes = await generateOpenRouterCompletion({
+          systemPrompt: promptInstructions,
+          userPrompt: `Berikut adalah dokumen mutasi keuangan dari file "${input.fileName}" yang harus dikonversi ke format JSON Fin.IQ:\n\n=== ISI DOKUMEN ===\n${docSnippet || cleanBase64.slice(0, 50000)}\n\nIngat: HANYA kembalikan JSON valid sesuai struktur tanpa komentar Markdown atau teks pembuka.`,
+          temperature: 0.1,
+        });
+
+        rawText = openRouterRes.text;
+        modelUsedName = openRouterRes.modelUsed;
+      } catch (openRouterErr: any) {
+        console.warn("[convertAnyDocument] OpenRouter error, falling back to Gemini:", openRouterErr?.message);
+
+        // 2. Fallback aman ke Google Gemini jika OpenRouter rate limited atau dokumen PDF scan murni
+        try {
+          const apiKey = await getEffectiveGeminiKey(ctx);
+          const ai = new GoogleGenAI({ apiKey });
+
+          let promptContent: any[] = [];
+          if (isPdf && cleanBase64) {
+            promptContent = [
+              {
+                inlineData: {
+                  data: cleanBase64,
+                  mimeType: "application/pdf",
+                },
+              },
+              { text: promptInstructions },
+            ];
+          } else {
+            promptContent = [
+              {
+                text: `${promptInstructions}\n\n=== ISI DOKUMEN (${input.fileName}) ===\n${(extractedDocText || cleanBase64).slice(0, 60000)}`,
+              },
+            ];
+          }
+
+          const geminiRes = await generateWithFallback(ai, {
+            preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
+            contents: promptContent,
+            config: {
+              responseMimeType: "application/json",
+            },
+          });
+
+          rawText = geminiRes.text || "{}";
+          modelUsedName = "Google Gemini (Fallback)";
+        } catch (geminiErr: any) {
+          console.error("[convertAnyDocument] Both OpenRouter and Gemini failed:", geminiErr);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Gagal membaca dokumen dengan AI (OpenRouter & Gemini): ${openRouterErr?.message || geminiErr?.message}`,
+          });
+        }
       }
 
       try {
-        const response = await generateWithFallback(ai, {
-          preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
-          contents: promptContent,
-          config: {
-            responseMimeType: "application/json",
-          },
-        });
-
-        const rawText = response.text || "{}";
         const jsonStr = rawText
           .replace(/^```json\s*/i, "")
           .replace(/^```\s*/i, "")
@@ -447,11 +573,21 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
         try {
           parsedResult = JSON.parse(jsonStr);
         } catch (jsonErr) {
-          console.error("Gagal parse JSON Gemini converter:", rawText, jsonErr);
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Format jawaban AI tidak dapat dibaca sebagai JSON.",
-          });
+          const matchBraces = jsonStr.match(/\{[\s\S]*\}/);
+          if (matchBraces) {
+            try {
+              parsedResult = JSON.parse(matchBraces[0]);
+            } catch {
+              // ignore
+            }
+          }
+          if (!parsedResult || typeof parsedResult !== "object") {
+            console.error("Gagal parse JSON converter:", rawText, jsonErr);
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Format jawaban AI tidak dapat dibaca sebagai JSON valid.",
+            });
+          }
         }
 
         const rawList = Array.isArray(parsedResult)
@@ -510,25 +646,13 @@ Kembalikan HANYA objek JSON dengan format seperti ini:
           transactions: normalizedTxs,
           detectedBank: parsedResult.detectedBank || null,
           totalCount: normalizedTxs.length,
+          modelUsed: modelUsedName,
         };
-      } catch (genErr: any) {
-        console.error("Error konversi dokumen dengan Gemini:", genErr);
-        const errMsg = genErr?.message || String(genErr);
-        if (errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED")) {
-          throw new TRPCError({
-            code: "TOO_MANY_REQUESTS",
-            message: "Batas permintaan Gemini AI tercapai (Rate Limit). Silakan tunggu 1 menit lalu coba lagi.",
-          });
-        }
-        if (errMsg.includes("API_KEY_INVALID") || errMsg.includes("INVALID_ARGUMENT") || errMsg.includes("API key not valid")) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "API Key Gemini tidak valid. Silakan periksa kembali GEMINI_API_KEY di .env.local.",
-          });
-        }
+      } catch (postErr: any) {
+        if (postErr instanceof TRPCError) throw postErr;
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: `Gagal mengonversi dokumen: ${errMsg}`,
+          message: `Gagal memproses hasil konversi: ${postErr?.message || postErr}`,
         });
       }
     }),

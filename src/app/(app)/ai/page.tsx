@@ -30,28 +30,28 @@ import { useTranslation } from "@/i18n";
 
 const SUGGESTIONS_ID = [
   {
-    title: "Audit Pos Boros & Kebocoran",
-    desc: "Deteksi anomali mutasi dan pangkas pos pengeluaran terbesar.",
+    title: "Audit Pos Paling Boncos",
+    desc: "Bongkar pos belanja mana yang paling rakus nelen duit dan cara ngeremnya.",
     prompt:
-      "Audit pos pengeluaran terbesar saya: mana transaksi yang paling boros atau tidak wajar dan bagaimana cara memangkasnya?",
+      "Tolong audit pos belanja terbesar gue: mana pengeluaran yang paling bikin tekor atau boros, dan gimana jurus konkret buat mangkasnya?",
   },
   {
-    title: "Batas Belanja Harian",
-    desc: "Hitung jatah aman belanja harian agar kas surplus di akhir bulan.",
+    title: "Jatah Jajan Harian Aman",
+    desc: "Hitung batas belanja harian biar akhir bulan tetep bisa makan enak.",
     prompt:
-      "Hitung batas maksimal belanja harian saya agar sisa bulan ini tetap surplus dan tidak boncos.",
+      "Hitung batas maksimal jajan harian gue biar sisa bulan ini tetep surplus dan gak boncos di tanggal tua!",
   },
   {
     title: "Alokasi Tabungan Pasti",
-    desc: "Hitung nominal realistis yang aman disisihkan ke tabungan/reksadana.",
+    desc: "Berapa duit riil yang aman gue sisihin ke tabungan/reksadana bulan ini?",
     prompt:
-      "Berdasarkan pemasukan dan pola pengeluaran saya, berapa nominal pasti yang aman saya sisihkan ke tabungan bulan ini?",
+      "Berdasarkan cuan masuk dan pola pengeluaran riil gue, berapa nominal pasti yang aman disisihkan ke tabungan bulan ini?",
   },
   {
-    title: "Ketahanan Kas (Runway)",
-    desc: "Hitung berapa bulan cadangan dana bertahan tanpa pemasukan baru.",
+    title: "Nafas Dompet (Runway)",
+    desc: "Kalo mendadak gak ada pemasukan, saldo bertahan berapa bulan nih?",
     prompt:
-      "Dengan rata-rata pengeluaran saat ini, berapa bulan total saldo saya bisa bertahan jika tanpa pemasukan?",
+      "Dengan rata-rata pengeluaran gue sekarang, berapa bulan total saldo gue bisa bertahan kalo mendadak gak ada pemasukan baru?",
   },
 ];
 
@@ -84,32 +84,11 @@ const SUGGESTIONS_EN = [
 
 const FALLBACK_FREE_MODELS = [
   {
-    id: "minimax/minimax-m3.1-flash:free",
-    name: "MiniMax M3.1 Flash",
-    provider: "MiniMax",
+    id: "google/gemma-4-26b-a4b-it:free",
+    name: "Google Gemma 4 26B",
+    provider: "Google",
     tag: "Rekomendasi / Responsif",
     description: "Model cepat, stabil, dan sangat natural dalam memahami konteks keuangan Indonesia.",
-  },
-  {
-    id: "recursive/flint-v1.0:free",
-    name: "Recursive Flint v1.0",
-    provider: "Recursive",
-    tag: "Ultra Cepat",
-    description: "Latensi minimal untuk analisis ringkas dan perbandingan pos pengeluaran.",
-  },
-  {
-    id: "dots-studio/dots-3-note-preview:free",
-    name: "Dots Studio 3 Note",
-    provider: "Dots Studio",
-    tag: "Analitis",
-    description: "Sintesis data transaksi terstruktur dengan fokus laporan ringkas & objektif.",
-  },
-  {
-    id: "nvidia/nemotron-3.5-lightning:free",
-    name: "NVIDIA Nemotron 3.5 Lightning",
-    provider: "NVIDIA",
-    tag: "Deep Reasoning",
-    description: "Penalaran finansial mendalam untuk evaluasi target tabungan dan alokasi dana.",
   },
   {
     id: "google/gemma-4-31b-it:free",
@@ -119,11 +98,32 @@ const FALLBACK_FREE_MODELS = [
     description: "Model parameter besar Google dengan kapabilitas analitis komprehensif.",
   },
   {
-    id: "google/gemma-4-26b-a4b-it:free",
-    name: "Google Gemma 4 26B",
-    provider: "Google",
-    tag: "Seimbang",
-    description: "Model dialog efisien dan seimbang untuk konsultasi harian.",
+    id: "nvidia/nemotron-3.5-lightning:free",
+    name: "NVIDIA Nemotron 3.5 Lightning",
+    provider: "NVIDIA",
+    tag: "Deep Reasoning",
+    description: "Penalaran finansial mendalam untuk evaluasi target tabungan dan alokasi dana.",
+  },
+  {
+    id: "dots-studio/dots-3-note-preview:free",
+    name: "Dots Studio 3 Note",
+    provider: "Dots Studio",
+    tag: "Analitis",
+    description: "Sintesis data transaksi terstruktur dengan fokus laporan ringkas & objektif.",
+  },
+  {
+    id: "recursive/flint-v1.0:free",
+    name: "Recursive Flint v1.0",
+    provider: "Recursive",
+    tag: "Ultra Cepat",
+    description: "Latensi minimal untuk analisis ringkas dan perbandingan pos pengeluaran.",
+  },
+  {
+    id: "liquid/lfm-2.5-2.6b:free",
+    name: "LiquidAI LFM 2.5",
+    provider: "LiquidAI",
+    tag: "Ringan & Cepat",
+    description: "Model efisien untuk evaluasi cepat data transaksi.",
   },
 ];
 
@@ -167,13 +167,13 @@ function AIAdvisorPageContent() {
       ? aiConfig.availableModels
       : FALLBACK_FREE_MODELS;
 
-  const [selectedModelId, setSelectedModelId] = useState<string>("minimax/minimax-m3.1-flash:free");
+  const [selectedModelId, setSelectedModelId] = useState<string>("google/gemma-4-26b-a4b-it:free");
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Sync default model jika aiConfig termuat
   useEffect(() => {
-    if (aiConfig?.defaultModel && !selectedModelId) {
+    if (aiConfig?.defaultModel) {
       setSelectedModelId(aiConfig.defaultModel);
     }
   }, [aiConfig]);
@@ -192,8 +192,8 @@ function AIAdvisorPageContent() {
   const activeModel =
     availableModels.find((m) => m.id === selectedModelId) ||
     availableModels[0] || {
-      id: "minimax/minimax-m3.1-flash:free",
-      name: "MiniMax M3.1 Flash",
+      id: "google/gemma-4-26b-a4b-it:free",
+      name: "Google Gemma 4 26B",
       tag: "Default / Responsif",
       description: "Model cepat dan stabil untuk analisis keuangan.",
     };
@@ -390,8 +390,8 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
         text: isEn
           ? `### New Session Started
 Feel free to ask a new question regarding expense evaluations, budget comparisons, or savings projections.`
-          : `### Sesi Baru Dimulai
-Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos anggaran, atau simulasi target tabungan Anda.`,
+          : `### Halo bos! Sesi Baru Dimulai
+Tanya apa aja ke Bang Peci seputar duitmu: evaluasi belanja, bedah pos boncos, atau jurus nabung cerdas. Dijawab to-the-point pake data riil!`,
         time: new Date().toLocaleTimeString(isEn ? "en-US" : "id-ID", { hour: "2-digit", minute: "2-digit" }),
         modelUsed: activeModel.name,
       },
@@ -678,7 +678,7 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
           {askAssistantMutation.isPending && (
             <div className="w-full max-w-[92%] sm:max-w-[88%] rounded-lg p-3.5 text-xs bg-muted/20 border border-border/50 text-muted-foreground flex items-center gap-2.5 animate-in fade-in duration-150">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>{isEn ? `Analyzing transactions with ${activeModel.name}...` : `Menganalisis transaksi dengan ${activeModel.name}...`}</span>
+              <span>{isEn ? `Analyzing transactions with ${activeModel.name}...` : `Bang Peci lagi bedah transaksi pake ${activeModel.name}...`}</span>
             </div>
           )}
 
@@ -687,7 +687,7 @@ Silakan ajukan pertanyaan baru seputar evaluasi pengeluaran, perbandingan pos an
             <div className="pt-1.5 sm:pt-2">
               <div className="flex items-center justify-between mb-2 px-0.5">
                 <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-                  {isEn ? "Analysis Ideas & Financial Strategies" : "Ide Analisis & Solusi Finansial"}
+                  {isEn ? "Analysis Ideas & Financial Strategies" : "Ide Analisis Cuan & Solusi Anti-Boncos"}
                 </p>
                 <span className="text-[10px] text-muted-foreground/60 font-mono hidden sm:inline">
                   {isEn ? "Click for instant evaluation" : "Klik untuk evaluasi instan"}

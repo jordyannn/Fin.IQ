@@ -344,4 +344,31 @@ export const analyticsEvents = mysqlTable(
   })
 );
 
+// ============================================================================
+// 10. Milestones (Financial Goals & Tracking)
+// ============================================================================
+
+export const milestones = mysqlTable(
+  "milestones",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().$defaultFn(generateId),
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    targetAmount: double("target_amount").notNull(),
+    trackingType: varchar("tracking_type", { length: 20 }).notNull(), // 'account' | 'category'
+    trackingId: varchar("tracking_id", { length: 36 }).notNull(),     // accountId or categoryId
+    trackingDirection: varchar("tracking_direction", { length: 20 })
+      .default("savings_goal")
+      .notNull(), // 'savings_goal' | 'spending_limit'
+    deadline: timestamp("deadline", { mode: "date" }).notNull(),
+    isCompleted: boolean("is_completed").default(false).notNull(),
+    completedAt: timestamp("completed_at", { mode: "date" }),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdx: index("idx_milestones_user_deadline").on(table.userId, table.deadline),
+  })
+);
+
 

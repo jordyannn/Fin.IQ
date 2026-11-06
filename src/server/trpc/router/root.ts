@@ -10,6 +10,7 @@ import { importRouter } from "./import";
 import { authRouter } from "./auth";
 import { userRouter } from "./user";
 import { adminRouter } from "./admin";
+import { milestonesRouter } from "./milestones";
 
 export const appRouter = router({
   transactions: transactionsRouter,
@@ -23,6 +24,7 @@ export const appRouter = router({
   auth: authRouter,
   user: userRouter,
   admin: adminRouter,
+  milestones: milestonesRouter,
 });
 
 export type AppRouter = typeof appRouter;

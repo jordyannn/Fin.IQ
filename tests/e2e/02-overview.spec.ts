@@ -26,7 +26,7 @@ test.describe("02. Fitur Dashboard Overview UI", () => {
     }
 
     // Tombol tambah transaksi cepat dengan data-tour selector
-    const quickAddButton = page.locator("[data-tour='quick-add'], button:has-text('Catat Transaksi')").first();
+    const quickAddButton = page.locator("[data-tour='quick-add']:visible, button:has-text('Catat Transaksi'):visible").first();
     await expect(quickAddButton).toBeVisible({ timeout: 15000 });
 
     const modal = page.locator("form[data-tour-modal='quick-add']").first();

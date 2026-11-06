@@ -63,6 +63,7 @@ jobs:
           DEMO_USER_ID: ${{ secrets.DEMO_USER_ID || '9728be5f-a414-42f3-a827-4504a56c1370' }}
           NEXT_PUBLIC_DEFAULT_CURRENCY: "IDR"
           DATABASE_URL: ${{ secrets.DATABASE_URL || 'mysql://avnadmin:AVNS_CpIAQBJBbUy_hH9zbT8@finiq-1-jordanngz12-6510.c.aivencloud.com:12551/defaultdb' }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY || '' }}
 
   # 2. Build, Push & Deploy Multi-Microservices ke k3s
   build-and-deploy:

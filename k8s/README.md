@@ -13,7 +13,8 @@ Diambil dari `/var/www/fin-iq/.env.local` di server (file itu di-gitignore).
 ```bash
 kubectl -n finiq create secret generic finiq-secrets \
   --from-literal=DATABASE_URL="..." \
-  --from-literal=GEMINI_API_KEY="..." \
+  --from-literal=OPENROUTER_API_KEY="..." \
+  --from-literal=GEMINI_API_KEY="" \
   --from-literal=NEXTAUTH_URL="..." \
   --from-literal=NEXTAUTH_SECRET="..." \
   --from-literal=NEXT_PUBLIC_DEFAULT_CURRENCY="IDR" \

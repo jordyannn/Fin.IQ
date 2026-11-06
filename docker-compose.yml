@@ -31,7 +31,8 @@ services:
       - NEXTAUTH_URL=${NEXTAUTH_URL:-https://fin-iq.my.id}
       - NEXT_PUBLIC_DEFAULT_CURRENCY=${NEXT_PUBLIC_DEFAULT_CURRENCY:-IDR}
       - DEMO_USER_ID=${DEMO_USER_ID:-default-user-uuid-1}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-AQ.Ab8RN6IGdjST8WXK9I-8LIULXF8TAcbXlz-NeN2H6d1v__yN8A}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - REDIS_URL=${REDIS_URL:-}
     deploy:
       resources:
