@@ -65,6 +65,7 @@ export function AIAdvisorDrawer() {
   const { isAIDrawerOpen, setAIDrawerOpen } = useMascotStore();
 
   const [inputMessage, setInputMessage] = useState("");
+  const [activeSessionId, setActiveSessionId] = useState<string | undefined>(undefined);
   const [messages, setMessages] = useState<DrawerMessage[]>([
     {
       id: "welcome-1",
@@ -74,6 +75,33 @@ export function AIAdvisorDrawer() {
       time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
     },
   ]);
+
+  // Muat sesi percakapan AI terakhir jika tersedia
+  const { data: sessionList } = trpc.ai.listChatSessions.useQuery(undefined, {
+    enabled: isAIDrawerOpen,
+    staleTime: 1000 * 60,
+  });
+
+  const latestSessionId = sessionList?.[0]?.id;
+
+  const { data: sessionDetails } = trpc.ai.getChatSession.useQuery(
+    { sessionId: latestSessionId! },
+    { enabled: Boolean(isAIDrawerOpen && latestSessionId && !activeSessionId) }
+  );
+
+  useEffect(() => {
+    if (sessionDetails?.messages && sessionDetails.messages.length > 0) {
+      setActiveSessionId(sessionDetails.session?.id);
+      setMessages(
+        sessionDetails.messages.map((m) => ({
+          id: m.id,
+          role: m.role as "user" | "assistant",
+          content: m.content,
+          time: new Date(m.createdAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+        }))
+      );
+    }
+  }, [sessionDetails]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -105,6 +133,9 @@ export function AIAdvisorDrawer() {
 
   const askAssistantMutation = trpc.ai.askFinancialAssistant.useMutation({
     onSuccess: (data) => {
+      if (data.sessionId) {
+        setActiveSessionId(data.sessionId);
+      }
       setMessages((prev) => [
         ...prev,
         {
@@ -145,6 +176,7 @@ export function AIAdvisorDrawer() {
 
     askAssistantMutation.mutate({
       question: text,
+      sessionId: activeSessionId,
       lang: "id",
       clientTime: new Date().toISOString(),
     });
@@ -225,11 +257,10 @@ export function AIAdvisorDrawer() {
               className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
             >
               <div
-                className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed shadow-2xs ${
-                  msg.role === "user"
+                className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed shadow-2xs ${msg.role === "user"
                     ? "bg-primary text-primary-foreground font-medium rounded-br-xs"
                     : "bg-muted/60 border border-border/70 text-foreground rounded-bl-xs"
-                }`}
+                  }`}
               >
                 {msg.role === "assistant" ? (
                   <AIMessageRenderer content={msg.content} />

@@ -409,6 +409,9 @@ export interface TranslationDictionary {
     selectCategory: string;
     markDone: string;
     deleteConfirm: string;
+    allAccounts: string;
+    allAccountsShort: string;
+    overBudget: string;
   };
   quickActions: {
     addTransaction: string;

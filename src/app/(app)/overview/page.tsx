@@ -6,7 +6,6 @@ import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
 import { useTranslation } from "@/i18n";
 import { DateFilterPreset, computeDateRange } from "@/lib/date-filters";
-import { useUIStore } from "@/store/ui.store";
 import {
   Wallet,
   TrendingUp,
@@ -77,7 +76,6 @@ const PIE_COLORS = [
 ];
 
 export default function OverviewPage() {
-  const { openQuickAdd } = useUIStore();
   const { isSleeping, setIsSleeping } = useMascotStore();
   const utils = trpc.useUtils();
   const { t, formatCurrency, formatDate, locale } = useTranslation();

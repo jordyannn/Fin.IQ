@@ -409,6 +409,9 @@ export const en: TranslationDictionary = {
     selectCategory: "Select Category...",
     markDone: "Mark as Done",
     deleteConfirm: "Delete this goal?",
+    allAccounts: "All Accounts (Overall)",
+    allAccountsShort: "All Accounts",
+    overBudget: "Over Budget",
   },
   quickActions: {
     addTransaction: "Record",

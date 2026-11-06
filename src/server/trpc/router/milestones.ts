@@ -16,12 +16,72 @@ export const milestonesRouter = router({
         let currentAmount = 0;
         let trackingName = "";
 
+        const startDate = new Date(m.createdAt);
+        startDate.setHours(0, 0, 0, 0);
+
         if (m.trackingType === "account") {
-          const acc = await ctx.db.query.accounts.findFirst({
-            where: and(eq(accounts.id, m.trackingId), eq(accounts.userId, ctx.userId)),
-          });
-          currentAmount = acc?.balance ?? 0;
-          trackingName = acc?.name ?? "Account";
+          if (m.trackingDirection === "spending_limit") {
+            // Target Pengeluaran (Batas Belanja Rekening / Semua Akun)
+            if (m.trackingId === "all") {
+              trackingName = "Semua Akun";
+              const [agg] = await ctx.db
+                .select({
+                  total: sql<number>`coalesce(sum(${transactions.amount}), 0)`,
+                })
+                .from(transactions)
+                .where(
+                  and(
+                    eq(transactions.userId, ctx.userId),
+                    eq(transactions.txType, "expense"),
+                    gte(transactions.happenedAt, startDate)
+                  )
+                );
+              currentAmount = Number(agg?.total ?? 0);
+            } else {
+              const acc = await ctx.db.query.accounts.findFirst({
+                where: and(eq(accounts.id, m.trackingId), eq(accounts.userId, ctx.userId)),
+              });
+              trackingName = acc?.name ?? "Account";
+
+              const [agg] = await ctx.db
+                .select({
+                  total: sql<number>`coalesce(sum(${transactions.amount}), 0)`,
+                })
+                .from(transactions)
+                .where(
+                  and(
+                    eq(transactions.userId, ctx.userId),
+                    eq(transactions.accountId, m.trackingId),
+                    eq(transactions.txType, "expense"),
+                    gte(transactions.happenedAt, startDate)
+                  )
+                );
+              currentAmount = Number(agg?.total ?? 0);
+            }
+          } else {
+            // Target Saldo / Tabungan (savings_goal)
+            if (m.trackingId === "all") {
+              trackingName = "Semua Akun";
+              const [agg] = await ctx.db
+                .select({
+                  total: sql<number>`coalesce(sum(${accounts.balance}), 0)`,
+                })
+                .from(accounts)
+                .where(
+                  and(
+                    eq(accounts.userId, ctx.userId),
+                    eq(accounts.isHidden, false)
+                  )
+                );
+              currentAmount = Number(agg?.total ?? 0);
+            } else {
+              const acc = await ctx.db.query.accounts.findFirst({
+                where: and(eq(accounts.id, m.trackingId), eq(accounts.userId, ctx.userId)),
+              });
+              currentAmount = acc?.balance ?? 0;
+              trackingName = acc?.name ?? "Account";
+            }
+          }
         } else {
           const cat = await ctx.db.query.categories.findFirst({
             where: and(eq(categories.id, m.trackingId), eq(categories.userId, ctx.userId)),
@@ -39,7 +99,7 @@ export const milestonesRouter = router({
                 eq(transactions.userId, ctx.userId),
                 eq(transactions.categoryId, m.trackingId),
                 eq(transactions.txType, txType),
-                gte(transactions.happenedAt, m.createdAt)
+                gte(transactions.happenedAt, startDate)
               )
             );
           currentAmount = Number(agg?.total ?? 0);
@@ -59,6 +119,7 @@ export const milestonesRouter = router({
           targetAmount: m.targetAmount,
           currentAmount,
           percent,
+          rawPercent: Math.round(rawPercent),
           trackingType: m.trackingType as "account" | "category",
           trackingId: m.trackingId,
           trackingName,

@@ -409,6 +409,9 @@ export const id: TranslationDictionary = {
     selectCategory: "Pilih Kategori...",
     markDone: "Tandai Selesai",
     deleteConfirm: "Hapus target ini?",
+    allAccounts: "Semua Akun (Keseluruhan)",
+    allAccountsShort: "Semua Akun",
+    overBudget: "Lewat Batas",
   },
   quickActions: {
     addTransaction: "Catat",

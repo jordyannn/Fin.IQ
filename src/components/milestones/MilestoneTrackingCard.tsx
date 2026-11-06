@@ -91,6 +91,35 @@ export function MilestoneTrackingCard() {
   };
 
   const activeAccounts = accountsData?.accounts?.filter((a) => !a.isHidden) || [];
+  const totalBalance = activeAccounts.reduce((sum, a) => sum + (a.balance || 0), 0);
+
+  const getPlaceholder = () => {
+    if (trackingType === "account") {
+      if (trackingDirection === "spending_limit") {
+        return trackingId === "all"
+          ? isEn
+            ? "e.g. Max Monthly Total Spending"
+            : "Contoh: Batas Total Pengeluaran Bulan Ini"
+          : isEn
+          ? "e.g. Limit Account Spending"
+          : "Contoh: Batas Pengeluaran Rekening Ini";
+      }
+      return trackingId === "all"
+        ? isEn
+          ? "e.g. Total Net Worth Target"
+          : "Contoh: Target Total Tabungan / Saldo Bersih"
+        : isEn
+        ? "e.g. Save 10M in Emergency Fund"
+        : "Contoh: Target Saldo Tabungan Dana Darurat";
+    }
+    return trackingDirection === "spending_limit"
+      ? isEn
+        ? "e.g. Limit Coffee / Dining Out"
+        : "Contoh: Batas Jajan Kopi / Kuliner"
+      : isEn
+      ? "e.g. Save 5M for Vacation"
+      : "Contoh: Tabung 5jt Liburan";
+  };
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -122,6 +151,11 @@ export function MilestoneTrackingCard() {
         {milestonesData?.map((m) => {
           const isOverdue = m.isOverdue;
           const isCompleted = m.isCompleted;
+          const isOverBudget =
+            m.trackingDirection === "spending_limit" &&
+            m.currentAmount > m.targetAmount &&
+            !isCompleted;
+          const displayPercent = (m as any).rawPercent ?? m.percent;
 
           return (
             <Card
@@ -129,6 +163,8 @@ export function MilestoneTrackingCard() {
               className={`p-3.5 sm:p-4 rounded-2xl border transition-all duration-200 shadow-2xs hover:shadow-xs group ${
                 isCompleted
                   ? "border-emerald-500/40 bg-emerald-500/[0.03]"
+                  : isOverBudget
+                  ? "border-rose-500/40 bg-rose-500/[0.03]"
                   : isOverdue
                   ? "border-rose-500/40 bg-rose-500/[0.03]"
                   : "border-border/80 bg-card hover:border-primary/40"
@@ -167,6 +203,13 @@ export function MilestoneTrackingCard() {
                       >
                         ✓ {t.milestones.completed}
                       </Badge>
+                    ) : isOverBudget ? (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] py-0 px-2 font-bold border-rose-500/30 text-rose-600 dark:text-rose-400 bg-rose-500/10 shrink-0"
+                      >
+                        {t.milestones.overBudget}
+                      </Badge>
                     ) : isOverdue ? (
                       <Badge
                         variant="outline"
@@ -187,12 +230,14 @@ export function MilestoneTrackingCard() {
                       className={`text-sm sm:text-base font-black tracking-tight ${
                         isCompleted
                           ? "text-emerald-600 dark:text-emerald-400"
+                          : isOverBudget
+                          ? "text-rose-500"
                           : m.percent > 85
                           ? "text-amber-500"
                           : "text-primary"
                       }`}
                     >
-                      {m.percent}%
+                      {displayPercent}%
                     </span>
 
                     {/* Quick Delete Button */}
@@ -217,6 +262,8 @@ export function MilestoneTrackingCard() {
                     className={`h-full rounded-full transition-all duration-500 ${
                       isCompleted
                         ? "bg-emerald-500"
+                        : isOverBudget
+                        ? "bg-rose-500"
                         : isOverdue
                         ? "bg-rose-500"
                         : m.percent > 85
@@ -231,13 +278,11 @@ export function MilestoneTrackingCard() {
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                   <div className="flex items-center gap-1.5 truncate">
                     <span className="capitalize font-semibold text-foreground/80">
-                      {m.trackingName}
+                      {m.trackingId === "all" ? t.milestones.allAccountsShort : m.trackingName}
                     </span>
                     <span>•</span>
                     <span className="text-[10px]">
-                      {m.trackingType === "account"
-                        ? t.milestones.account
-                        : m.trackingDirection === "spending_limit"
+                      {m.trackingDirection === "spending_limit"
                         ? t.milestones.spendingLimit
                         : t.milestones.savingsGoal}
                     </span>
@@ -312,11 +357,7 @@ export function MilestoneTrackingCard() {
                 </label>
                 <Input
                   type="text"
-                  placeholder={
-                    isEn
-                      ? "e.g. Save 5M for Vacation / Limit Dining Out"
-                      : "Contoh: Tabung 5jt Liburan / Batas Jajan Kopi"
-                  }
+                  placeholder={getPlaceholder()}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="h-9 rounded-md"
@@ -350,9 +391,7 @@ export function MilestoneTrackingCard() {
                     type="button"
                     onClick={() => {
                       setTrackingType("account");
-                      if (activeAccounts.length > 0) {
-                        setTrackingId(activeAccounts[0].id);
-                      }
+                      setTrackingId("all");
                     }}
                     className={`py-1.5 px-3 rounded-lg font-bold text-xs transition-all cursor-pointer ${
                       trackingType === "account"
@@ -380,6 +419,9 @@ export function MilestoneTrackingCard() {
                     <option value="" disabled>
                       {t.milestones.selectAccount}
                     </option>
+                    <option value="all">
+                      🌐 {t.milestones.allAccounts} — Total: {formatCurrency(totalBalance)}
+                    </option>
                     {activeAccounts.map((acc) => (
                       <option key={acc.id} value={acc.id}>
                         {acc.name} ({acc.group}) — {formatCurrency(acc.balance, acc.currency)}
@@ -405,45 +447,63 @@ export function MilestoneTrackingCard() {
                 )}
               </div>
 
-              {/* Direction (if category) */}
-              {trackingType === "category" && (
-                <div>
-                  <label className="font-semibold text-foreground block mb-1">
-                    {t.milestones.directionLabel}
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setTrackingDirection("spending_limit")}
-                      className={`p-2 rounded-xl border text-left text-xs transition-all cursor-pointer ${
-                        trackingDirection === "spending_limit"
-                          ? "border-primary bg-primary/5 text-primary font-bold ring-1 ring-primary/30"
-                          : "border-border bg-card text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <div className="font-bold">{t.milestones.spendingLimit}</div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">
-                        {isEn ? "Track max expense limit" : "Pantau batas maksimal"}
-                      </div>
-                    </button>
+              {/* Direction (Spending Limit vs Savings / Income Goal) */}
+              <div>
+                <label className="font-semibold text-foreground block mb-1">
+                  {t.milestones.directionLabel}
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTrackingDirection("spending_limit")}
+                    className={`p-2 rounded-xl border text-left text-xs transition-all cursor-pointer ${
+                      trackingDirection === "spending_limit"
+                        ? "border-primary bg-primary/5 text-primary font-bold ring-1 ring-primary/30"
+                        : "border-border bg-card text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <div className="font-bold">{t.milestones.spendingLimit}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      {trackingType === "account"
+                        ? trackingId === "all"
+                          ? isEn
+                            ? "Track max overall spending"
+                            : "Pantau batas total pengeluaran semua akun"
+                          : isEn
+                          ? "Track max spending on this account"
+                          : "Pantau batas pengeluaran rekening ini"
+                        : isEn
+                        ? "Track max expense limit"
+                        : "Pantau batas maksimal pengeluaran"}
+                    </div>
+                  </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setTrackingDirection("savings_goal")}
-                      className={`p-2 rounded-xl border text-left text-xs transition-all cursor-pointer ${
-                        trackingDirection === "savings_goal"
-                          ? "border-primary bg-primary/5 text-primary font-bold ring-1 ring-primary/30"
-                          : "border-border bg-card text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <div className="font-bold">{t.milestones.savingsGoal}</div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">
-                        {isEn ? "Track savings or revenue" : "Pantau target tabungan"}
-                      </div>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTrackingDirection("savings_goal")}
+                    className={`p-2 rounded-xl border text-left text-xs transition-all cursor-pointer ${
+                      trackingDirection === "savings_goal"
+                        ? "border-primary bg-primary/5 text-primary font-bold ring-1 ring-primary/30"
+                        : "border-border bg-card text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <div className="font-bold">{t.milestones.savingsGoal}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      {trackingType === "account"
+                        ? trackingId === "all"
+                          ? isEn
+                            ? "Track total net balance across all accounts"
+                            : "Pantau target total saldo seluruh akun"
+                          : isEn
+                          ? "Track target balance on this account"
+                          : "Pantau target saldo rekening ini"
+                        : isEn
+                        ? "Track target income"
+                        : "Pantau target pemasukan"}
+                    </div>
+                  </button>
                 </div>
-              )}
+              </div>
 
               {/* Target Amount */}
               <div>
