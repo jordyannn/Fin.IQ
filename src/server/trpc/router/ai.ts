@@ -529,125 +529,140 @@ ATURAN EKSTRAKSI PENTING:
       let responseText = "";
       let geminiErr: any = null;
       let openRouterErr: any = null;
+      let hasOpenRouterKeyForPdf = false;
 
-      try {
-        const apiKey = await getEffectiveGeminiKey(ctx);
-        const reachability = await ensureGeminiReachable(3000);
-        if (!reachability.reachable) {
-          throw new Error(
-            reachability.reason || "Endpoint Gemini tidak dapat dijangkau dari server"
-          );
-        }
-        const ai = new GoogleGenAI({ apiKey });
-        const response = await generateWithFallback(ai, {
-          preferredModels: DEFAULT_GEMINI_MODELS,
-          fastMode: true,
-          timeoutMs: 18000,
-          contents: [
-            {
-              inlineData: {
-                data: cleanBase64,
-                mimeType: input.image.mimeType || "image/jpeg",
-              },
-            },
-            {
-              text: prompt,
-            },
-          ],
-          config: {
-            responseMimeType: "application/json",
-          },
-        });
-        responseText = response.text || "";
-      } catch (err: any) {
-        geminiErr = err;
-        console.warn("[parseBillReceipt] Gemini Vision/PDF gagal, mencoba OpenRouter:", err?.message || err);
-      }
-
-      if (!responseText.trim() && remainingMs() >= 5000) {
+      // Untuk PDF, gunakan OpenRouter langsung sebagai default (tanpa memakai atau menunggu Gemini)
+      if (isPdf) {
         const openRouterKey = await getEffectiveOpenRouterKey(ctx);
+        hasOpenRouterKeyForPdf = Boolean(openRouterKey);
         if (openRouterKey) {
-          if (isPdf) {
-            try {
-              const rawText = extractTextFromPdfBuffer(Buffer.from(cleanBase64, "base64"));
-              if (isReadablePdfText(rawText) && remainingMs() >= 5000) {
-                const budget = Math.min(28000, remainingMs());
-                const orTextRes = await generateOpenRouterCompletion({
-                  apiKey: openRouterKey,
-                  candidateModels: OPENROUTER_EXTRACTION_MODELS,
-                  timeoutMs: Math.min(18000, budget),
-                  totalTimeoutMs: budget,
-                  temperature: 0.1,
-                  systemPrompt: prompt,
-                  userPrompt: `Berikut adalah teks struk/mutasi PDF:\n\n${rawText.slice(0, 20000)}\n\nKembalikan HANYA 1 objek JSON valid sesuai format.`,
-                  validateResponse: (txt) => /\{[\s\S]*\}/.test(txt),
-                });
-                responseText = orTextRes.text;
-              }
-            } catch (err: any) {
-              openRouterErr = err;
-            }
-
-            if (!responseText.trim() && remainingMs() >= 5000) {
-              try {
-                const budget = Math.min(30000, remainingMs());
-                const orPdfRes = await generateOpenRouterCompletion({
-                  apiKey: openRouterKey,
-                  candidateModels: OPENROUTER_EXTRACTION_MODELS.slice(0, 3),
-                  timeoutMs: Math.min(18000, budget),
-                  totalTimeoutMs: budget,
-                  temperature: 0.1,
-                  systemPrompt: prompt,
-                  plugins: [{ id: "file-parser", pdf: { engine: "pdf-text" } }],
-                  userContent: [
-                    {
-                      type: "text",
-                      text: "Ekstrak struk/bukti/mutasi PDF ini ke dalam 1 objek JSON valid sesuai format.",
-                    },
-                    {
-                      type: "file",
-                      file: {
-                        filename: "receipt.pdf",
-                        file_data: `data:application/pdf;base64,${cleanBase64}`,
-                      },
-                    },
-                  ],
-                  validateResponse: (txt) => /\{[\s\S]*\}/.test(txt),
-                });
-                responseText = orPdfRes.text;
-                openRouterErr = null;
-              } catch (err: any) {
-                openRouterErr = err;
-              }
-            }
-          } else {
-            try {
-              const budget = Math.min(28000, remainingMs());
-              const orImgRes = await generateOpenRouterCompletion({
+          try {
+            const rawText = extractTextFromPdfBuffer(Buffer.from(cleanBase64, "base64"));
+            if (isReadablePdfText(rawText) && remainingMs() >= 5000) {
+              const budget = Math.min(30000, remainingMs());
+              const orTextRes = await generateOpenRouterCompletion({
                 apiKey: openRouterKey,
-                candidateModels: OPENROUTER_VISION_MODELS,
+                candidateModels: OPENROUTER_EXTRACTION_MODELS,
                 timeoutMs: Math.min(18000, budget),
                 totalTimeoutMs: budget,
                 temperature: 0.1,
                 systemPrompt: prompt,
+                userPrompt: `Berikut adalah teks struk/mutasi PDF:\n\n${rawText.slice(0, 20000)}\n\nKembalikan HANYA 1 objek JSON valid sesuai format.`,
+                validateResponse: (txt) => /\{[\s\S]*\}/.test(txt),
+              });
+              responseText = orTextRes.text;
+            }
+          } catch (err: any) {
+            openRouterErr = err;
+          }
+
+          const isFatalOrLimit = /Kunci API OpenRouter tidak valid|Limit harian model gratis OpenRouter|free-models-per-day/i.test(
+            String(openRouterErr?.message || "")
+          );
+          if (!responseText.trim() && !isFatalOrLimit && remainingMs() >= 5000) {
+            try {
+              const budget = Math.min(34000, remainingMs());
+              const orPdfRes = await generateOpenRouterCompletion({
+                apiKey: openRouterKey,
+                candidateModels: OPENROUTER_EXTRACTION_MODELS.slice(0, 3),
+                timeoutMs: Math.min(18000, budget),
+                totalTimeoutMs: budget,
+                temperature: 0.1,
+                systemPrompt: prompt,
+                plugins: [{ id: "file-parser", pdf: { engine: "pdf-text" } }],
                 userContent: [
                   {
                     type: "text",
-                    text: "Baca gambar struk/bukti/mutasi ini dan kembalikan HANYA 1 objek JSON valid sesuai format.",
+                    text: "Ekstrak struk/bukti/mutasi PDF ini ke dalam 1 objek JSON valid sesuai format.",
                   },
                   {
-                    type: "image_url",
-                    image_url: {
-                      url: `data:${input.image.mimeType || "image/jpeg"};base64,${cleanBase64}`,
+                    type: "file",
+                    file: {
+                      filename: "receipt.pdf",
+                      file_data: `data:application/pdf;base64,${cleanBase64}`,
                     },
                   },
                 ],
                 validateResponse: (txt) => /\{[\s\S]*\}/.test(txt),
               });
-              responseText = orImgRes.text;
+              responseText = orPdfRes.text;
+              openRouterErr = null;
             } catch (err: any) {
               openRouterErr = err;
             }
+          }
+        } else {
+          openRouterErr = new Error("OPENROUTER_API_KEY belum dikonfigurasi");
+        }
+      }
+
+      // Gemini hanya untuk non-PDF (gambar kamera/screenshot) atau jika PDF tidak memiliki OpenRouter API Key sama sekali
+      if ((!isPdf || !hasOpenRouterKeyForPdf) && !responseText.trim() && remainingMs() >= 7000) {
+        try {
+          const apiKey = await getEffectiveGeminiKey(ctx);
+          const reachability = await ensureGeminiReachable(2500);
+          if (!reachability.reachable) {
+            throw new Error(
+              reachability.reason || "Endpoint Gemini tidak dapat dijangkau dari server"
+            );
+          }
+          const ai = new GoogleGenAI({ apiKey });
+          const response = await generateWithFallback(ai, {
+            preferredModels: DEFAULT_GEMINI_MODELS,
+            fastMode: true,
+            timeoutMs: Math.min(18000, remainingMs()),
+            contents: [
+              {
+                inlineData: {
+                  data: cleanBase64,
+                  mimeType: input.image.mimeType || "image/jpeg",
+                },
+              },
+              {
+                text: prompt,
+              },
+            ],
+            config: {
+              responseMimeType: "application/json",
+            },
+          });
+          responseText = response.text || "";
+        } catch (err: any) {
+          geminiErr = err;
+          console.warn("[parseBillReceipt] Gemini Vision/PDF gagal:", err?.message || err);
+        }
+      }
+
+      // Fallback OpenRouter Vision untuk gambar jika Gemini gagal
+      if (!isPdf && !responseText.trim() && remainingMs() >= 5000) {
+        const openRouterKey = await getEffectiveOpenRouterKey(ctx);
+        if (openRouterKey) {
+          try {
+            const budget = Math.min(28000, remainingMs());
+            const orImgRes = await generateOpenRouterCompletion({
+              apiKey: openRouterKey,
+              candidateModels: OPENROUTER_VISION_MODELS,
+              timeoutMs: Math.min(18000, budget),
+              totalTimeoutMs: budget,
+              temperature: 0.1,
+              systemPrompt: prompt,
+              userContent: [
+                {
+                  type: "text",
+                  text: "Baca gambar struk/bukti/mutasi ini dan kembalikan HANYA 1 objek JSON valid sesuai format.",
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:${input.image.mimeType || "image/jpeg"};base64,${cleanBase64}`,
+                  },
+                },
+              ],
+              validateResponse: (txt) => /\{[\s\S]*\}/.test(txt),
+            });
+            responseText = orImgRes.text;
+          } catch (err: any) {
+            openRouterErr = err;
           }
         } else {
           openRouterErr = new Error("OPENROUTER_API_KEY belum dikonfigurasi");

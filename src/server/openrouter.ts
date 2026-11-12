@@ -477,7 +477,14 @@ export async function generateOpenRouterCompletion(options: {
       }
 
       if (response.status === 429) {
-        console.warn(`[OpenRouter Fallback] Model ${model} rate-limited (429), mencoba model cadangan...`);
+        const errJson = await response.json().catch(() => ({}));
+        const rawMsg = errJson?.error?.message || "";
+        console.warn(`[OpenRouter Fallback] Model ${model} rate-limited (429): ${rawMsg}`);
+        if (/free-models-per-day|add \d+ credits/i.test(rawMsg)) {
+          throw new Error(
+            "Limit harian model gratis OpenRouter tercapai (50 request/hari). Tambahkan kredit OpenRouter atau ganti API Key di Pengaturan & Profil."
+          );
+        }
         lastError = new Error(`Model ${model} sedang sibuk (rate-limited upstream).`);
         continue;
       }
@@ -513,7 +520,10 @@ export async function generateOpenRouterCompletion(options: {
         lastError = new Error(`Respon model ${model} kosong.`);
       }
     } catch (fetchErr: any) {
-      if (fetchErr.message?.includes("Kunci API OpenRouter tidak valid")) {
+      if (
+        fetchErr?.message?.includes("Kunci API OpenRouter tidak valid") ||
+        fetchErr?.message?.includes("Limit harian model gratis OpenRouter")
+      ) {
         throw fetchErr;
       }
       console.warn(`[OpenRouter Fallback] Gagal memanggil ${model}:`, fetchErr?.message || fetchErr);

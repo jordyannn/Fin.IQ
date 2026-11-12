@@ -1031,6 +1031,325 @@ export function fuzzyMatchCategory(
   return rawName.trim();
 }
 
+function parseStatementAmountToken(raw: string): number {
+  const cleaned = raw.replace(/[^\d.,]/g, "");
+  if (!cleaned) return 0;
+
+  if (/,\d{1,2}$/.test(cleaned)) {
+    const normalized = cleaned.replace(/\./g, "").replace(",", ".");
+    return Math.round(Number(normalized) || 0);
+  }
+
+  if (/\.\d{1,2}$/.test(cleaned)) {
+    const lastDot = cleaned.lastIndexOf(".");
+    const intPart = cleaned.slice(0, lastDot).replace(/[.,]/g, "");
+    const decPart = cleaned.slice(lastDot + 1);
+    return Math.round(Number(`${intPart}.${decPart}`) || 0);
+  }
+
+  const intOnly = cleaned.replace(/[.,]/g, "");
+  return Math.round(Number(intOnly) || 0);
+}
+
+const STATEMENT_MONTH_MAP: Record<string, string> = {
+  jan: "01",
+  januari: "01",
+  january: "01",
+  feb: "02",
+  peb: "02",
+  februari: "02",
+  february: "02",
+  mar: "03",
+  maret: "03",
+  march: "03",
+  apr: "04",
+  april: "04",
+  mei: "05",
+  may: "05",
+  jun: "06",
+  juni: "06",
+  june: "06",
+  jul: "07",
+  juli: "07",
+  july: "07",
+  agu: "08",
+  agt: "08",
+  agustus: "08",
+  aug: "08",
+  august: "08",
+  sep: "09",
+  sept: "09",
+  september: "09",
+  okt: "10",
+  oktober: "10",
+  oct: "10",
+  october: "10",
+  nov: "11",
+  nop: "11",
+  november: "11",
+  des: "12",
+  desember: "12",
+  dec: "12",
+  december: "12",
+};
+
+function normalizeStatementDate(rawDate: string, fallbackYear: number): string {
+  const trimmed = rawDate.trim();
+
+  const isoMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2].padStart(2, "0")}-${isoMatch[3].padStart(2, "0")}`;
+  }
+
+  const dmyMatch = trimmed.match(/^(\d{1,2})[-/](\d{1,2})(?:[-/](\d{2,4}))?$/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, "0");
+    const month = dmyMatch[2].padStart(2, "0");
+    let year = String(fallbackYear);
+    if (dmyMatch[3]) {
+      year = dmyMatch[3].length === 2 ? `20${dmyMatch[3]}` : dmyMatch[3];
+    }
+    return `${year}-${month}-${day}`;
+  }
+
+  const namedMatch = trimmed.match(/^(\d{1,2})[\s-]+([a-zA-Z]+)(?:[\s-]+(\d{2,4}))?$/);
+  if (namedMatch) {
+    const day = namedMatch[1].padStart(2, "0");
+    const monthKey = namedMatch[2].toLowerCase();
+    const month = STATEMENT_MONTH_MAP[monthKey] || STATEMENT_MONTH_MAP[monthKey.slice(0, 3)];
+    if (month) {
+      let year = String(fallbackYear);
+      if (namedMatch[3]) {
+        year = namedMatch[3].length === 2 ? `20${namedMatch[3]}` : namedMatch[3];
+      }
+      return `${year}-${month}-${day}`;
+    }
+  }
+
+  return parseHappenedAt(trimmed, fallbackYear);
+}
+
+export function extractBankFromStatementText(docText: string, fileName: string): string | null {
+  const sample = `${fileName}\n${docText.slice(0, 2000)}`;
+  const bankRules: Array<[RegExp, string]> = [
+    [/blu\s*(?:by\s*bca\s*digital|bca\s*digital)|bca\s*digital|\bblu\b/i, "blu"],
+    [/bank\s*central\s*asia|\bbca\b|klikbca|mybca|tahapan\s*bca/i, "BCA"],
+    [/bank\s*mandiri|\bmandiri\b|livin/i, "Mandiri"],
+    [/seabank/i, "SeaBank"],
+    [/bank\s*jago|\bjago\b/i, "Jago"],
+    [/bank\s*rakyat\s*indonesia|\bbri\b|brimo/i, "BRI"],
+    [/bank\s*negara\s*indonesia|\bbni\b|wondr/i, "BNI"],
+    [/bank\s*syariah\s*indonesia|\bbsi\b|byond/i, "BSI"],
+    [/cimb\s*niaga|octo\s*mobile/i, "CIMB Niaga"],
+    [/gopay/i, "GoPay"],
+    [/shopeepay/i, "ShopeePay"],
+    [/\bovo\b/i, "OVO"],
+    [/\bdana\b/i, "DANA"],
+  ];
+
+  for (const [pattern, bankName] of bankRules) {
+    if (pattern.test(sample)) return bankName;
+  }
+  return null;
+}
+
+function guessStatementCategory(note: string, txType: "expense" | "income" | "transfer"): string {
+  const lower = note.toLowerCase();
+  if (/gaji|payroll|salary|insentif|bonus|thr|honor|dividen/i.test(lower)) {
+    return "Gaji & Penghasilan";
+  }
+  if (/qris|gofood|grabfood|shopeefood|warung|restoran|cafe|kopi|starbucks|kenangan|indomaret|alfamart|alfamidi|makan|bakso|mie/i.test(lower)) {
+    return "Makanan & Minuman";
+  }
+  if (/gojek|grab|bluebird|kai|kereta|parkir|tol|pertamina|spbu|bensin|shell|transport/i.test(lower)) {
+    return "Transportasi";
+  }
+  if (/pln|listrik|pdam|indihome|biznet|telkom|telkomsel|indosat|pulsa|paket\s*data|tagihan|bpjs/i.test(lower)) {
+    return "Tagihan & Utilitas";
+  }
+  if (/shopee|tokopedia|lazada|blibli|tiktok|belanja|uniqlo/i.test(lower)) {
+    return "Belanja";
+  }
+  if (/biaya\s*admin|admin\s*bank|pajak|biaya\s*transfer/i.test(lower)) {
+    return "Biaya Admin";
+  }
+  return txType === "income" ? "Pemasukan" : "Lainnya";
+}
+
+export function parseBankStatementTextLocally(docText: string, fileName: string) {
+  const detectedBank = extractBankFromStatementText(docText, fileName);
+  const yearMatch = docText.slice(0, 1500).match(/\b(20\d{2})\b/);
+  const defaultYear = yearMatch ? Number(yearMatch[1]) : new Date().getFullYear();
+
+  const lines = docText
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  const dateStartRegex =
+    /^(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}(?:[-/]\d{2,4})?|\d{1,2}[\s-]+(?:jan|feb|peb|mar|apr|mei|may|jun|jul|agu|agt|aug|sep|okt|oct|nov|nop|des|dec)[a-zA-Z]*(?:[\s-]+\d{2,4})?)\b/i;
+
+  const groupedRows: Array<{ rawDate: string; text: string }> = [];
+  for (const line of lines) {
+    if (
+      /^(halaman|page|periode|period|no\.?\s*rekening|account\s*no|tanggal\s*mutasi|date\s+description|catatan:|ringkasan)/i.test(
+        line
+      )
+    ) {
+      continue;
+    }
+
+    const match = line.match(dateStartRegex);
+    if (match) {
+      groupedRows.push({
+        rawDate: match[1],
+        text: line.slice(match[0].length).replace(/^\s*(?:\d{2}:\d{2}(?::\d{2})?\s*(?:wib|wita|wit)?\s*)/i, "").trim(),
+      });
+    } else if (groupedRows.length > 0 && groupedRows[groupedRows.length - 1].text.length < 400) {
+      if (!/^(saldo\s*(awal|akhir)|total\s*(kredit|debit|debet|pemasukan|pengeluaran))/i.test(line)) {
+        groupedRows[groupedRows.length - 1].text += ` ${line}`;
+      }
+    }
+  }
+
+  const amountTokenRegex =
+    /(?:^|[\s(:])([+-]?\s*(?:Rp\.?\s*)?(?:\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,]\d{2})?)(?:\s*[.,]\d{2})?)\s*(DB|CR|D|K)?(?=$|[\s),;])/gi;
+
+  const transactions: Array<{
+    txType: "expense" | "income" | "transfer";
+    amount: number;
+    happenedAt: string;
+    categoryName: string;
+    accountName: string;
+    toAccountName: string | null;
+    note: string;
+  }> = [];
+
+  let previousBalance: number | null = null;
+
+  for (const row of groupedRows) {
+    const cleanText = row.text.replace(/\s+/g, " ").trim();
+    if (!cleanText) continue;
+
+    if (
+      /^(saldo\s*(awal|akhir)|total\s*(kredit|debit|debet|pemasukan|pengeluaran|mutasi)|opening\s*balance|closing\s*balance|beginning\s*balance|ending\s*balance)\b/i.test(
+        cleanText
+      )
+    ) {
+      const balMatch = cleanText.match(/(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?)/);
+      if (balMatch && /saldo\s*awal|beginning\s*balance|opening\s*balance/i.test(cleanText)) {
+        previousBalance = parseStatementAmountToken(balMatch[1]);
+      }
+      continue;
+    }
+
+    const parsedAmounts: Array<{
+      value: number;
+      rawFull: string;
+      sign: "+" | "-" | null;
+      dcTag: "DB" | "CR" | null;
+      hasSeparatorOrRp: boolean;
+    }> = [];
+
+    let m: RegExpExecArray | null;
+    amountTokenRegex.lastIndex = 0;
+    while ((m = amountTokenRegex.exec(cleanText)) !== null) {
+      const rawExpr = m[1].trim();
+      const dcRaw = (m[2] || "").toUpperCase();
+      const hasRp = /rp/i.test(rawExpr);
+      const hasThousandSep = /\d[.,]\d{3}/.test(rawExpr);
+      const hasDecimal = /[.,]\d{2}$/.test(rawExpr);
+      const sign = rawExpr.startsWith("+") ? "+" : rawExpr.startsWith("-") ? "-" : null;
+      const dcTag = dcRaw === "CR" || dcRaw === "K" ? "CR" : dcRaw === "DB" || dcRaw === "D" ? "DB" : null;
+
+      // Abaikan angka pendek tanpa pemisah ribuan/desimal/Rp/DB/CR (misal nomor urut/kode cabang)
+      if (!hasRp && !hasThousandSep && !hasDecimal && !sign && !dcTag) continue;
+
+      const value = parseStatementAmountToken(rawExpr);
+      if (value <= 0 || value > 100_000_000_000) continue;
+
+      parsedAmounts.push({
+        value,
+        rawFull: m[0].trim(),
+        sign,
+        dcTag,
+        hasSeparatorOrRp: hasRp || hasThousandSep || hasDecimal,
+      });
+    }
+
+    if (parsedAmounts.length === 0) continue;
+
+    let chosen = parsedAmounts[0];
+    let trailingBalance: number | null = null;
+
+    if (parsedAmounts.length >= 2) {
+      const tagged = parsedAmounts.find((a) => a.sign !== null || a.dcTag !== null);
+      if (tagged) {
+        chosen = tagged;
+        const last = parsedAmounts[parsedAmounts.length - 1];
+        if (last !== chosen && last.sign === null && last.dcTag === null) {
+          trailingBalance = last.value;
+        }
+      } else {
+        chosen = parsedAmounts[parsedAmounts.length - 2];
+        trailingBalance = parsedAmounts[parsedAmounts.length - 1].value;
+      }
+    }
+
+    let txType: "expense" | "income" | "transfer" = "expense";
+    if (chosen.dcTag === "CR" || chosen.sign === "+") {
+      txType = "income";
+    } else if (chosen.dcTag === "DB" || chosen.sign === "-") {
+      txType = "expense";
+    } else if (previousBalance !== null && trailingBalance !== null) {
+      if (Math.abs(previousBalance + chosen.value - trailingBalance) <= 5) {
+        txType = "income";
+      } else if (Math.abs(previousBalance - chosen.value - trailingBalance) <= 5) {
+        txType = "expense";
+      }
+    } else if (
+      /\b(cr|credit|kredit|masuk|diterima|top\s*up|gaji|payroll|bunga|cashback|refund|pencairan)\b/i.test(
+        cleanText
+      ) &&
+      !/\b(db|debit|debet|keluar|bayar|pembayaran|tarik|qris|beli|biaya\s*admin)\b/i.test(cleanText)
+    ) {
+      txType = "income";
+    }
+
+    if (trailingBalance !== null) {
+      previousBalance = trailingBalance;
+    }
+
+    let note = cleanText;
+    for (const token of parsedAmounts) {
+      note = note.replace(token.rawFull, " ");
+    }
+    note = note
+      .replace(/\b(DB|CR)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .replace(/^[-:|]+|[-:|]+$/g, "")
+      .trim();
+
+    if (!note) note = "Transaksi Mutasi PDF";
+
+    transactions.push({
+      txType,
+      amount: chosen.value,
+      happenedAt: normalizeStatementDate(row.rawDate, defaultYear),
+      categoryName: guessStatementCategory(note, txType),
+      accountName: detectedBank || "Utama",
+      toAccountName: null,
+      note: note.slice(0, 180),
+    });
+  }
+
+  return {
+    detectedBank,
+    summaryInfo: null,
+    transactions,
+  };
+}
+
 export const importRouter = router({
   parseScreenshot: protectedProcedure
     .input(
@@ -1454,69 +1773,21 @@ Kembalikan HANYA 1 objek JSON valid sesuai skema berikut:
       const remainingBudgetMs = (reserveMs = 0) =>
         Math.max(0, HARD_DEADLINE_MS - (Date.now() - requestStartMs) - reserveMs);
 
-      let extractedTransactions: any[] = [];
-      let extractedBank: string | null = null;
-      let extractedSummary: DocumentSummaryInfo | null = null;
-      let modelUsedName = "";
-      let geminiMultimodalSucceeded = false;
+      const aiState: {
+        transactions: any[];
+        detectedBank: string | null;
+        summaryInfo: DocumentSummaryInfo | null;
+        modelUsed: string;
+        geminiMultimodalSucceeded: boolean;
+      } = {
+        transactions: [],
+        detectedBank: null,
+        summaryInfo: null,
+        modelUsed: "",
+        geminiMultimodalSucceeded: false,
+      };
       let geminiError: any = null;
       let openRouterError: any = null;
-
-      // 1. Prioritas Utama untuk PDF: Google Gemini Multimodal PDF
-      // Mendukung PDF hasil scan gambar, e-statement BCA/Mandiri/BRI/BNI dengan CIDFont, maupun tabel multi-halaman
-      if (isPdf && cleanBase64) {
-        try {
-          const apiKey = await getEffectiveGeminiKey(ctx);
-          const reachability = await ensureGeminiReachable(3000);
-          if (!reachability.reachable) {
-            throw new Error(
-              reachability.reason || "Endpoint Gemini tidak dapat dijangkau dari server"
-            );
-          }
-
-          const geminiBudgetMs = Math.min(18000, remainingBudgetMs(24000));
-          if (geminiBudgetMs < 6000) {
-            throw new Error("Sisa waktu tidak cukup untuk mencoba Gemini, dialihkan ke OpenRouter.");
-          }
-
-          const ai = new GoogleGenAI({ apiKey });
-          const geminiRes = await generateWithFallback(ai, {
-            preferredModels: DEFAULT_GEMINI_MODELS,
-            fastMode: true,
-            timeoutMs: geminiBudgetMs,
-            contents: [
-              {
-                inlineData: {
-                  data: cleanBase64,
-                  mimeType: "application/pdf",
-                },
-              },
-              { text: promptInstructions },
-            ],
-            config: {
-              responseMimeType: "application/json",
-              responseSchema: DOCUMENT_TX_SCHEMA,
-              maxOutputTokens: 65536,
-              temperature: 0.1,
-            },
-          });
-
-          const resText = geminiRes.text || "{}";
-          const extracted = extractTransactionsFromAiPayload(resText);
-          geminiMultimodalSucceeded = true;
-          extractedBank = extracted.detectedBank;
-          extractedSummary = extracted.summaryInfo;
-          extractedTransactions = extracted.transactions;
-          if (extractedTransactions.length > 0) {
-            modelUsedName = "Google Gemini (Multimodal PDF)";
-          } else {
-            console.warn("[convertAnyDocument] Gemini Multimodal tidak menemukan transaksi di PDF, memeriksa teks lokal / OpenRouter...");
-          }
-        } catch (err: any) {
-          geminiError = err;
-          console.warn("[convertAnyDocument] Gemini Multimodal PDF gagal:", err?.message || err);
-        }
-      }
 
       const openRouterKey = await getEffectiveOpenRouterKey(ctx);
 
@@ -1524,36 +1795,39 @@ Kembalikan HANYA 1 objek JSON valid sesuai skema berikut:
         parsed: ReturnType<typeof extractTransactionsFromAiPayload>,
         usedModelLabel: string
       ) => {
-        if (!extractedBank && parsed.detectedBank) {
-          extractedBank = parsed.detectedBank;
+        if (!aiState.detectedBank && parsed.detectedBank) {
+          aiState.detectedBank = parsed.detectedBank;
         }
         if (parsed.summaryInfo) {
-          if (!extractedSummary) {
-            extractedSummary = { ...parsed.summaryInfo };
+          if (!aiState.summaryInfo) {
+            aiState.summaryInfo = { ...parsed.summaryInfo };
           } else {
             for (const key of ["totalIncome", "totalExpense", "initialBalance", "endingBalance"] as const) {
-              if (extractedSummary[key] == null && parsed.summaryInfo[key] != null) {
-                extractedSummary[key] = parsed.summaryInfo[key];
+              if (aiState.summaryInfo[key] == null && parsed.summaryInfo[key] != null) {
+                aiState.summaryInfo[key] = parsed.summaryInfo[key];
               }
             }
           }
         }
         if (parsed.transactions.length > 0) {
-          extractedTransactions.push(...parsed.transactions);
-          modelUsedName = usedModelLabel;
+          aiState.transactions.push(...parsed.transactions);
+          aiState.modelUsed = usedModelLabel;
         }
       };
 
-      // 2. Fallback / Pemrosesan Berbasis Teks (untuk CSV/Excel/TXT atau PDF yang teksnya terekstrak lokal)
+      const isOpenRouterFatalStop = (err: unknown) =>
+        /Kunci API OpenRouter tidak valid|Limit harian model gratis OpenRouter|free-models-per-day/i.test(
+          String((err as any)?.message || err || "")
+        );
+
+      // 1A. Prioritas Utama (Default PDF, CSV, Excel, TXT): OpenRouter langsung dengan teks hasil ekstraksi lokal (sequential hemat kuota)
       if (
-        extractedTransactions.length === 0 &&
         extractedDocText &&
         extractedDocText.trim().length > 10 &&
         remainingBudgetMs() >= 5000
       ) {
-        // Pecah teks panjang menjadi potongan 40.000 karakter & jalankan paralel agar selesai jauh di bawah batas timeout proxy
         const chunkTexts: string[] = [];
-        const maxChunkChars = 40000;
+        const maxChunkChars = 55000;
         if (extractedDocText.length <= maxChunkChars) {
           chunkTexts.push(extractedDocText);
         } else {
@@ -1570,11 +1844,11 @@ Kembalikan HANYA 1 objek JSON valid sesuai skema berikut:
           if (currentChunk) chunkTexts.push(currentChunk);
         }
 
-        // A. Coba OpenRouter dengan teks bersih (paralel max 3 chunk, dibatasi totalTimeoutMs)
-        const chunkBudgetMs = Math.min(34000, remainingBudgetMs());
-        const chunkResults = await Promise.allSettled(
-          chunkTexts.slice(0, 3).map((chunk) =>
-            generateOpenRouterCompletion({
+        for (const chunk of chunkTexts.slice(0, 2)) {
+          const chunkBudgetMs = Math.min(36000, remainingBudgetMs());
+          if (chunkBudgetMs < 4000) break;
+          try {
+            const chunkRes = await generateOpenRouterCompletion({
               apiKey: openRouterKey,
               candidateModels: OPENROUTER_EXTRACTION_MODELS,
               timeoutMs: Math.min(20000, chunkBudgetMs),
@@ -1586,42 +1860,45 @@ Kembalikan HANYA 1 objek JSON valid sesuai skema berikut:
                 const check = extractTransactionsFromAiPayload(text);
                 return check.transactions.length > 0;
               },
-            })
-          )
-        );
-
-        for (const res of chunkResults) {
-          if (res.status === "fulfilled") {
-            const parsedOr = extractTransactionsFromAiPayload(res.value.text);
-            mergeParsedResult(parsedOr, res.value.modelUsed);
-          } else if (!openRouterError) {
-            openRouterError = res.reason;
+            });
+            const parsedOr = extractTransactionsFromAiPayload(chunkRes.text);
+            mergeParsedResult(parsedOr, chunkRes.modelUsed);
+          } catch (chunkErr: any) {
+            if (!openRouterError) openRouterError = chunkErr;
             console.warn(
-              "[convertAnyDocument] OpenRouter text fallback error:",
-              res.reason?.message || res.reason
+              "[convertAnyDocument] OpenRouter text extraction error:",
+              chunkErr?.message || chunkErr
             );
+            if (isOpenRouterFatalStop(chunkErr)) {
+              break;
+            }
           }
         }
       }
 
-      // 2B. Fallback PDF Native OpenRouter (file-parser plugin pdf-text)
-      // Menangani e-statement PDF modern (/ObjStm, XObject, CIDFont) ketika Gemini gagal/terblokir dan ekstraktor lokal kosong
-      if (isPdf && cleanBase64 && !isEncryptedPdf && extractedTransactions.length === 0) {
-        const pdfOrBudgetMs = Math.min(34000, remainingBudgetMs());
+      // 1B. Default PDF Native: OpenRouter (file-parser plugin pdf-text) tanpa memakai Gemini
+      if (
+        isPdf &&
+        cleanBase64 &&
+        !isEncryptedPdf &&
+        aiState.transactions.length === 0 &&
+        !isOpenRouterFatalStop(openRouterError)
+      ) {
+        const pdfOrBudgetMs = Math.min(36000, remainingBudgetMs());
         if (cleanBase64.length > 14_000_000) {
           openRouterError = new Error(
-            "Ukuran PDF melebihi 10MB untuk fallback teks OpenRouter saat Gemini tidak aktif."
+            "Ukuran PDF melebihi 10MB untuk ekstraksi OpenRouter."
           );
         } else if (pdfOrBudgetMs < 5000) {
           openRouterError =
             openRouterError ||
-            new Error("Batas waktu pemrosesan tercapai sebelum fallback OpenRouter PDF sempat berjalan.");
+            new Error("Batas waktu pemrosesan tercapai saat memproses PDF via OpenRouter.");
         } else {
           try {
             const openRouterPdfRes = await generateOpenRouterCompletion({
               apiKey: openRouterKey,
               candidateModels: OPENROUTER_EXTRACTION_MODELS.slice(0, 3),
-              timeoutMs: Math.min(18000, pdfOrBudgetMs),
+              timeoutMs: Math.min(20000, pdfOrBudgetMs),
               totalTimeoutMs: pdfOrBudgetMs,
               temperature: 0.1,
               systemPrompt: promptInstructions,
@@ -1655,52 +1932,114 @@ Kembalikan HANYA 1 objek JSON valid sesuai skema berikut:
         }
       }
 
-      // 2C. Jika OpenRouter belum berhasil dan ada teks terbaca, coba Gemini Text (hanya jika Gemini masih terjangkau & tidak error fatal)
+      // 1C. Fallback Lokal Tanpa API (menyelamatkan PDF teks / mutasi ketika kuota OpenRouter habis / 429)
       if (
-        extractedTransactions.length === 0 &&
+        aiState.transactions.length === 0 &&
+        !isEncryptedPdf &&
         extractedDocText &&
-        extractedDocText.trim().length > 10 &&
+        extractedDocText.trim().length > 10
+      ) {
+        const localParsed = parseBankStatementTextLocally(extractedDocText, input.fileName);
+        if (localParsed.transactions.length > 0) {
+          mergeParsedResult(localParsed, "Fin.IQ Local PDF Parser (Offline Fallback)");
+          openRouterError = null;
+        }
+      }
+
+      // 2. Fallback Gemini: HANYA jika bukan PDF atau OpenRouter API Key sama sekali belum dikonfigurasi (PDF default selalu OpenRouter saja tanpa tunggu probe 3 detik)
+      const openRouterAuthInvalid = /Kunci API OpenRouter tidak valid/i.test(
+        String(openRouterError?.message || "")
+      );
+      const allowGeminiFallback = !isPdf || !openRouterKey;
+      if (
+        allowGeminiFallback &&
+        aiState.transactions.length === 0 &&
+        !openRouterAuthInvalid &&
+        !isEncryptedPdf &&
         !isGeminiMarkedUnreachable().unreachable &&
-        !(geminiError && isFatalGeminiError(geminiError)) &&
         remainingBudgetMs() >= 7000
       ) {
-        try {
-          const apiKey = await getEffectiveGeminiKey(ctx);
-          const reachability = await ensureGeminiReachable(3000);
-          if (!reachability.reachable) {
-            throw new Error(
-              reachability.reason || "Endpoint Gemini tidak dapat dijangkau dari server"
-            );
+        if (isPdf && cleanBase64) {
+          try {
+            const apiKey = await getEffectiveGeminiKey(ctx);
+            const reachability = await ensureGeminiReachable(2500);
+            if (!reachability.reachable) {
+              throw new Error(
+                reachability.reason || "Endpoint Gemini tidak dapat dijangkau dari server"
+              );
+            }
+            const geminiBudgetMs = Math.min(18000, remainingBudgetMs());
+            if (geminiBudgetMs >= 5000) {
+              const ai = new GoogleGenAI({ apiKey });
+              const geminiRes = await generateWithFallback(ai, {
+                preferredModels: DEFAULT_GEMINI_MODELS,
+                fastMode: true,
+                timeoutMs: geminiBudgetMs,
+                contents: [
+                  {
+                    inlineData: {
+                      data: cleanBase64,
+                      mimeType: "application/pdf",
+                    },
+                  },
+                  { text: promptInstructions },
+                ],
+                config: {
+                  responseMimeType: "application/json",
+                  responseSchema: DOCUMENT_TX_SCHEMA,
+                  maxOutputTokens: 65536,
+                  temperature: 0.1,
+                },
+              });
+
+              const resText = geminiRes.text || "{}";
+              const extracted = extractTransactionsFromAiPayload(resText);
+              aiState.geminiMultimodalSucceeded = true;
+              mergeParsedResult(extracted, "Google Gemini (Multimodal Fallback)");
+            }
+          } catch (err: any) {
+            geminiError = err;
+            console.warn("[convertAnyDocument] Gemini Multimodal PDF fallback gagal:", err?.message || err);
           }
-          const ai = new GoogleGenAI({ apiKey });
+        } else if (extractedDocText && extractedDocText.trim().length > 10) {
+          try {
+            const apiKey = await getEffectiveGeminiKey(ctx);
+            const reachability = await ensureGeminiReachable(2500);
+            if (!reachability.reachable) {
+              throw new Error(
+                reachability.reason || "Endpoint Gemini tidak dapat dijangkau dari server"
+              );
+            }
+            const ai = new GoogleGenAI({ apiKey });
 
-          const geminiRes = await generateWithFallback(ai, {
-            preferredModels: DEFAULT_GEMINI_MODELS,
-            fastMode: true,
-            timeoutMs: Math.min(18000, remainingBudgetMs()),
-            contents: [
-              {
-                text: `${promptInstructions}\n\n=== ISI DOKUMEN (${input.fileName}) ===\n${extractedDocText.slice(0, 60000)}`,
+            const geminiRes = await generateWithFallback(ai, {
+              preferredModels: DEFAULT_GEMINI_MODELS,
+              fastMode: true,
+              timeoutMs: Math.min(18000, remainingBudgetMs()),
+              contents: [
+                {
+                  text: `${promptInstructions}\n\n=== ISI DOKUMEN (${input.fileName}) ===\n${extractedDocText.slice(0, 60000)}`,
+                },
+              ],
+              config: {
+                responseMimeType: "application/json",
+                responseSchema: DOCUMENT_TX_SCHEMA,
+                maxOutputTokens: 65536,
+                temperature: 0.1,
               },
-            ],
-            config: {
-              responseMimeType: "application/json",
-              responseSchema: DOCUMENT_TX_SCHEMA,
-              maxOutputTokens: 65536,
-              temperature: 0.1,
-            },
-          });
+            });
 
-          const parsedGemText = extractTransactionsFromAiPayload(geminiRes.text || "{}");
-          mergeParsedResult(parsedGemText, "Google Gemini (Text Prompt)");
-        } catch (geminiTextErr: any) {
-          if (!geminiError) geminiError = geminiTextErr;
-          console.error("[convertAnyDocument] Gemini text prompt failed:", geminiTextErr);
+            const parsedGemText = extractTransactionsFromAiPayload(geminiRes.text || "{}");
+            mergeParsedResult(parsedGemText, "Google Gemini (Text Prompt)");
+          } catch (geminiTextErr: any) {
+            if (!geminiError) geminiError = geminiTextErr;
+            console.error("[convertAnyDocument] Gemini text prompt failed:", geminiTextErr);
+          }
         }
       }
 
       // Jika seluruh jalur gagal karena error (bukan karena dokumen memang tidak berisi transaksi)
-      if (extractedTransactions.length === 0 && !geminiMultimodalSucceeded) {
+      if (aiState.transactions.length === 0 && !aiState.geminiMultimodalSucceeded) {
         if (isEncryptedPdf) {
           throw new TRPCError({
             code: "BAD_REQUEST",
@@ -1720,6 +2059,13 @@ Kembalikan HANYA 1 objek JSON valid sesuai skema berikut:
             code: "PRECONDITION_FAILED",
             message:
               "Layanan AI belum dikonfigurasi di server maupun profil Anda. Tambahkan OPENROUTER_API_KEY atau GEMINI_API_KEY di secret server, atau masukkan API Key di Pengaturan & Profil.",
+          });
+        }
+        if (/Limit harian model gratis OpenRouter|free-models-per-day/i.test(orMsg)) {
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message:
+              "Limit harian model gratis OpenRouter tercapai (50 request/hari). Tambahkan kredit OpenRouter atau ganti API Key OpenRouter Anda di Pengaturan & Profil.",
           });
         }
         if (/429|RESOURCE_EXHAUSTED|rate-limit/i.test(`${gemMsg} ${orMsg}`)) {
@@ -1750,7 +2096,7 @@ Kembalikan HANYA 1 objek JSON valid sesuai skema berikut:
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: detailParts
-              ? `Layanan AI gagal membaca PDF ini (${detailParts}). Pastikan OPENROUTER_API_KEY / GEMINI_API_KEY aktif dan file bukan PDF hasil scan tanpa akses Gemini.`
+              ? `Layanan AI gagal membaca PDF ini (${detailParts}). Pastikan OPENROUTER_API_KEY aktif dan file bukan PDF hasil scan tanpa akses OCR.`
               : "Layanan AI tidak dapat membaca dokumen PDF ini. Jika ini PDF hasil scan gambar atau terenkripsi, pastikan file jelas dan koneksi AI aktif.",
           });
         }
@@ -1774,8 +2120,8 @@ Kembalikan HANYA 1 objek JSON valid sesuai skema berikut:
           note: string;
         }> = [];
 
-        for (let idx = 0; idx < extractedTransactions.length; idx++) {
-          const item = extractedTransactions[idx];
+        for (let idx = 0; idx < aiState.transactions.length; idx++) {
+          const item = aiState.transactions[idx];
           if (!item || typeof item !== "object") continue;
           const rawAmount = cleanNumericAmount(item.amount);
           if (rawAmount <= 0) continue;
@@ -1787,7 +2133,7 @@ Kembalikan HANYA 1 objek JSON valid sesuai skema berikut:
           const matchedAccName = fuzzyMatchAccount(
             item.accountName || defaultAccountName,
             userAccounts,
-            extractedBank || defaultAccountName
+            aiState.detectedBank || defaultAccountName
           );
           let matchedToAccName =
             txType === "transfer" && item.toAccountName
@@ -1817,7 +2163,7 @@ Kembalikan HANYA 1 objek JSON valid sesuai skema berikut:
           });
         }
 
-        const filteredTxs = filterOutSummaryAndBalanceRows(normalizedTxs, extractedSummary);
+        const filteredTxs = filterOutSummaryAndBalanceRows(normalizedTxs, aiState.summaryInfo);
 
         if (filteredTxs.length === 0 && isEncryptedPdf) {
           throw new TRPCError({
@@ -1829,9 +2175,9 @@ Kembalikan HANYA 1 objek JSON valid sesuai skema berikut:
 
         return {
           transactions: filteredTxs,
-          detectedBank: extractedBank,
+          detectedBank: aiState.detectedBank,
           totalCount: filteredTxs.length,
-          modelUsed: modelUsedName,
+          modelUsed: aiState.modelUsed,
         };
       } catch (postErr: any) {
         if (postErr instanceof TRPCError) throw postErr;

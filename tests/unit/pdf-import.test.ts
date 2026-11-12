@@ -8,6 +8,7 @@ import {
   filterOutSummaryAndBalanceRows,
   fuzzyMatchAccount,
   parseHappenedAt,
+  parseBankStatementTextLocally,
 } from "../../src/server/trpc/router/import";
 import {
   generateWithFallback,
@@ -313,7 +314,7 @@ describe("Gemini Fatal Bailout & OpenRouter PDF Fallback (k3s/Server)", () => {
     expect(sentBody.messages[1].content[1].type).toBe("file");
   });
 
-  it("harus fallback ke OpenRouter PDF file-parser ketika Gemini diblokir/tanpa key dan teks PDF lokal kosong", async () => {
+  it("harus langsung memakai OpenRouter PDF file-parser sebagai default untuk PDF tanpa memanggil Gemini", async () => {
     process.env.GEMINI_API_KEY = "";
     process.env.GEMINI = "";
     process.env.OPENROUTER_API_KEY = "";
@@ -330,16 +331,7 @@ describe("Gemini Fatal Bailout & OpenRouter PDF Fallback (k3s/Server)", () => {
 
     const fetchMock = vi.fn(async (url: string, init?: any) => {
       if (String(url).includes("generativelanguage.googleapis.com")) {
-        return new Response(
-          JSON.stringify({
-            error: {
-              code: 400,
-              message: "User location is not supported for the API use.",
-              status: "FAILED_PRECONDITION",
-            },
-          }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
-        );
+        throw new Error("Gemini tidak boleh dipanggil saat OpenRouter PDF sukses!");
       }
       const body = JSON.parse(init.body);
       expect(body.plugins).toEqual([{ id: "file-parser", pdf: { engine: "pdf-text" } }]);
@@ -372,7 +364,7 @@ describe("Gemini Fatal Bailout & OpenRouter PDF Fallback (k3s/Server)", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    // Mock DB: simpan key Gemini (seolah-olah server punya GEMINI_API_KEY) supaya jalur Gemini terpicu & kena FAILED_PRECONDITION
+    // Mock DB: meski ada GEMINI key tersimpan, PDF harus langsung pakai OpenRouter default
     const mockCtx: any = {
       userId: "user-k3s-1",
       db: {
@@ -382,7 +374,7 @@ describe("Gemini Fatal Bailout & OpenRouter PDF Fallback (k3s/Server)", () => {
               Object.assign(
                 Promise.resolve([{ id: "acc-1", name: "BCA", group: "Bank", kind: "expense" }]),
                 {
-                  limit: async () => [{ geminiApiKey: "AIzaSyFakeServerGeoBlockedKey" }],
+                  limit: async () => [{ geminiApiKey: "AIzaSyFakeServerKey" }],
                 }
               ),
           }),
@@ -401,7 +393,8 @@ describe("Gemini Fatal Bailout & OpenRouter PDF Fallback (k3s/Server)", () => {
     expect(result.transactions[0].note).toBe("Kopi Kenangan");
     expect(result.transactions[0].amount).toBe(25000);
     expect(result.modelUsed).toContain("PDF Parser");
-    expect(isGeminiMarkedUnreachable().unreachable).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toContain("openrouter.ai");
   });
 
   it("harus meng-cache status Gemini unreachable agar tidak probe ulang dan membatasi totalTimeoutMs OpenRouter", async () => {
@@ -444,5 +437,116 @@ describe("Gemini Fatal Bailout & OpenRouter PDF Fallback (k3s/Server)", () => {
     ).rejects.toThrow();
     // Hanya sempat mencoba <= 2 model sebelum deadline 2600ms habis (tidak lanjut ke 4 model)
     expect(attempt).toBeLessThanOrEqual(2);
+  });
+
+  it("harus langsung berhenti pada 429 free-models-per-day dan menyelamatkan PDF teks via parser lokal tanpa memanggil Gemini", async () => {
+    // 1. generateOpenRouterCompletion langsung berhenti pada percobaan pertama saat 429 free-models-per-day
+    const dailyLimitFetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: {
+            message: "Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day",
+          },
+        }),
+        { status: 429, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", dailyLimitFetch);
+
+    await expect(
+      generateOpenRouterCompletion({
+        apiKey: "sk-or-v1-test",
+        candidateModels: [
+          "baidu/ernie-5.5-flash-preview:free",
+          "nvidia/nemotron-3.5-super-vl:free",
+          "nvidia/nemotron-3.5-lightning:free",
+          "dots-studio/dots-3-note-preview:free",
+        ],
+        systemPrompt: "sys",
+        userPrompt: "usr",
+      })
+    ).rejects.toThrow(/Limit harian model gratis OpenRouter/i);
+    expect(dailyLimitFetch).toHaveBeenCalledTimes(1);
+
+    // 2. Uji parseBankStatementTextLocally pada mutasi bank Indonesia (blu / BCA)
+    const sampleStatement = [
+      "Mutasi Rekening blu by BCA Digital",
+      "Periode 01 Mar 2026 - 31 Mar 2026",
+      "01 Mar 2026 Saldo Awal 1.000.000,00",
+      "05/03/2026 QRIS Kopi Kenangan 25.000,00 DB 975.000,00",
+      "10/03/2026 Gaji Bulanan PT Maju +5.000.000,00 5.975.000,00",
+      "31 Mar 2026 Saldo Akhir 5.975.000,00",
+    ].join("\n");
+
+    const localParsed = parseBankStatementTextLocally(sampleStatement, "mutasi-blu.pdf");
+    expect(localParsed.detectedBank).toBe("blu");
+    expect(localParsed.transactions).toHaveLength(2);
+    expect(localParsed.transactions[0]).toMatchObject({
+      txType: "expense",
+      amount: 25000,
+      happenedAt: "2026-03-05",
+    });
+    expect(localParsed.transactions[1]).toMatchObject({
+      txType: "income",
+      amount: 5000000,
+      happenedAt: "2026-03-10",
+    });
+
+    // 3. convertAnyDocument pada PDF teks asli yang terkena 429 harus berhasil lewat parser lokal
+    //    DAN tidak pernah memanggil atau mem-probe Gemini ketika OPENROUTER_API_KEY aktif
+    process.env.OPENROUTER_API_KEY = "sk-or-v1-test-env-key";
+    process.env.GEMINI_API_KEY = "AIzaSyFakeServerKey";
+    resetGeminiReachabilityCache();
+
+    const statementStream =
+      "BT /F1 12 Tf 72 720 Td (Mutasi Rekening BCA Periode Maret 2026) Tj " +
+      "0 -20 Td (05/03/2026 QRIS Kopi Kenangan 25.000,00 DB 975.000,00) Tj " +
+      "0 -20 Td (10/03/2026 Transfer Masuk Gaji +5.000.000,00 5.975.000,00) Tj ET";
+    const textPdf = buildTestPdf([
+      "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+      "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+      "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n",
+      `4 0 obj\n<< /Length ${statementStream.length} >>\nstream\n${statementStream}\nendstream\nendobj\n`,
+    ]);
+
+    const onlyOrLimitFetch = vi.fn().mockImplementation(async (url: string) => {
+      expect(String(url)).not.toContain("generativelanguage.googleapis.com");
+      return new Response(
+        JSON.stringify({ error: { message: "Rate limit exceeded: free-models-per-day" } }),
+        { status: 429, headers: { "Content-Type": "application/json" } }
+      );
+    });
+    vi.stubGlobal("fetch", onlyOrLimitFetch);
+
+    const mockCtx: any = {
+      userId: "user-k3s-fallback",
+      db: {
+        select: () => ({
+          from: () => ({
+            where: () =>
+              Object.assign(
+                Promise.resolve([{ id: "acc-1", name: "BCA", group: "Bank", kind: "expense" }]),
+                {
+                  limit: async () => [{ geminiApiKey: "AIzaSyFakeServerKey", openrouterApiKey: null }],
+                }
+              ),
+          }),
+        }),
+      },
+    };
+
+    const caller = importRouter.createCaller(mockCtx);
+    const result = await caller.convertAnyDocument({
+      fileName: "mutasi-bca.pdf",
+      mimeType: "application/pdf",
+      fileBase64: textPdf.toString("base64"),
+    });
+
+    expect(result.detectedBank).toBe("BCA");
+    expect(result.transactions).toHaveLength(2);
+    expect(result.modelUsed).toContain("Local PDF Parser");
+    // Hanya 1 fetch ke OpenRouter (langsung berhenti saat 429 daily limit, tidak retry 7 model, tidak probe Gemini)
+    expect(onlyOrLimitFetch).toHaveBeenCalledTimes(1);
+    expect(String(onlyOrLimitFetch.mock.calls[0][0])).toContain("openrouter.ai");
   });
 });
