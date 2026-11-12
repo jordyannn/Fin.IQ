@@ -33,10 +33,18 @@ export function MilestoneTrackingCard({
   const [targetAmount, setTargetAmount] = useState("");
   const [trackingType, setTrackingType] = useState<"account" | "category">("category");
   const [trackingId, setTrackingId] = useState("");
-  const [trackingDirection, setTrackingDirection] = useState<"savings_goal" | "spending_limit">("spending_limit");
-  
-  // Default deadline: 30 days ahead
-  const defaultDeadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const [trackingDirection, setTrackingDirection] = useState<
+    "savings_goal" | "spending_limit" | "income_goal"
+  >("spending_limit");
+
+  // Default window: today -> 30 days ahead
+  const defaultStartDate = new Date(Date.now() + 7 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+  const defaultDeadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+  const [startDate, setStartDate] = useState(defaultStartDate);
   const [deadline, setDeadline] = useState(defaultDeadline);
 
   // Queries
@@ -71,6 +79,7 @@ export function MilestoneTrackingCard({
     setTrackingType("category");
     setTrackingId("");
     setTrackingDirection("spending_limit");
+    setStartDate(defaultStartDate);
     setDeadline(defaultDeadline);
   };
 
@@ -87,6 +96,7 @@ export function MilestoneTrackingCard({
     e.preventDefault();
     const amount = parseFloat(targetAmount);
     if (!title.trim() || isNaN(amount) || amount <= 0 || !trackingId) return;
+    if (startDate && deadline && startDate > deadline) return;
 
     createMutation.mutate({
       title: title.trim(),
@@ -94,7 +104,8 @@ export function MilestoneTrackingCard({
       trackingType,
       trackingId,
       trackingDirection,
-      deadline: new Date(deadline),
+      startDate: startDate ? new Date(`${startDate}T00:00:00+07:00`) : undefined,
+      deadline: new Date(`${deadline}T23:59:59+07:00`),
     });
   };
 
@@ -229,6 +240,19 @@ export function MilestoneTrackingCard({
                       >
                         {t.milestones.overdue}
                       </Badge>
+                    ) : (m as { hasStarted?: boolean; daysUntilStart?: number }).hasStarted === false ? (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] py-0 px-2 font-semibold border-sky-500/30 text-sky-600 dark:text-sky-400 bg-sky-500/10 shrink-0"
+                      >
+                        {(m as { daysUntilStart?: number }).daysUntilStart === 1
+                          ? isEn
+                            ? "Starts tomorrow"
+                            : "Mulai besok"
+                          : isEn
+                            ? `Starts in ${(m as { daysUntilStart?: number }).daysUntilStart}d`
+                            : `Mulai ${(m as { daysUntilStart?: number }).daysUntilStart} hr lagi`}
+                      </Badge>
                     ) : (
                       <span className="text-[10px] font-semibold text-muted-foreground/80 shrink-0">
                         {m.daysLeft} {t.milestones.daysLeft}
@@ -286,9 +310,9 @@ export function MilestoneTrackingCard({
                   />
                 </div>
 
-                {/* Subtitle Info: Tracking target & Amount ratio */}
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <div className="flex items-center gap-1.5 truncate">
+                {/* Subtitle Info: Tracking target, date range & Amount ratio */}
+                <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                     <span className="capitalize font-semibold text-foreground/80">
                       {m.trackingId === "all" ? t.milestones.allAccountsShort : m.trackingName}
                     </span>
@@ -296,11 +320,21 @@ export function MilestoneTrackingCard({
                     <span className="text-[10px]">
                       {m.trackingDirection === "spending_limit"
                         ? t.milestones.spendingLimit
-                        : t.milestones.savingsGoal}
+                        : m.trackingDirection === "income_goal"
+                          ? isEn
+                            ? "Income Target"
+                            : "Target Pemasukan"
+                          : t.milestones.savingsGoal}
+                    </span>
+                    <span className="hidden sm:inline">•</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-mono">
+                      <Calendar className="h-2.5 w-2.5" />
+                      {formatDate((m as { startDate?: Date | string }).startDate || m.createdAt)} →{" "}
+                      {formatDate(m.deadline)}
                     </span>
                   </div>
 
-                  <div className="font-semibold text-foreground/90 shrink-0">
+                  <div className="font-semibold text-foreground/90 shrink-0 tabular-nums">
                     <span>{formatCurrency(m.currentAmount)}</span>
                     <span className="text-muted-foreground font-normal">
                       {" / "}
@@ -466,7 +500,7 @@ export function MilestoneTrackingCard({
                 <label className="font-semibold text-foreground block mb-1">
                   {t.milestones.directionLabel}
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setTrackingDirection("spending_limit")}
@@ -481,14 +515,14 @@ export function MilestoneTrackingCard({
                       {trackingType === "account"
                         ? trackingId === "all"
                           ? isEn
-                            ? "Track max overall spending"
-                            : "Pantau batas total pengeluaran semua akun"
+                            ? "Max spending across all accounts"
+                            : "Batas total pengeluaran seluruh akun"
                           : isEn
-                          ? "Track max spending on this account"
-                          : "Pantau batas pengeluaran rekening ini"
+                            ? "Max spending on this account"
+                            : "Batas belanja rekening ini"
                         : isEn
-                        ? "Track max expense limit"
-                        : "Pantau batas maksimal pengeluaran"}
+                          ? "Max category expense"
+                          : "Batas maksimal kategori"}
                     </div>
                   </button>
 
@@ -506,14 +540,41 @@ export function MilestoneTrackingCard({
                       {trackingType === "account"
                         ? trackingId === "all"
                           ? isEn
-                            ? "Track total net balance across all accounts"
-                            : "Pantau target total saldo seluruh akun"
+                            ? "Target total ending balance"
+                            : "Target total saldo akhir seluruh akun"
                           : isEn
-                          ? "Track target balance on this account"
-                          : "Pantau target saldo rekening ini"
+                            ? "Target balance on this account"
+                            : "Target saldo rekening ini"
                         : isEn
-                        ? "Track target income"
-                        : "Pantau target pemasukan"}
+                          ? "Target category inflow"
+                          : "Target saldo kategori"}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTrackingDirection("income_goal")}
+                    className={`p-2 rounded-xl border text-left text-xs transition-all cursor-pointer ${
+                      trackingDirection === "income_goal"
+                        ? "border-primary bg-primary/5 text-primary font-bold ring-1 ring-primary/30"
+                        : "border-border bg-card text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <div className="font-bold">
+                      {isEn ? "Income Target" : "Target Pemasukan"}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      {trackingType === "account"
+                        ? trackingId === "all"
+                          ? isEn
+                            ? "Track total inflow across all accounts"
+                            : "Total pemasukan semua akun di rentang tanggal"
+                          : isEn
+                            ? "Track inflow on this account"
+                            : "Pemasukan rekening di rentang tanggal"
+                        : isEn
+                          ? "Track category income"
+                          : "Pemasukan kategori di rentang tanggal"}
                     </div>
                   </button>
                 </div>
@@ -536,18 +597,32 @@ export function MilestoneTrackingCard({
                 />
               </div>
 
-              {/* Deadline Date */}
-              <div>
-                <label className="font-semibold text-foreground block mb-1">
-                  {t.milestones.deadline}
-                </label>
-                <Input
-                  type="date"
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                  className="h-9 rounded-md"
-                  required
-                />
+              {/* Start Date (Dari Tanggal / Sebelum) & Deadline Date (Sampai Tanggal) */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    {isEn ? "Start Date" : "Dari Tanggal"}
+                  </label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="h-9 rounded-md"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    {isEn ? "End Date" : "Sampai Tanggal"}
+                  </label>
+                  <Input
+                    type="date"
+                    value={deadline}
+                    onChange={(e) => setDeadline(e.target.value)}
+                    className="h-9 rounded-md"
+                    required
+                  />
+                </div>
               </div>
 
               {/* Footer Buttons */}

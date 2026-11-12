@@ -288,10 +288,14 @@ export function resolveRawActionsToDrafts(
       if (!Number.isFinite(targetAmount) || targetAmount <= 0) continue;
 
       const dirNorm = normalizeText(raw.trackingDirection);
-      const trackingDirection: "savings_goal" | "spending_limit" =
+      const trackingDirection: "savings_goal" | "spending_limit" | "income_goal" =
         dirNorm === "spending_limit" || dirNorm.includes("limit")
           ? "spending_limit"
-          : "savings_goal";
+          : dirNorm === "income_goal" ||
+              dirNorm.includes("income") ||
+              dirNorm.includes("pemasukan")
+            ? "income_goal"
+            : "savings_goal";
 
       const typeNorm = normalizeText(raw.trackingType);
       const trackingType: "account" | "category" =
@@ -326,6 +330,10 @@ export function resolveRawActionsToDrafts(
         }
       }
 
+      const resolvedStartDate = raw.startDate
+        ? resolveDeadlineDate(raw.startDate, catalog.referenceDate)
+        : undefined;
+
       const draft: MilestoneActionDraft = {
         id: crypto.randomUUID(),
         kind: "milestone",
@@ -336,6 +344,7 @@ export function resolveRawActionsToDrafts(
         trackingId,
         trackingName,
         trackingDirection,
+        ...(resolvedStartDate ? { startDate: resolvedStartDate } : {}),
         deadline: resolveDeadlineDate(raw.deadline, catalog.referenceDate),
       };
       drafts.push(draft);
@@ -630,7 +639,8 @@ export interface ExecuteDraftOverrides {
   targetAmount?: number;
   trackingType?: "account" | "category";
   trackingId?: string;
-  trackingDirection?: "savings_goal" | "spending_limit";
+  trackingDirection?: "savings_goal" | "spending_limit" | "income_goal";
+  startDate?: string;
   deadline?: string;
 }
 
@@ -679,6 +689,8 @@ function mergeDraftWithOverrides(
     trackingType: overrides.trackingType ?? draft.trackingType,
     trackingId: overrides.trackingId ?? draft.trackingId,
     trackingDirection: overrides.trackingDirection ?? draft.trackingDirection,
+    startDate:
+      overrides.startDate !== undefined ? overrides.startDate : draft.startDate,
     deadline: overrides.deadline ?? draft.deadline,
   };
 }
@@ -720,6 +732,7 @@ async function runVerifiedDraftWrite(
     trackingType: draft.trackingType,
     trackingId: draft.trackingId,
     trackingDirection: draft.trackingDirection,
+    startDate: draft.startDate,
     deadline: draft.deadline || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
   });
   return created.id;

@@ -53,7 +53,8 @@ export interface MilestoneActionDraft {
   trackingType: "account" | "category";
   trackingId: string;
   trackingName: string;
-  trackingDirection: "savings_goal" | "spending_limit";
+  trackingDirection: "savings_goal" | "spending_limit" | "income_goal";
+  startDate?: string; // ISO date string
   deadline?: string; // ISO date string
 }
 
@@ -90,6 +91,7 @@ export interface RawLLMMilestoneAction {
   trackingType?: string;
   trackingName?: string;
   trackingDirection?: string;
+  startDate?: string;
   deadline?: string;
 }
 

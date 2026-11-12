@@ -7,6 +7,7 @@ import {
   PiggyBank,
   Target,
   Trash2,
+  TrendingUp,
   Wallet,
   X,
 } from "lucide-react";
@@ -19,16 +20,21 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { CategorySelect } from "@/components/transactions/CategorySelect";
 import { MilestoneTrackingCard } from "@/components/milestones/MilestoneTrackingCard";
+import { PeriodBudgetPlanner } from "@/components/budgets/PeriodBudgetPlanner";
 
-type CreateModalMode = "budget" | "spending_limit" | "savings_goal";
+type CreateModalMode = "budget" | "spending_limit" | "savings_goal" | "income_goal";
 
 function getCurrentWibMonth(): string {
   const nowWib = new Date(Date.now() + 7 * 60 * 60 * 1000);
   return `${nowWib.getUTCFullYear()}-${String(nowWib.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+function getTodayWibDate(): string {
+  return new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 function getDefaultDeadlineDate(): string {
-  const dt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const dt = new Date(Date.now() + 7 * 60 * 60 * 1000 + 30 * 24 * 60 * 60 * 1000);
   return dt.toISOString().slice(0, 10);
 }
 
@@ -48,11 +54,12 @@ export default function BudgetsPage() {
   const [budgetCategoryId, setBudgetCategoryId] = useState("");
   const [budgetAmount, setBudgetAmount] = useState("");
 
-  // Milestone form state (spending_limit | savings_goal)
+  // Milestone form state (spending_limit | savings_goal | income_goal)
   const [targetTitle, setTargetTitle] = useState("");
   const [targetAmount, setTargetAmount] = useState("");
   const [trackingType, setTrackingType] = useState<"account" | "category">("account");
   const [trackingId, setTrackingId] = useState("all");
+  const [startDate, setStartDate] = useState<string>(getTodayWibDate);
   const [deadline, setDeadline] = useState<string>(getDefaultDeadlineDate);
 
   const { data: ledgersList } = trpc.ledgers.list.useQuery();
@@ -62,6 +69,10 @@ export default function BudgetsPage() {
   const { data: allCategoriesList } = trpc.categories.list.useQuery();
   const expenseCategories = useMemo(
     () => (allCategoriesList || []).filter((c) => c.kind === "expense"),
+    [allCategoriesList]
+  );
+  const incomeCategories = useMemo(
+    () => (allCategoriesList || []).filter((c) => c.kind === "income"),
     [allCategoriesList]
   );
 
@@ -86,6 +97,7 @@ export default function BudgetsPage() {
     onSuccess: () => {
       utils.budgets.invalidate();
       utils.milestones.invalidate();
+      utils.budgetPlans.invalidate();
       closeModal();
     },
     onError: (err) => setFormError(err.message),
@@ -94,6 +106,7 @@ export default function BudgetsPage() {
   const deleteBudgetMutation = trpc.budgets.delete.useMutation({
     onSuccess: () => {
       utils.budgets.invalidate();
+      utils.budgetPlans.invalidate();
     },
   });
 
@@ -101,6 +114,7 @@ export default function BudgetsPage() {
     onSuccess: () => {
       utils.milestones.invalidate();
       utils.budgets.invalidate();
+      utils.budgetPlans.invalidate();
       closeModal();
     },
     onError: (err) => setFormError(err.message),
@@ -113,6 +127,7 @@ export default function BudgetsPage() {
     setBudgetAmount("");
     setTargetTitle("");
     setTargetAmount("");
+    setStartDate(getTodayWibDate());
     setDeadline(getDefaultDeadlineDate());
     if (mode === "spending_limit") {
       setTrackingType(expenseCategories.length > 0 ? "category" : "account");
@@ -139,7 +154,7 @@ export default function BudgetsPage() {
     if (nextMode === "spending_limit") {
       setTrackingType("category");
       setTrackingId(expenseCategories[0]?.id || "all");
-    } else if (nextMode === "savings_goal") {
+    } else if (nextMode === "savings_goal" || nextMode === "income_goal") {
       setTrackingType("account");
       setTrackingId("all");
     }
@@ -199,10 +214,25 @@ export default function BudgetsPage() {
       );
       return;
     }
-    const parsedDate = new Date(deadline);
+    const parsedStartDate = new Date(`${startDate}T00:00:00+07:00`);
+    const parsedDate = new Date(`${deadline}T23:59:59+07:00`);
+    if (!startDate || Number.isNaN(parsedStartDate.getTime())) {
+      setFormError(
+        isEn ? "Please enter a valid start date." : "Tanggal mulai tidak valid."
+      );
+      return;
+    }
     if (!deadline || Number.isNaN(parsedDate.getTime())) {
       setFormError(
-        isEn ? "Please enter a valid deadline date." : "Tanggal deadline tidak valid."
+        isEn ? "Please enter a valid deadline date." : "Tanggal akhir tidak valid."
+      );
+      return;
+    }
+    if (parsedStartDate.getTime() > parsedDate.getTime()) {
+      setFormError(
+        isEn
+          ? "Start date must be on or before end date."
+          : "Tanggal mulai tidak boleh melewati tanggal akhir."
       );
       return;
     }
@@ -213,6 +243,7 @@ export default function BudgetsPage() {
       trackingType,
       trackingId,
       trackingDirection: modalMode,
+      startDate: parsedStartDate,
       deadline: parsedDate,
     });
   };
@@ -421,6 +452,9 @@ export default function BudgetsPage() {
         </Card>
       </div>
 
+      {/* Section 0: Rencana Anggaran Periode & Alokasi Waktu */}
+      <PeriodBudgetPlanner />
+
       {/* Section 1: Target & Milestone Keuangan */}
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between pt-1">
@@ -622,8 +656,8 @@ export default function BudgetsPage() {
               </button>
             </div>
 
-            {/* 3-Mode Tabs */}
-            <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-muted/60 border border-border/60 mt-3.5 text-[11px] font-semibold">
+            {/* 4-Mode Tabs */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 rounded-xl bg-muted/60 border border-border/60 mt-3.5 text-[11px] font-semibold">
               <button
                 type="button"
                 onClick={() => handleModeSwitch("budget")}
@@ -666,6 +700,21 @@ export default function BudgetsPage() {
                 <Wallet className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">
                   {isEn ? "Savings Goal" : "Target Nabung"}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleModeSwitch("income_goal")}
+                className={`py-2 px-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                  modalMode === "income_goal"
+                    ? "bg-card text-foreground shadow-2xs border border-border/70"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <TrendingUp className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">
+                  {isEn ? "Income Goal" : "Target Masuk"}
                 </span>
               </button>
             </div>
@@ -726,11 +775,15 @@ export default function BudgetsPage() {
                   <p className="text-[11px] text-muted-foreground">
                     {modalMode === "spending_limit"
                       ? isEn
-                        ? "Cap total spending in a category or account until the target deadline."
-                        : "Batasi total pengeluaran pada kategori atau rekening hingga tanggal tenggat."
-                      : isEn
-                        ? "Track savings accumulation toward your goal with a clear deadline."
-                        : "Pantau akumulasi saldo tabungan menuju target hingga tanggal tenggat."}
+                        ? "Cap total spending within your selected date window on any category or all accounts."
+                        : "Batasi total pengeluaran pada rentang tanggal yang ditentukan di kategori atau semua akun."
+                      : modalMode === "income_goal"
+                        ? isEn
+                          ? "Track cumulative income within your selected date window across accounts or income categories."
+                          : "Pantau akumulasi pemasukan pada rentang tanggal yang ditentukan di seluruh akun atau kategori."
+                        : isEn
+                          ? "Track savings accumulation toward your goal with a clear date window."
+                          : "Pantau akumulasi saldo tabungan menuju target hingga tanggal akhir."}
                   </p>
 
                   <div>
@@ -744,11 +797,15 @@ export default function BudgetsPage() {
                       placeholder={
                         modalMode === "spending_limit"
                           ? isEn
-                            ? "e.g. Max Coffee & Dining"
-                            : "Contoh: Rem Jajan Kopi"
-                          : isEn
-                            ? "e.g. Emergency Fund 15M"
-                            : "Contoh: Dana Darurat 15 Juta"
+                            ? "e.g. Spending Cap Nov-Dec"
+                            : "Contoh: Batas Pengeluaran 13 Nov–31 Des"
+                          : modalMode === "income_goal"
+                            ? isEn
+                              ? "e.g. Target Pemasukan Nov-Des"
+                              : "Contoh: Target Pemasukan Nov–Des"
+                            : isEn
+                              ? "e.g. Ending Balance Rp15M"
+                              : "Contoh: Saldo Akhir Rp 15 Juta"
                       }
                       className="mt-1 h-9 rounded-md"
                       required
@@ -786,17 +843,19 @@ export default function BudgetsPage() {
                             setTrackingId(
                               (modalMode === "spending_limit"
                                 ? expenseCategories[0]?.id
-                                : allCategoriesList?.[0]?.id) || ""
+                                : modalMode === "income_goal"
+                                  ? incomeCategories[0]?.id
+                                  : allCategoriesList?.[0]?.id) || ""
                             );
                           }
                         }}
                         className="w-full h-9 px-2.5 rounded-md border border-border bg-background text-foreground text-xs"
                       >
+                        <option value="account">
+                          {isEn ? "Account Balance" : "Rekening / Semua Akun"}
+                        </option>
                         <option value="category">
                           {isEn ? "Category" : "Kategori"}
-                        </option>
-                        <option value="account">
-                          {isEn ? "Account Balance" : "Rekening / Dompet"}
                         </option>
                       </select>
                     </div>
@@ -831,7 +890,9 @@ export default function BudgetsPage() {
                             </option>
                             {(modalMode === "spending_limit"
                               ? expenseCategories
-                              : allCategoriesList || []
+                              : modalMode === "income_goal"
+                                ? incomeCategories
+                                : allCategoriesList || []
                             ).map((cat) => (
                               <option key={cat.id} value={cat.id}>
                                 {cat.name}
@@ -843,17 +904,31 @@ export default function BudgetsPage() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="font-semibold text-foreground">
-                      {isEn ? "Deadline" : "Batas Waktu (Deadline)"}
-                    </label>
-                    <Input
-                      type="date"
-                      value={deadline}
-                      onChange={(e) => setDeadline(e.target.value)}
-                      className="mt-1 h-9 rounded-md"
-                      required
-                    />
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="font-semibold text-foreground">
+                        {isEn ? "Start Date (From)" : "Dari Tanggal (Sebelum)"}
+                      </label>
+                      <Input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="mt-1 h-9 rounded-md"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-foreground">
+                        {isEn ? "End Date (Until)" : "Sampai Tanggal"}
+                      </label>
+                      <Input
+                        type="date"
+                        value={deadline}
+                        onChange={(e) => setDeadline(e.target.value)}
+                        className="mt-1 h-9 rounded-md"
+                        required
+                      />
+                    </div>
                   </div>
                 </>
               )}

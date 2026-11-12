@@ -14,6 +14,21 @@ function toStartOfWibDay(date: Date): Date {
   );
 }
 
+function toEndOfWibDay(date: Date): Date {
+  const shifted = new Date(date.getTime() + WIB_OFFSET_MS);
+  return new Date(
+    Date.UTC(
+      shifted.getUTCFullYear(),
+      shifted.getUTCMonth(),
+      shifted.getUTCDate(),
+      23,
+      59,
+      59,
+      0
+    ) - WIB_OFFSET_MS
+  );
+}
+
 export const milestonesRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     const items = await ctx.db
@@ -28,10 +43,16 @@ export const milestonesRouter = router({
         let trackingName = "";
 
         const startDate = toStartOfWibDay(new Date(m.createdAt));
+        const endDate = toEndOfWibDay(new Date(m.deadline));
 
         if (m.trackingType === "account") {
-          if (m.trackingDirection === "spending_limit") {
-            // Target Pengeluaran (Batas Belanja Rekening / Semua Akun)
+          if (
+            m.trackingDirection === "spending_limit" ||
+            m.trackingDirection === "income_goal"
+          ) {
+            const targetTxType =
+              m.trackingDirection === "spending_limit" ? "expense" : "income";
+
             if (m.trackingId === "all") {
               trackingName = "Semua Akun";
               const [agg] = await ctx.db
@@ -42,8 +63,12 @@ export const milestonesRouter = router({
                 .where(
                   and(
                     eq(transactions.userId, ctx.userId),
-                    eq(transactions.txType, "expense"),
-                    gte(transactions.happenedAt, startDate)
+                    eq(transactions.txType, targetTxType),
+                    ...(m.trackingDirection === "spending_limit"
+                      ? [eq(transactions.excludeFromBudget, false)]
+                      : []),
+                    gte(transactions.happenedAt, startDate),
+                    lte(transactions.happenedAt, endDate)
                   )
                 );
               currentAmount = Number(agg?.total ?? 0);
@@ -62,8 +87,12 @@ export const milestonesRouter = router({
                   and(
                     eq(transactions.userId, ctx.userId),
                     eq(transactions.accountId, m.trackingId),
-                    eq(transactions.txType, "expense"),
-                    gte(transactions.happenedAt, startDate)
+                    eq(transactions.txType, targetTxType),
+                    ...(m.trackingDirection === "spending_limit"
+                      ? [eq(transactions.excludeFromBudget, false)]
+                      : []),
+                    gte(transactions.happenedAt, startDate),
+                    lte(transactions.happenedAt, endDate)
                   )
                 );
               currentAmount = Number(agg?.total ?? 0);
@@ -109,7 +138,11 @@ export const milestonesRouter = router({
                 eq(transactions.userId, ctx.userId),
                 eq(transactions.categoryId, m.trackingId),
                 eq(transactions.txType, txType),
-                gte(transactions.happenedAt, startDate)
+                ...(m.trackingDirection === "spending_limit"
+                  ? [eq(transactions.excludeFromBudget, false)]
+                  : []),
+                gte(transactions.happenedAt, startDate),
+                lte(transactions.happenedAt, endDate)
               )
             );
           currentAmount = Number(agg?.total ?? 0);
@@ -120,8 +153,17 @@ export const milestonesRouter = router({
 
         const now = new Date();
         const deadlineDate = new Date(m.deadline);
-        const diffMs = deadlineDate.getTime() - now.getTime();
+        const hasStarted = now.getTime() >= startDate.getTime();
+        const daysUntilStart = hasStarted
+          ? 0
+          : Math.max(1, Math.ceil((startDate.getTime() - now.getTime()) / 86_400_000));
+        const diffMs = endDate.getTime() - now.getTime();
         const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        const durationDays = Math.max(
+          1,
+          Math.round((toStartOfWibDay(deadlineDate).getTime() - startDate.getTime()) / 86_400_000) +
+            1
+        );
 
         return {
           id: m.id,
@@ -133,8 +175,15 @@ export const milestonesRouter = router({
           trackingType: m.trackingType as "account" | "category",
           trackingId: m.trackingId,
           trackingName,
-          trackingDirection: m.trackingDirection as "savings_goal" | "spending_limit",
+          trackingDirection: m.trackingDirection as
+            | "savings_goal"
+            | "spending_limit"
+            | "income_goal",
+          startDate: m.createdAt,
           deadline: m.deadline,
+          durationDays,
+          hasStarted,
+          daysUntilStart,
           daysLeft,
           isOverdue: daysLeft < 0 && !m.isCompleted,
           isCompleted: m.isCompleted,
@@ -155,8 +204,9 @@ export const milestonesRouter = router({
         trackingType: z.enum(["account", "category"]),
         trackingId: z.string().min(1, "Target ID is required"),
         trackingDirection: z
-          .enum(["savings_goal", "spending_limit"])
+          .enum(["savings_goal", "spending_limit", "income_goal"])
           .default("savings_goal"),
+        startDate: z.coerce.date().optional(),
         deadline: z.coerce.date(),
       })
     )

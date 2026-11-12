@@ -132,5 +132,35 @@ describe("Unified Budgets & Milestones Shared Actions", () => {
       })
     ).rejects.toThrow(/tidak valid/i);
   });
+
+  it("supports explicit startDate and trackingDirection='income_goal', and rejects startDate > deadline", async () => {
+    const { db, insertedMilestones } = createMockDbExecutor();
+
+    const incomeMilestone = await createVerifiedMilestone(db, "user-1", {
+      title: "Target Pemasukan Nov-Des",
+      targetAmount: 11_639_500,
+      trackingType: "account",
+      trackingId: "all",
+      trackingDirection: "income_goal",
+      startDate: "2026-11-13",
+      deadline: "2026-12-31",
+    });
+
+    expect(incomeMilestone).toBeTruthy();
+    expect(insertedMilestones).toHaveLength(1);
+    expect(insertedMilestones[0]?.trackingDirection).toBe("income_goal");
+
+    await expect(
+      createVerifiedMilestone(db, "user-1", {
+        title: "Rentang Tanggal Terbalik",
+        targetAmount: 1_000_000,
+        trackingType: "account",
+        trackingId: "all",
+        trackingDirection: "spending_limit",
+        startDate: "2026-12-31",
+        deadline: "2026-11-13",
+      })
+    ).rejects.toThrow(/tanggal mulai/i);
+  });
 });
 

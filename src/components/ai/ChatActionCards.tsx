@@ -118,6 +118,7 @@ function buildOverridesFromDraft(draft: ChatActionDraft) {
     trackingType: draft.trackingType,
     trackingId: draft.trackingId,
     trackingDirection: draft.trackingDirection,
+    startDate: draft.startDate,
     deadline: draft.deadline,
   };
 }
@@ -467,7 +468,13 @@ export function ChatActionCards({
                               : "Akun"}
                           : {draft.trackingName}
                         </span>
-                        {draft.deadline && (
+                        {draft.startDate && (
+                          <span>
+                            • {formatDate(draft.startDate)} →{" "}
+                            {draft.deadline ? formatDate(draft.deadline) : "-"}
+                          </span>
+                        )}
+                        {!draft.startDate && draft.deadline && (
                           <span>• Deadline: {formatDate(draft.deadline)}</span>
                         )}
                       </p>
@@ -861,7 +868,24 @@ export function ChatActionCards({
 
                   <div>
                     <label className="block text-[10px] text-muted-foreground mb-0.5">
-                      {isEn ? "Deadline" : "Batas Waktu"}
+                      {isEn ? "Start Date" : "Dari Tanggal"}
+                    </label>
+                    <input
+                      type="date"
+                      value={(draft.startDate || "").slice(0, 10)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateLocalDraft(draft.id, (d) =>
+                          d.kind !== "milestone" ? d : { ...d, startDate: val }
+                        );
+                      }}
+                      className="w-full h-8 px-2 rounded border border-border bg-card text-foreground"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-muted-foreground mb-0.5">
+                      {isEn ? "End Date" : "Sampai Tanggal"}
                     </label>
                     <input
                       type="date"
@@ -885,7 +909,8 @@ export function ChatActionCards({
                       onChange={(e) => {
                         const dir = e.target.value as
                           | "savings_goal"
-                          | "spending_limit";
+                          | "spending_limit"
+                          | "income_goal";
                         updateLocalDraft(draft.id, (d) =>
                           d.kind !== "milestone"
                             ? d
@@ -896,6 +921,7 @@ export function ChatActionCards({
                     >
                       <option value="savings_goal">Target Tabungan</option>
                       <option value="spending_limit">Batas Pengeluaran</option>
+                      <option value="income_goal">Target Pemasukan</option>
                     </select>
                   </div>
 

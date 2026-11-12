@@ -86,7 +86,10 @@ const chatDraftOverridesSchema = z
     targetAmount: z.number().positive().finite().optional(),
     trackingType: z.enum(["account", "category"]).optional(),
     trackingId: z.string().optional(),
-    trackingDirection: z.enum(["savings_goal", "spending_limit"]).optional(),
+    trackingDirection: z
+      .enum(["savings_goal", "spending_limit", "income_goal"])
+      .optional(),
+    startDate: z.string().optional(),
     deadline: z.string().optional(),
   })
   .optional();

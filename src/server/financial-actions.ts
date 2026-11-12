@@ -42,7 +42,8 @@ export interface VerifiedMilestoneInput {
   targetAmount: number;
   trackingType: "account" | "category";
   trackingId: string;
-  trackingDirection: "savings_goal" | "spending_limit";
+  trackingDirection: "savings_goal" | "spending_limit" | "income_goal";
+  startDate?: string | Date;
   deadline: string | Date;
 }
 
@@ -338,9 +339,23 @@ export async function createVerifiedMilestone(
   }
 
   const parsedDeadline = new Date(input.deadline);
-  const safeDeadline = Number.isNaN(parsedDeadline.getTime())
+  const rawDeadline = Number.isNaN(parsedDeadline.getTime())
     ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     : parsedDeadline;
+  // Truncate sub-second ms so MySQL TIMESTAMP columns (0 fractional digits) never round 23:59:59.999 up to next-day 00:00:00
+  const safeDeadline = new Date(Math.floor(rawDeadline.getTime() / 1000) * 1000);
+
+  const parsedStart = input.startDate ? new Date(input.startDate) : null;
+  const rawStartDate =
+    parsedStart && !Number.isNaN(parsedStart.getTime()) ? parsedStart : new Date();
+  const safeStartDate = new Date(Math.floor(rawStartDate.getTime() / 1000) * 1000);
+
+  if (safeStartDate.getTime() > safeDeadline.getTime() + 86_400_000) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Tanggal mulai target tidak boleh melewati tanggal akhir (deadline).",
+    });
+  }
 
   const id = crypto.randomUUID();
   await dbOrTx.insert(milestones).values({
@@ -352,6 +367,7 @@ export async function createVerifiedMilestone(
     trackingId: input.trackingId,
     trackingDirection: input.trackingDirection,
     deadline: safeDeadline,
+    createdAt: safeStartDate,
     isCompleted: false,
   });
 

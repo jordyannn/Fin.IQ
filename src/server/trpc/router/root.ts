@@ -11,12 +11,14 @@ import { authRouter } from "./auth";
 import { userRouter } from "./user";
 import { adminRouter } from "./admin";
 import { milestonesRouter } from "./milestones";
+import { budgetPlansRouter } from "./budgetPlans";
 
 export const appRouter = router({
   transactions: transactionsRouter,
   accounts: accountsRouter,
   categories: categoriesRouter,
   budgets: budgetsRouter,
+  budgetPlans: budgetPlansRouter,
   ledgers: ledgersRouter,
   analytics: analyticsRouter,
   ai: aiRouter,
