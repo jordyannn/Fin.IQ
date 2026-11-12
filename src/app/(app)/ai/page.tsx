@@ -26,6 +26,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { AIMessageRenderer } from "@/components/ai/AIMessageRenderer";
+import { ChatActionCards } from "@/components/ai/ChatActionCards";
+import type { ChatActionDraft } from "@/lib/ai-chat-actions";
 import { useTranslation } from "@/i18n";
 import {
   FALLBACK_FREE_MODELS,
@@ -97,6 +99,7 @@ interface ChatMessage {
   time: string;
   modelUsed?: string;
   guardrailBlocked?: boolean;
+  actionDrafts?: ChatActionDraft[];
 }
 
 function AIAdvisorPageContent() {
@@ -259,6 +262,7 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
           }),
           modelUsed: m.modelUsed || undefined,
           guardrailBlocked: m.guardrailBlocked,
+          actionDrafts: m.actionDrafts || [],
         }));
         setChatMessages(mapped);
       } else {
@@ -280,12 +284,13 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
       setChatMessages((prev) => [
         ...prev,
         {
-          id: `ai-${Date.now()}`,
+          id: data.assistantMessageId || `ai-${Date.now()}`,
           role: "assistant",
           text: data.answer,
           time: new Date().toLocaleTimeString(isEn ? "en-US" : "id-ID", { hour: "2-digit", minute: "2-digit" }),
           modelUsed: data.modelUsed,
           guardrailBlocked: data.guardrailBlocked,
+          actionDrafts: data.actionDrafts || [],
         },
       ]);
 
@@ -629,6 +634,22 @@ Tanya apa aja ke Bang Peci seputar duitmu: evaluasi belanja, bedah pos boncos, a
                   )}
 
                   <AIMessageRenderer content={msg.text} />
+
+                  {msg.actionDrafts && msg.actionDrafts.length > 0 && (
+                    <ChatActionCards
+                      sessionId={activeSessionId || undefined}
+                      messageId={msg.id}
+                      drafts={msg.actionDrafts}
+                      isEn={isEn}
+                      onDraftsUpdated={(mid, nextDrafts) => {
+                        setChatMessages((prev) =>
+                          prev.map((m) =>
+                            m.id === mid ? { ...m, actionDrafts: nextDrafts } : m
+                          )
+                        );
+                      }}
+                    />
+                  )}
 
                   {/* Minimal Footer Toolbar */}
                   <div className="mt-2.5 pt-2 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground font-mono">

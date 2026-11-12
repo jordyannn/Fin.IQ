@@ -2,6 +2,17 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { milestones, accounts, categories, transactions } from "../../db/schema";
 import { eq, and, sql, gte, lte, desc } from "drizzle-orm";
+import { createVerifiedMilestone } from "../../financial-actions";
+
+const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+function toStartOfWibDay(date: Date): Date {
+  const shifted = new Date(date.getTime() + WIB_OFFSET_MS);
+  return new Date(
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) -
+      WIB_OFFSET_MS
+  );
+}
 
 export const milestonesRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -16,8 +27,7 @@ export const milestonesRouter = router({
         let currentAmount = 0;
         let trackingName = "";
 
-        const startDate = new Date(m.createdAt);
-        startDate.setHours(0, 0, 0, 0);
+        const startDate = toStartOfWibDay(new Date(m.createdAt));
 
         if (m.trackingType === "account") {
           if (m.trackingDirection === "spending_limit") {
@@ -151,20 +161,8 @@ export const milestonesRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const id = crypto.randomUUID();
-      await ctx.db.insert(milestones).values({
-        id,
-        userId: ctx.userId,
-        title: input.title.trim(),
-        targetAmount: input.targetAmount,
-        trackingType: input.trackingType,
-        trackingId: input.trackingId,
-        trackingDirection: input.trackingDirection,
-        deadline: input.deadline,
-        isCompleted: false,
-      });
-
-      return { id };
+      const created = await createVerifiedMilestone(ctx.db, ctx.userId, input);
+      return { id: created.id };
     }),
 
   toggleComplete: protectedProcedure

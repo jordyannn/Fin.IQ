@@ -13,7 +13,25 @@ import {
   aiChatMessages,
 } from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
-import { buildUserFinancialTelemetry, generateTelemetryFinancialAnswer } from "../../ai-telemetry";
+import {
+  buildUserFinancialTelemetry,
+  computeTelemetryWindow,
+  generateTelemetryFinancialAnswer,
+} from "../../ai-telemetry";
+import {
+  type ChatActionDraft,
+  extractDraftsFromContent,
+  parseRawFiniqActionsFromLLM,
+  serializeDraftsMarker,
+  stripActionTags,
+} from "@/lib/ai-chat-actions";
+import {
+  dismissChatDraftInTransaction,
+  executeChatDraftsInTransaction,
+  extractFallbackActionDrafts,
+  hasExplicitActionIntent,
+  resolveRawActionsToDrafts,
+} from "../../ai-chat-action-resolver";
 import { GoogleGenAI } from "@google/genai";
 import {
   smartParseIndonesianTransaction,
@@ -52,6 +70,26 @@ import {
   getEffectiveOpenRouterKey,
   GUARDRAIL_REFUSAL_MESSAGE,
 } from "../../openrouter";
+
+const chatDraftOverridesSchema = z
+  .object({
+    txType: z.enum(["expense", "income", "transfer"]).optional(),
+    amount: z.number().positive().finite().optional(),
+    happenedAt: z.string().optional(),
+    note: z.string().optional(),
+    ledgerId: z.string().optional(),
+    accountId: z.string().optional(),
+    toAccountId: z.string().optional(),
+    categoryId: z.string().optional(),
+    month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+    title: z.string().optional(),
+    targetAmount: z.number().positive().finite().optional(),
+    trackingType: z.enum(["account", "category"]).optional(),
+    trackingId: z.string().optional(),
+    trackingDirection: z.enum(["savings_goal", "spending_limit"]).optional(),
+    deadline: z.string().optional(),
+  })
+  .optional();
 
 export const aiRouter = router({
   parseTextToTransaction: protectedProcedure
@@ -972,7 +1010,7 @@ ATURAN EKSTRAKSI PENTING:
         });
       }
 
-      const messages = await ctx.db
+      const rawMessages = await ctx.db
         .select({
           id: aiChatMessages.id,
           role: aiChatMessages.role,
@@ -984,6 +1022,21 @@ ATURAN EKSTRAKSI PENTING:
         .from(aiChatMessages)
         .where(eq(aiChatMessages.sessionId, input.sessionId))
         .orderBy(aiChatMessages.createdAt);
+
+      const messages = rawMessages.map((m) => {
+        if (m.role !== "assistant") {
+          return {
+            ...m,
+            actionDrafts: [] as ChatActionDraft[],
+          };
+        }
+        const parsed = extractDraftsFromContent(m.content);
+        return {
+          ...m,
+          content: parsed.cleanText,
+          actionDrafts: parsed.drafts,
+        };
+      });
 
       return {
         session: sessionRecords[0],
@@ -1099,7 +1152,7 @@ ATURAN EKSTRAKSI PENTING:
             .filter((r) => r.role === "user" || r.role === "assistant")
             .map((r) => ({
               role: r.role as "user" | "assistant",
-              content: r.content.slice(0, 1500),
+              content: stripActionTags(r.content).slice(0, 1500),
             }));
         } catch (histErr) {
           console.warn("[Session History Load Warning]", histErr);
@@ -1143,9 +1196,12 @@ ATURAN EKSTRAKSI PENTING:
           ? "I apologize, but as the Fin.IQ AI Financial Advisor, I only provide analysis and consultation on personal finance, cash flows, transactions, and budget runway. Please submit a personal finance-related query."
           : guardrail.refusal || GUARDRAIL_REFUSAL_MESSAGE;
 
+        const guardrailMsgId = crypto.randomUUID();
+
         // Simpan respon penolakan guardrail ke session & audit history
         try {
           await ctx.db.insert(aiChatMessages).values({
+            id: guardrailMsgId,
             sessionId: activeSessionId,
             userId: ctx.userId,
             role: "assistant",
@@ -1170,6 +1226,8 @@ ATURAN EKSTRAKSI PENTING:
 
         return {
           answer: refusalText,
+          actionDrafts: [] as ChatActionDraft[],
+          assistantMessageId: guardrailMsgId,
           modelUsed: modelId,
           quota: await getAiQuota(ctx.db, ctx.userId),
           guardrailBlocked: true,
@@ -1282,7 +1340,9 @@ ATURAN EKSTRAKSI PENTING:
       }
 
       // 3. Fallback Cerdas: Bang Peci Local Financial Telemetry Advisor (Zero-Crash Guarantee)
+      let usedTelemetryFallback = false;
       if (!answerText) {
+        usedTelemetryFallback = true;
         answerText = generateTelemetryFinancialAnswer(
           telemetry,
           input.question,
@@ -1292,13 +1352,47 @@ ATURAN EKSTRAKSI PENTING:
         modelUsedName = "Bang Peci Telemetry Advisor (Offline Mode)";
       }
 
-      // Simpan jawaban assistant ke session & audit history
+      // 4. Ekstraksi Draf Aksi (Transaksi, Anggaran, Milestone) + Resolusi Entitas DB Riil
+      const telemetryWindow = computeTelemetryWindow(
+        input.clientTime,
+        input.tzOffsetMinutes
+      );
+      const entityCatalog = {
+        ledgers: telemetry.entities?.ledgers ?? [],
+        accounts: telemetry.entities?.accounts ?? [],
+        categories: telemetry.entities?.categories ?? [],
+        currentMonthStr: telemetryWindow.currentMonthStr,
+        referenceDate: telemetryWindow.now,
+      };
+
+      const parsedActions = parseRawFiniqActionsFromLLM(answerText);
+      let cleanAnswerText = parsedActions.cleanText;
+      let actionDrafts: ChatActionDraft[] = resolveRawActionsToDrafts(
+        parsedActions.rawActions,
+        entityCatalog
+      );
+
+      if (actionDrafts.length === 0 && hasExplicitActionIntent(input.question)) {
+        actionDrafts = extractFallbackActionDrafts(input.question, entityCatalog);
+        if (usedTelemetryFallback && actionDrafts.length > 0) {
+          const fallbackLead = isEnglish
+            ? `I have prepared **${actionDrafts.length} interactive action draft(s)** from your request. Please review and click **Simpan** on each card below:`
+            : `Siap bos! Bang Peci sudah menyiapkan **${actionDrafts.length} draf pencatatan** dari pesanmu (mode offline fallback). Silakan cek/edit cepat lalu klik **Simpan** di kartu bawah ya:`;
+          cleanAnswerText = `${fallbackLead}\n\n${cleanAnswerText}`;
+        }
+      }
+
+      const persistedMessageContent = `${cleanAnswerText}${serializeDraftsMarker(actionDrafts)}`;
+      const assistantMessageId = crypto.randomUUID();
+
+      // Simpan jawaban assistant (+ marker draf) ke session & audit history
       try {
         await ctx.db.insert(aiChatMessages).values({
+          id: assistantMessageId,
           sessionId: activeSessionId,
           userId: ctx.userId,
           role: "assistant",
-          content: answerText,
+          content: persistedMessageContent,
           modelUsed: modelUsedName,
           guardrailBlocked: false,
         });
@@ -1309,7 +1403,7 @@ ATURAN EKSTRAKSI PENTING:
         await ctx.db.insert(aiPromptHistory).values({
           userId: ctx.userId,
           question: input.question,
-          answer: answerText,
+          answer: cleanAnswerText,
           modelUsed: modelUsedName,
           guardrailBlocked: false,
         });
@@ -1318,12 +1412,74 @@ ATURAN EKSTRAKSI PENTING:
       }
 
       return {
-        answer: answerText,
+        answer: cleanAnswerText,
+        actionDrafts,
+        assistantMessageId,
         modelUsed: modelUsedName,
         quota: await getAiQuota(ctx.db, ctx.userId),
         guardrailBlocked: false,
         sessionId: activeSessionId,
       };
+    }),
+
+  executeChatActionDraft: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.string().min(1),
+        messageId: z.string().min(1),
+        draftId: z.string().min(1),
+        overrides: chatDraftOverridesSchema,
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const outcome = await executeChatDraftsInTransaction(ctx.db, ctx.userId, {
+        sessionId: input.sessionId,
+        messageId: input.messageId,
+        items: [{ draftId: input.draftId, overrides: input.overrides }],
+      });
+      return {
+        result: outcome.results[0]!,
+        drafts: outcome.drafts,
+      };
+    }),
+
+  executeChatActionBatch: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.string().min(1),
+        messageId: z.string().min(1),
+        items: z
+          .array(
+            z.object({
+              draftId: z.string().min(1),
+              overrides: chatDraftOverridesSchema,
+            })
+          )
+          .min(1),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return executeChatDraftsInTransaction(ctx.db, ctx.userId, {
+        sessionId: input.sessionId,
+        messageId: input.messageId,
+        items: input.items,
+      });
+    }),
+
+  dismissChatActionDraft: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.string().min(1),
+        messageId: z.string().min(1),
+        draftId: z.string().min(1),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return dismissChatDraftInTransaction(ctx.db, ctx.userId, {
+        sessionId: input.sessionId,
+        messageId: input.messageId,
+        draftId: input.draftId,
+      });
     }),
 
   parseTextWithGemini: protectedProcedure

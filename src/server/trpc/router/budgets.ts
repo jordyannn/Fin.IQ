@@ -1,7 +1,11 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../trpc";
 import { budgets, categories, transactions } from "../../db/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { upsertVerifiedBudget } from "../../financial-actions";
+
+const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 export const budgetsRouter = router({
   list: protectedProcedure
@@ -32,10 +36,12 @@ export const budgetsRouter = router({
           )
         );
 
-      // 2. Hitung pengeluaran aktual per kategori di bulan tersebut
-      const [year, month] = input.month.split("-");
-      const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-      const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59);
+      // 2. Hitung pengeluaran aktual per kategori di bulan tersebut (zona WIB UTC+7)
+      const [yearStr, monthStr] = input.month.split("-");
+      const y = Number(yearStr);
+      const m = Number(monthStr);
+      const startDate = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0) - WIB_OFFSET_MS);
+      const endDate = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999) - WIB_OFFSET_MS);
 
       const actualSpentList = await ctx.db
         .select({
@@ -97,44 +103,25 @@ export const budgetsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Check existing
+      return upsertVerifiedBudget(ctx.db, ctx.userId, input);
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
       const existing = await ctx.db.query.budgets.findFirst({
-        where: and(
-          eq(budgets.userId, ctx.userId),
-          eq(budgets.ledgerId, input.ledgerId),
-          eq(budgets.categoryId, input.categoryId),
-          eq(budgets.month, input.month)
-        ),
+        where: and(eq(budgets.id, input.id), eq(budgets.userId, ctx.userId)),
       });
-
-      if (existing) {
-        await ctx.db
-          .update(budgets)
-          .set({ amount: input.amount })
-          .where(eq(budgets.id, existing.id));
-
-        const updated = await ctx.db.query.budgets.findFirst({
-          where: eq(budgets.id, existing.id),
+      if (!existing) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Pagu anggaran tidak ditemukan.",
         });
-        return updated!;
       }
-
-      const id = crypto.randomUUID();
       await ctx.db
-        .insert(budgets)
-        .values({
-          id,
-          userId: ctx.userId,
-          ledgerId: input.ledgerId,
-          categoryId: input.categoryId,
-          month: input.month,
-          amount: input.amount,
-        });
+        .delete(budgets)
+        .where(and(eq(budgets.id, input.id), eq(budgets.userId, ctx.userId)));
 
-      const created = await ctx.db.query.budgets.findFirst({
-        where: eq(budgets.id, id),
-      });
-
-      return created!;
+      return { success: true, id: input.id };
     }),
 });

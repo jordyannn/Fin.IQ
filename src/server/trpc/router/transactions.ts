@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { transactions, accounts, categories, ledgers } from "../../db/schema";
+import { createVerifiedTransaction } from "../../financial-actions";
 import { eq, and, desc, sql, gte, lte, like, inArray, isNull } from "drizzle-orm";
 
 export const transactionsRouter = router({
@@ -135,85 +136,7 @@ export const transactionsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const date = input.happenedAt ? new Date(input.happenedAt) : new Date();
-      const id = crypto.randomUUID();
-
-      // Validasi & sanitasi kategori agar sinkron dengan jenis transaksi
-      let finalCategoryId: string | null = null;
-      if (input.txType !== "transfer" && input.categoryId) {
-        const cat = await ctx.db.query.categories.findFirst({
-          where: and(eq(categories.id, input.categoryId), eq(categories.userId, ctx.userId)),
-        });
-        if (cat && cat.kind === input.txType) {
-          finalCategoryId = cat.id;
-        } else {
-          const fallbackCat = await ctx.db.query.categories.findFirst({
-            where: and(eq(categories.kind, input.txType), eq(categories.userId, ctx.userId)),
-          });
-          finalCategoryId = fallbackCat?.id || null;
-        }
-      }
-
-      let targetLedgerId = input.ledgerId;
-      const ledgerExists = await ctx.db.query.ledgers.findFirst({
-        where: and(eq(ledgers.id, targetLedgerId), eq(ledgers.userId, ctx.userId)),
-      });
-      if (!ledgerExists) {
-        const userLedger = await ctx.db.query.ledgers.findFirst({
-          where: eq(ledgers.userId, ctx.userId),
-        });
-        if (userLedger) {
-          targetLedgerId = userLedger.id;
-        }
-      }
-
-      await ctx.db
-        .insert(transactions)
-        .values({
-          id,
-          userId: ctx.userId,
-          ledgerId: targetLedgerId,
-          txType: input.txType,
-          amount: input.amount,
-          currency: input.currency,
-          nativeAmount: input.amount,
-          happenedAt: date,
-          note: input.note,
-          accountId: input.accountId,
-          toAccountId: input.txType === "transfer" ? (input.toAccountId || null) : null,
-          categoryId: finalCategoryId,
-          tagsJson: input.tags,
-          excludeFromStats: input.excludeFromStats,
-          excludeFromBudget: input.excludeFromBudget,
-        });
-
-      // Update saldo akun
-      if (input.txType === "expense") {
-        await ctx.db
-          .update(accounts)
-          .set({ balance: sql`${accounts.balance} - ${input.amount}` })
-          .where(eq(accounts.id, input.accountId));
-      } else if (input.txType === "income") {
-        await ctx.db
-          .update(accounts)
-          .set({ balance: sql`${accounts.balance} + ${input.amount}` })
-          .where(eq(accounts.id, input.accountId));
-      } else if (input.txType === "transfer" && input.toAccountId) {
-        await ctx.db
-          .update(accounts)
-          .set({ balance: sql`${accounts.balance} - ${input.amount}` })
-          .where(eq(accounts.id, input.accountId));
-        await ctx.db
-          .update(accounts)
-          .set({ balance: sql`${accounts.balance} + ${input.amount}` })
-          .where(eq(accounts.id, input.toAccountId));
-      }
-
-      const newTx = await ctx.db.query.transactions.findFirst({
-        where: eq(transactions.id, id),
-      });
-
-      return newTx!;
+      return createVerifiedTransaction(ctx.db, ctx.userId, input);
     }),
 
   update: protectedProcedure

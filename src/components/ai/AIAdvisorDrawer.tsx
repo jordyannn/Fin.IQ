@@ -19,6 +19,8 @@ import {
 import { useMascotStore } from "@/store/mascot.store";
 import { trpc } from "@/lib/trpc/client";
 import { AIMessageRenderer } from "./AIMessageRenderer";
+import { ChatActionCards } from "./ChatActionCards";
+import type { ChatActionDraft } from "@/lib/ai-chat-actions";
 import { mascotSound } from "@/lib/mascot-sound";
 import {
   FALLBACK_FREE_MODELS,
@@ -68,6 +70,7 @@ interface DrawerMessage {
   role: "user" | "assistant";
   content: string;
   time: string;
+  actionDrafts?: ChatActionDraft[];
 }
 
 export function AIAdvisorDrawer() {
@@ -138,6 +141,7 @@ export function AIAdvisorDrawer() {
           role: m.role as "user" | "assistant",
           content: m.content,
           time: new Date(m.createdAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+          actionDrafts: m.actionDrafts || [],
         }))
       );
     }
@@ -179,10 +183,11 @@ export function AIAdvisorDrawer() {
       setMessages((prev) => [
         ...prev,
         {
-          id: `ai-${Date.now()}`,
+          id: data.assistantMessageId || `ai-${Date.now()}`,
           role: "assistant",
           content: data.answer,
           time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+          actionDrafts: data.actionDrafts || [],
         },
       ]);
       mascotSound.playPop();
@@ -307,13 +312,30 @@ export function AIAdvisorDrawer() {
               className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
             >
               <div
-                className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed shadow-2xs ${msg.role === "user"
+                className={`${msg.actionDrafts && msg.actionDrafts.length > 0 ? "w-full max-w-[95%]" : "max-w-[88%]"} rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed shadow-2xs ${msg.role === "user"
                     ? "bg-primary text-primary-foreground font-medium rounded-br-xs"
                     : "bg-muted/60 border border-border/70 text-foreground rounded-bl-xs"
                   }`}
               >
                 {msg.role === "assistant" ? (
-                  <AIMessageRenderer content={msg.content} />
+                  <>
+                    <AIMessageRenderer content={msg.content} />
+                    {msg.actionDrafts && msg.actionDrafts.length > 0 && (
+                      <ChatActionCards
+                        compact
+                        sessionId={activeSessionId}
+                        messageId={msg.id}
+                        drafts={msg.actionDrafts}
+                        onDraftsUpdated={(mid, nextDrafts) => {
+                          setMessages((prev) =>
+                            prev.map((m) =>
+                              m.id === mid ? { ...m, actionDrafts: nextDrafts } : m
+                            )
+                          );
+                        }}
+                      />
+                    )}
+                  </>
                 ) : (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 )}

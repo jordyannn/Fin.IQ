@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { marked, type Token, type Tokens } from "marked";
 import { Copy, Check, Table as TableIcon } from "lucide-react";
+import { stripActionTags } from "@/lib/ai-chat-actions";
 
 interface AIMessageRendererProps {
   content: string;
@@ -392,9 +393,10 @@ function renderTokens(tokens?: Token[]): React.ReactNode {
 export function AIMessageRenderer({ content, className = "" }: AIMessageRendererProps) {
   if (!content) return null;
 
-  // Pre-process any weird multi-asterisk anomalies before lexing
-  // e.g., turn stray literal **** into **
-  const sanitizedContent = content.replace(/\*{4,}/g, "**");
+  // Strip action draft markers/tags & pre-process multi-asterisk anomalies before lexing
+  const strippedContent = stripActionTags(content);
+  if (!strippedContent) return null;
+  const sanitizedContent = strippedContent.replace(/\*{4,}/g, "**");
 
   let tokens: Token[] = [];
   try {
@@ -403,7 +405,7 @@ export function AIMessageRenderer({ content, className = "" }: AIMessageRenderer
     // Graceful fallback to simple paragraph
     return (
       <div className={`space-y-1 text-xs select-text ${className}`}>
-        <p className="leading-relaxed whitespace-pre-wrap">{content}</p>
+        <p className="leading-relaxed whitespace-pre-wrap">{strippedContent}</p>
       </div>
     );
   }

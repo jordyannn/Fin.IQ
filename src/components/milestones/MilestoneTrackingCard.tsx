@@ -15,7 +15,15 @@ import {
   X,
 } from "lucide-react";
 
-export function MilestoneTrackingCard() {
+export interface MilestoneTrackingCardProps {
+  hideHeaderAction?: boolean;
+  onRequestCreateTarget?: () => void;
+}
+
+export function MilestoneTrackingCard({
+  hideHeaderAction = false,
+  onRequestCreateTarget,
+}: MilestoneTrackingCardProps = {}) {
   const { t, formatCurrency, formatDate, locale } = useTranslation();
   const isEn = locale === "en";
   const utils = trpc.useUtils();
@@ -124,27 +132,31 @@ export function MilestoneTrackingCard() {
   return (
     <div className="flex flex-col gap-2.5">
       {/* Section Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-xl bg-secondary flex items-center justify-center text-secondary-foreground">
-            <GeometricIcon name="budgets" size="xs" active />
+      {!hideHeaderAction && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-7 rounded-xl bg-secondary flex items-center justify-center text-secondary-foreground">
+              <GeometricIcon name="budgets" size="xs" active />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-sm sm:text-base text-foreground tracking-tight">
+                {t.milestones.title}
+              </h3>
+            </div>
           </div>
-          <div>
-            <h3 className="font-extrabold text-sm sm:text-base text-foreground tracking-tight">
-              {t.milestones.title}
-            </h3>
-          </div>
-        </div>
 
-        <button
-          type="button"
-          onClick={handleOpenModal}
-          className="text-xs text-primary font-bold hover:underline flex items-center gap-1.5 active:scale-95 cursor-pointer py-1 px-2 rounded-lg hover:bg-primary/5 transition-all"
-        >
-          <GeometricIcon name="plus" size="xs" active />
-          <span>{t.milestones.addNew}</span>
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() =>
+              onRequestCreateTarget ? onRequestCreateTarget() : handleOpenModal()
+            }
+            className="text-xs text-primary font-bold hover:underline flex items-center gap-1.5 active:scale-95 cursor-pointer py-1 px-2 rounded-lg hover:bg-primary/5 transition-all"
+          >
+            <GeometricIcon name="plus" size="xs" active />
+            <span>{t.milestones.addNew}</span>
+          </button>
+        </div>
+      )}
 
       {/* Milestone List Card */}
       <div className="space-y-2.5">
@@ -305,7 +317,9 @@ export function MilestoneTrackingCard() {
         {(!milestonesData || milestonesData.length === 0) && !isLoading && (
           <button
             type="button"
-            onClick={handleOpenModal}
+            onClick={() =>
+              onRequestCreateTarget ? onRequestCreateTarget() : handleOpenModal()
+            }
             className="w-full p-5 sm:p-6 text-center text-xs text-muted-foreground border border-dashed rounded-2xl border-border/80 bg-card/40 hover:border-primary/50 hover:bg-primary/[0.02] transition-all cursor-pointer flex flex-col items-center justify-center gap-2 group active:scale-99"
           >
             <GeometricIcon

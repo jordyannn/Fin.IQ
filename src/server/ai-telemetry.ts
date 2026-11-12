@@ -5,6 +5,7 @@ import {
   transactions,
   budgets,
   ledgers,
+  milestones,
   users,
   userProfiles,
 } from "./db/schema";
@@ -210,6 +211,15 @@ export interface UserFinancialTelemetry {
   budgetsBreakdownId: string;
   budgetsBreakdownEn: string;
 
+  milestonesBreakdownId?: string;
+  milestonesBreakdownEn?: string;
+
+  entities?: {
+    ledgers: { id: string; name: string; currency: string | null }[];
+    accounts: { id: string; name: string; group: string; currency: string | null; balance: number }[];
+    categories: { id: string; name: string; kind: string }[];
+  };
+
   recentTxInfoId: string;
   recentTxInfoEn: string;
 
@@ -314,6 +324,55 @@ export async function buildUserFinancialTelemetry(
     })
     .from(accounts)
     .where(eq(accounts.userId, userId));
+
+  const userCategories = await database
+    .select({
+      id: categories.id,
+      name: categories.name,
+      kind: categories.kind,
+    })
+    .from(categories)
+    .where(eq(categories.userId, userId));
+
+  const userMilestones = await database
+    .select({
+      id: milestones.id,
+      title: milestones.title,
+      targetAmount: milestones.targetAmount,
+      trackingType: milestones.trackingType,
+      trackingDirection: milestones.trackingDirection,
+      deadline: milestones.deadline,
+      isCompleted: milestones.isCompleted,
+    })
+    .from(milestones)
+    .where(eq(milestones.userId, userId));
+
+  const expenseCategoriesList = userCategories
+    .filter((c) => c.kind === "expense")
+    .map((c) => c.name);
+  const incomeCategoriesList = userCategories
+    .filter((c) => c.kind === "income")
+    .map((c) => c.name);
+
+  const milestonesBreakdownId =
+    userMilestones.length > 0
+      ? userMilestones
+          .map(
+            (m) =>
+              `- [${m.isCompleted ? "SELESAI" : "AKTIF"}] ${m.title} (${m.trackingDirection === "spending_limit" ? "Batas Pengeluaran" : "Target Tabungan"}): Target Rp ${Math.round(m.targetAmount).toLocaleString("id-ID")} | Deadline: ${formatDate(m.deadline)}`
+          )
+          .join("\n")
+      : "Belum ada target keuangan (milestones) terdaftar.";
+
+  const milestonesBreakdownEn =
+    userMilestones.length > 0
+      ? userMilestones
+          .map(
+            (m) =>
+              `- [${m.isCompleted ? "COMPLETED" : "ACTIVE"}] ${m.title} (${m.trackingDirection}): Target IDR ${Math.round(m.targetAmount).toLocaleString("en-US")} | Deadline: ${formatDate(m.deadline)}`
+          )
+          .join("\n")
+      : "No financial milestones configured yet.";
 
   const totalLiquidBalance = userAccounts.reduce(
     (sum, a) => sum + (a.balance || 0),
@@ -645,7 +704,17 @@ ATURAN ANTI-HALUSINASI MUTLAK (WAJIB DIPATUHI 100%):
 6. Format nominal dalam Rupiah standar: 'Rp X.XXX.XXX'. Gunakan 3 bagian ringkas tanpa basa-basi pembuka ("Halo!", "Tentu saja!"):
    ### Ringkasan Eksekutif
    ### Temuan & Analisis Data
-   ### Langkah Solutif & Aksi Konkret`;
+   ### Langkah Solutif & Aksi Konkret
+
+FITUR PENCATATAN DRAF AKSI INTERAKTIF (WAJIB IKUTI FORMAT KETAT):
+- JIKA DAN HANYA JIKA pengguna secara eksplisit meminta mencatat transaksi, membuat pagu anggaran bulanan, membuat target tabungan / batas pengeluaran, ATAU meminta menerapkan saran anggaran/target dari percakapan sebelumnya (misal: "terapkan anggaran tadi", "catat pengeluaran ini", "buat target..."), tambahkan TEPAT SATU blok JSON di BAGIAN PALING AKHIR respons (setelah markdown):
+[FINIQ_ACTIONS]{"actions":[...]}[/FINIQ_ACTIONS]
+- JIKA pertanyaan bersifat analisis murni / bertanya laporan / konsultasi tanpa perintah mencatat atau menerapkan: JANGAN keluarkan tag [FINIQ_ACTIONS].
+- Isi tiap objek di "actions" hanya memakai nama akun/kategori/buku kas riil dari telemetri (DILARANG mengarang UUID):
+  1) Transaksi: {"kind":"transaction","txType":"expense|income|transfer","amount":50000,"accountName":"nama akun","toAccountName":"jika transfer","categoryName":"nama kategori","ledgerName":"nama buku kas","happenedAt":"YYYY-MM-DDTHH:mm:ss","note":"keterangan singkat"}
+  2) Pagu Anggaran Bulanan: {"kind":"budget","amount":1500000,"categoryName":"nama kategori expense","ledgerName":"nama buku kas","month":"${currentMonthStr}"}
+  3) Target Keuangan / Batas Pengeluaran: {"kind":"milestone","title":"judul target","targetAmount":10000000,"trackingType":"account|category","trackingName":"nama akun / Semua Akun / nama kategori","trackingDirection":"savings_goal|spending_limit","deadline":"YYYY-MM-DD"}
+- Jika ada beberapa item dalam 1 pesan, masukkan semuanya ke array "actions". Gunakan bahasa manusia di bagian atas sebelum tag [FINIQ_ACTIONS] agar kartu konfirmasi siap diverifikasi pengguna.`;
 
   const systemPromptEn = `You are the Fin.IQ Chief Financial Advisor, an analytical personal finance intelligence system.
 
@@ -665,7 +734,17 @@ ZERO-HALLUCINATION DATA FIDELITY RULES (100% MANDATORY):
 4. Never use conversational filler ("Hello!", "Sure thing!", "As an AI..."). Use 3 clean sections:
    ### Executive Summary
    ### Telemetry & Findings
-   ### Actionable Directives`;
+   ### Actionable Directives
+
+INTERACTIVE ACTION DRAFT EXTRACTION PROTOCOL:
+- ONLY when the user asks to log/record transactions, set monthly category budgets, create savings/spending milestones, OR asks to apply previously discussed budget/target recommendations, append EXACTLY ONE JSON block at the very end of your response:
+[FINIQ_ACTIONS]{"actions":[...]}[/FINIQ_ACTIONS]
+- For pure analysis or informational questions, DO NOT emit [FINIQ_ACTIONS].
+- Use exact entity names from telemetry (NEVER invent UUIDs):
+  1) Transaction: {"kind":"transaction","txType":"expense|income|transfer","amount":50000,"accountName":"account name","toAccountName":"optional if transfer","categoryName":"category name","ledgerName":"ledger name","happenedAt":"YYYY-MM-DDTHH:mm:ss","note":"short note"}
+  2) Monthly Budget: {"kind":"budget","amount":1500000,"categoryName":"expense category name","ledgerName":"ledger name","month":"${currentMonthStr}"}
+  3) Milestone / Target: {"kind":"milestone","title":"target title","targetAmount":10000000,"trackingType":"account|category","trackingName":"account name / Semua Akun / category name","trackingDirection":"savings_goal|spending_limit","deadline":"YYYY-MM-DD"}
+- Multiple items in one request MUST all be included in "actions".`;
 
   const getUserPrompt = (question: string, isEnglish?: boolean) => {
     if (isEnglish) {
@@ -722,6 +801,11 @@ ${recentTxInfoEn}
 9. UPCOMING SCHEDULED TRANSACTIONS (FUTURE > TODAY):
 ${upcomingTxInfoEn}
 
+10. ACTIVE MILESTONES & VALID CATEGORIES:
+${milestonesBreakdownEn}
+- Expense Categories (${expenseCategoriesList.length}): ${expenseCategoriesList.join(", ") || "(None)"}
+- Income Categories (${incomeCategoriesList.length}): ${incomeCategoriesList.join(", ") || "(None)"}
+
 User Query: "${question}"`;
     }
 
@@ -777,6 +861,11 @@ ${recentTxInfoId}
 
 9. TRANSAKSI MENDATANG / TERJADWAL (> HARI INI):
 ${upcomingTxInfoId}
+
+10. TARGET KEUANGAN AKTIF & DAFTAR KATEGORI TERSEDIA:
+${milestonesBreakdownId}
+- Kategori Pengeluaran (${expenseCategoriesList.length}): ${expenseCategoriesList.join(", ") || "(Kosong)"}
+- Kategori Pemasukan (${incomeCategoriesList.length}): ${incomeCategoriesList.join(", ") || "(Kosong)"}
 
 Pertanyaan Pengguna: "${question}"`;
   };
@@ -845,6 +934,19 @@ Pertanyaan Pengguna: "${question}"`;
     },
     budgetsBreakdownId,
     budgetsBreakdownEn,
+    milestonesBreakdownId,
+    milestonesBreakdownEn,
+    entities: {
+      ledgers: userLedgers,
+      accounts: userAccounts.map((a) => ({
+        id: a.id,
+        name: a.name,
+        group: a.group,
+        currency: a.currency,
+        balance: a.balance,
+      })),
+      categories: userCategories,
+    },
     recentTxInfoId,
     recentTxInfoEn,
     upcomingTxInfoId,
