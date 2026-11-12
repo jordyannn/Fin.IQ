@@ -324,6 +324,8 @@ export async function generateOpenRouterCompletion(options: {
   userPrompt: string;
   temperature?: number;
   apiKey?: string;
+  timeoutMs?: number;
+  validateResponse?: (text: string) => boolean;
 }): Promise<{ text: string; modelUsed: string }> {
   const activeKey =
     options.apiKey?.trim() ||
@@ -342,26 +344,25 @@ export async function generateOpenRouterCompletion(options: {
       ? options.model
       : DEFAULT_MODEL_ID;
 
-  // Daftar urutan fallback model free-tier aktif jika model utama mengalami rate-limit (429)
-  // Dibatasi maksimal 3 model kandidat dengan timeout 12s per model agar tidak menyebabkan timeout gateway
+  // Daftar urutan fallback model free-tier aktif jika model utama rate-limit (429) atau memberi respons kosong
   const candidateModels = [
     targetModel,
-    "nvidia/nemotron-3.5-lightning:free",
-    "dots-studio/dots-3-note-preview:free",
+    "recursive/flint-v1.0:free",
+    "liquid/lfm-2.5-2.6b:free",
     "google/gemma-4-31b-it:free",
     "google/gemma-4-26b-a4b-it:free",
-    "recursive/flint-v1.0:free",
-  ]
-    .filter((val, idx, arr) => arr.indexOf(val) === idx)
-    .slice(0, 3);
+    "nvidia/nemotron-3.5-lightning:free",
+    "dots-studio/dots-3-note-preview:free",
+  ].filter((val, idx, arr) => arr.indexOf(val) === idx);
 
+  const timeoutMs = options.timeoutMs ?? 12000;
   let lastError: Error | null = null;
 
   for (const model of candidateModels) {
     try {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(timeoutMs),
         headers: {
           Authorization: `Bearer ${activeKey}`,
           "Content-Type": "application/json",
@@ -404,8 +405,14 @@ export async function generateOpenRouterCompletion(options: {
       const data = await response.json();
       const content = data.choices?.[0]?.message?.content;
       if (typeof content === "string" && content.trim()) {
+        const trimmed = content.trim();
+        if (options.validateResponse && !options.validateResponse(trimmed)) {
+          console.warn(`[OpenRouter Fallback] Model ${model} mengembalikan format/isi tidak lengkap, mencoba model berikutnya...`);
+          lastError = new Error(`Respon model ${model} tidak memuat data yang diharapkan.`);
+          continue;
+        }
         return {
-          text: content.trim(),
+          text: trimmed,
           modelUsed: model,
         };
       } else {

@@ -474,6 +474,7 @@ async function compressImageToBase64(
         ctx.drawImage(img, 0, 0, width, height);
         const dataUrl = canvas.toDataURL("image/jpeg", quality);
         const base64 = dataUrl.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
+        resolve({ base64, mimeType: "image/jpeg" });
       };
       img.onerror = () => {
         const rawBase64 = (readerEvent.target?.result as string) || "";
@@ -563,6 +564,7 @@ export default function ImportPage() {
   const [isConvertingWithAi, setIsConvertingWithAi] = useState(false);
   const [aiConversionMessage, setAiConversionMessage] = useState("");
   const [aiProgress, setAiProgress] = useState(0);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   // NLP & Category Selection states for File Tab
   const [fileTxs, setFileTxs] = useState<ParsedFileTxItem[]>([]);
@@ -645,16 +647,18 @@ export default function ImportPage() {
     },
   });
 
-  // Screenshot handlers
+  // Screenshot handlers (supports images and PDF receipts/e-statements)
   const handleScreenshotSelect = (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const newFiles = Array.from(files).filter((f) =>
-      /\.(png|jpe?g|webp|bmp|gif)$/i.test(f.name)
+      /\.(png|jpe?g|webp|bmp|gif|pdf)$/i.test(f.name) || f.type === "application/pdf"
     );
     if (newFiles.length === 0) {
       alert({
-        title: "Format File Tidak Didukung",
-        description: "Silakan pilih gambar PNG, JPG, JPEG, atau WEBP.",
+        title: isEn ? "Unsupported File Format" : "Format File Tidak Didukung",
+        description: isEn
+          ? "Please select PNG, JPG, JPEG, WEBP images or PDF files."
+          : "Silakan pilih gambar PNG, JPG, JPEG, WEBP, atau berkas PDF.",
         variant: "warning",
       });
       return;
@@ -665,7 +669,8 @@ export default function ImportPage() {
 
     const previews: string[] = [];
     combined.forEach((file) => {
-      previews.push(URL.createObjectURL(file));
+      const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+      previews.push(isPdf ? "pdf://preview" : URL.createObjectURL(file));
     });
     setScreenshotPreviews(previews);
     setScreenshotError(null);
@@ -682,49 +687,113 @@ export default function ImportPage() {
     if (screenshotFiles.length === 0) return;
 
     setIsParsingScreenshot(true);
-    setScreenshotParseProgress(`Menyiapkan ${screenshotFiles.length} gambar...`);
+    setScreenshotParseProgress(
+      isEn
+        ? `Preparing ${screenshotFiles.length} file(s)...`
+        : `Menyiapkan ${screenshotFiles.length} berkas...`
+    );
     setScreenshotError(null);
 
     try {
-      const preparedImages: Array<{ base64: string; mimeType: string }> = [];
-      for (let i = 0; i < screenshotFiles.length; i++) {
-        setScreenshotParseProgress(
-          `Mengoptimalkan gambar ${i + 1} dari ${screenshotFiles.length}...`
-        );
-        const compressed = await compressImageToBase64(screenshotFiles[i]);
-        preparedImages.push(compressed);
-      }
+      const imageEntries: Array<{ file: File; index: number }> = [];
+      const pdfEntries: Array<{ file: File; index: number }> = [];
 
-      setScreenshotParseProgress("Gemini AI Vision sedang menganalisis transaksi di gambar...");
-
-      const result = await parseScreenshotMutation.mutateAsync({
-        images: preparedImages,
+      screenshotFiles.forEach((f, idx) => {
+        if (f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf")) {
+          pdfEntries.push({ file: f, index: idx });
+        } else {
+          imageEntries.push({ file: f, index: idx });
+        }
       });
 
-      if (!result.transactions || result.transactions.length === 0) {
+      const items: ScreenshotTxItem[] = [];
+
+      if (imageEntries.length > 0) {
+        const preparedImages: Array<{ base64: string; mimeType: string }> = [];
+        for (let i = 0; i < imageEntries.length; i++) {
+          setScreenshotParseProgress(
+            isEn
+              ? `Optimizing image ${i + 1} of ${imageEntries.length}...`
+              : `Mengoptimalkan gambar ${i + 1} dari ${imageEntries.length}...`
+          );
+          const compressed = await compressImageToBase64(imageEntries[i].file);
+          preparedImages.push(compressed);
+        }
+
+        setScreenshotParseProgress(
+          isEn
+            ? "AI Vision is reading transactions from your images..."
+            : "AI Vision sedang menganalisis transaksi di gambar..."
+        );
+
+        const result = await parseScreenshotMutation.mutateAsync({
+          images: preparedImages,
+        });
+
+        if (result.transactions && result.transactions.length > 0) {
+          result.transactions.forEach((tx, idx) => {
+            items.push({
+              id: `sc-tx-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
+              txType: tx.txType,
+              amount: tx.amount,
+              happenedAt: tx.happenedAt,
+              categoryName: tx.categoryName,
+              accountName: tx.accountName,
+              toAccountName: tx.toAccountName,
+              note: tx.note,
+              sourceImageIndex: imageEntries[tx.sourceImageIndex]?.index ?? tx.sourceImageIndex,
+            });
+          });
+        }
+      }
+
+      if (pdfEntries.length > 0) {
+        for (let i = 0; i < pdfEntries.length; i++) {
+          const entry = pdfEntries[i];
+          setScreenshotParseProgress(
+            isEn
+              ? `Scanning PDF ${i + 1} of ${pdfEntries.length} (${entry.file.name})...`
+              : `Memindai PDF ${i + 1} dari ${pdfEntries.length} (${entry.file.name})...`
+          );
+          const b64 = await readFileAsBase64(entry.file);
+          const pdfRes = await convertDocMutation.mutateAsync({
+            fileBase64: b64,
+            fileName: entry.file.name,
+            mimeType: "application/pdf",
+            defaultAccountId: defaultAccountId || undefined,
+          });
+          if (pdfRes.transactions && pdfRes.transactions.length > 0) {
+            pdfRes.transactions.forEach((tx, idx) => {
+              items.push({
+                id: `sc-pdf-${Date.now()}-${i}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
+                txType: tx.txType,
+                amount: tx.amount,
+                happenedAt: tx.happenedAt,
+                categoryName: tx.categoryName,
+                accountName: tx.accountName,
+                toAccountName: tx.toAccountName,
+                note: tx.note,
+                sourceImageIndex: entry.index,
+              });
+            });
+          }
+        }
+      }
+
+      if (items.length === 0) {
         setScreenshotError(
-          "Tidak ditemukan transaksi yang jelas di gambar tersebut. Pastikan teks mutasi rekening atau struk terlihat tajam dan terbaca."
+          isEn
+            ? "No valid transactions were found. Ensure the bank statement, receipt, or PDF is clear and not password-protected."
+            : "Tidak ditemukan transaksi yang jelas pada berkas tersebut. Pastikan teks mutasi rekening, struk, atau PDF terlihat jelas dan tidak dikunci kata sandi."
         );
         setIsParsingScreenshot(false);
         return;
       }
 
-      const items: ScreenshotTxItem[] = result.transactions.map((tx, idx) => ({
-        id: `sc-tx-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
-        txType: tx.txType,
-        amount: tx.amount,
-        happenedAt: tx.happenedAt,
-        categoryName: tx.categoryName,
-        accountName: tx.accountName,
-        toAccountName: tx.toAccountName,
-        note: tx.note,
-        sourceImageIndex: tx.sourceImageIndex,
-      }));
-
       setScreenshotTxs(items);
     } catch (err: any) {
-      console.error("Error OCR Screenshot:", err);
-      setScreenshotError(err.message || "Gagal memproses screenshot.");
+      console.error("Error OCR Screenshot/PDF:", err);
+      setScreenshotError(err.message || (isEn ? "Failed to read file." : "Gagal memproses berkas."));
     } finally {
       setIsParsingScreenshot(false);
       setScreenshotParseProgress("");
@@ -890,6 +959,7 @@ export default function ImportPage() {
     mimeTypeStr?: string
   ) => {
     setAiProgress(0);
+    setFileError(null);
     setIsConvertingWithAi(true);
     setAiConversionMessage(
       isEn ? "Extracting transaction data..." : "Mengekstrak data transaksi..."
@@ -945,11 +1015,13 @@ export default function ImportPage() {
       await new Promise((resolve) => setTimeout(resolve, 350));
 
       if (!res.transactions || res.transactions.length === 0) {
+        const emptyMsg = isEn
+          ? "AI did not find valid transaction data in this document. Ensure the document includes mutations, dates, and amounts, and is not password-protected."
+          : "AI tidak menemukan data transaksi yang valid dalam dokumen ini. Pastikan dokumen memuat mutasi, tanggal, nominal, serta tidak dikunci kata sandi (password).";
+        setFileError(emptyMsg);
         alert({
           title: isEn ? "No Transactions Found" : "Tidak Ada Transaksi Terbaca",
-          description: isEn
-            ? "AI did not find valid transaction data in this document. Ensure the document includes mutations, dates, and amounts, and is not password-protected."
-            : "AI tidak menemukan data transaksi yang valid dalam dokumen ini. Pastikan dokumen memuat mutasi, tanggal, nominal, serta tidak dikunci kata sandi (password).",
+          description: emptyMsg,
           variant: "warning",
         });
         return;
@@ -971,14 +1043,22 @@ export default function ImportPage() {
 
       setFileName(file.name);
       setFileSize(file.size);
+      setFileError(null);
       setDetectedBankName(res.detectedBank || detectBankHint(file.name));
       setFileTxs(items);
       manualEditedRowIdsRef.current.clear();
 
       if (res.detectedBank && accountsData?.accounts) {
-        const matched = accountsData.accounts.find(
-          (a) => a.name.toLowerCase().includes(res.detectedBank!.toLowerCase())
-        );
+        const bankLower = res.detectedBank.toLowerCase();
+        const bankHint = detectBankHint(bankLower);
+        const matched = accountsData.accounts.find((a) => {
+          const aLower = a.name.toLowerCase();
+          return (
+            aLower.includes(bankLower) ||
+            bankLower.includes(aLower) ||
+            (bankHint ? aLower.includes(bankHint.toLowerCase()) : false)
+          );
+        });
         if (matched) {
           setDefaultAccountId(matched.id);
         }
@@ -997,6 +1077,7 @@ export default function ImportPage() {
           ? "The document payload is too large or server is experiencing high load. Please upload a more compact PDF statement (1-3 pages) or use Excel (.xlsx) / CSV format."
           : "Berkas dokumen terlalu besar atau server sedang mengalami antrean. Silakan unggah PDF mutasi yang lebih ringkas (1-3 halaman) atau gunakan format Excel (.xlsx) / CSV.";
       }
+      setFileError(desc);
       alert({
         title: isEn ? "Failed to Convert Document" : "Gagal Mengonversi Dokumen",
         description: desc,
@@ -1012,7 +1093,7 @@ export default function ImportPage() {
   // Client-side file processing with Smart Universal Table Parser & AI Fallback
   const processFile = async (file: File) => {
     const ext = file.name.split(".").pop()?.toLowerCase() || "";
-    const isPdf = ext === "pdf";
+    const isPdf = ext === "pdf" || file.type === "application/pdf";
     const isExcel = ext === "xlsx" || ext === "xls";
     const isCsvOrText = ext === "csv" || ext === "tsv" || ext === "txt";
 
@@ -1025,9 +1106,24 @@ export default function ImportPage() {
       return;
     }
 
+    if (isPdf && file.size > 18 * 1024 * 1024) {
+      alert({
+        title: isEn ? "PDF Too Large" : "Ukuran PDF Terlalu Besar",
+        description: isEn
+          ? "Maximum PDF size is 18 MB. Please split or compress your PDF file first."
+          : "Ukuran maksimal PDF adalah 18 MB. Silakan pisah halaman atau kompres PDF Anda terlebih dahulu.",
+        variant: "warning",
+      });
+      return;
+    }
+
     setFileName(file.name);
     setFileSize(file.size);
     setFileType(isPdf ? "pdf" : isExcel ? "excel" : ext === "txt" ? "txt" : "csv");
+    setFileError(null);
+    setFileTxs([]);
+    setRawRows2D([]);
+    setDetectedBankName(null);
 
     // Case 1: PDF Document -> Fast Direct Base64 & AI Multimodal Document Converter
     if (isPdf) {
@@ -1150,6 +1246,7 @@ export default function ImportPage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (file) processFile(file);
   };
 
@@ -1683,6 +1780,61 @@ export default function ImportPage() {
           </Card>
         )}
 
+      {/* Error / Empty extraction recovery card (prevents stranded blank state) */}
+      {fileName && !stats && !isConvertingWithAi && (
+        <Card className="p-6 sm:p-8 bg-card border border-rose-500/30 shadow-sm max-w-xl mx-auto my-4 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500 shrink-0">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div className="space-y-1 flex-1 min-w-0">
+              <h4 className="text-sm font-bold text-foreground truncate">{fileName}</h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {fileError ||
+                  (isEn
+                    ? "No transactions could be extracted from this document."
+                    : "Belum ada transaksi yang berhasil diekstrak dari dokumen ini.")}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-border/60">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setFileName("");
+                setRawRows2D([]);
+                setFileTxs([]);
+                setCurrentFileRaw(null);
+                setDetectedBankName(null);
+                setFileError(null);
+                manualEditedRowIdsRef.current.clear();
+              }}
+              className="text-xs"
+            >
+              {isEn ? "Choose Another File" : "Pilih File Lain"}
+            </Button>
+            {currentFileRaw && (
+              <Button
+                size="sm"
+                onClick={() =>
+                  convertWithAi(
+                    currentFileRaw.file,
+                    currentFileRaw.base64,
+                    currentFileRaw.text,
+                    currentFileRaw.mimeType
+                  )
+                }
+                className="text-xs gap-1.5 bg-primary hover:bg-primary/90 text-white"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                {isEn ? "Retry AI Scan" : "Coba Scan Ulang dengan AI"}
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+
       {/* Step 2: Preview & Configuration (saat file sudah diparse) */}
       {fileName && stats && (
         <div className="space-y-6 animate-in fade-in">
@@ -1767,6 +1919,7 @@ export default function ImportPage() {
                     setFileTxs([]);
                     setCurrentFileRaw(null);
                     setDetectedBankName(null);
+                    setFileError(null);
                     manualEditedRowIdsRef.current.clear();
                   }}
                   className="text-xs text-muted-foreground hover:text-foreground"
@@ -2079,13 +2232,16 @@ export default function ImportPage() {
       {/* ========================================================================= */}
       {activeTab === "screenshot" && (
         <div className="space-y-6 animate-in fade-in">
-          {/* Hidden image input */}
+          {/* Hidden image/pdf input */}
           <input
             ref={screenshotInputRef}
             type="file"
-            accept="image/png,image/jpeg,image/jpg,image/webp"
+            accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf,.pdf"
             multiple
-            onChange={(e) => handleScreenshotSelect(e.target.files)}
+            onChange={(e) => {
+              handleScreenshotSelect(e.target.files);
+              e.target.value = "";
+            }}
             className="hidden"
           />
 
@@ -2182,12 +2338,19 @@ export default function ImportPage() {
                           className="group relative rounded-xl border bg-muted/20 overflow-hidden flex flex-col shadow-xs"
                         >
                           <div className="aspect-[3/4] w-full overflow-hidden bg-black/5 dark:bg-white/5 relative">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={url}
-                              alt={`Screenshot ${idx + 1}`}
-                              className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                            />
+                            {url === "pdf://preview" ? (
+                              <div className="h-full w-full flex flex-col items-center justify-center bg-rose-500/5 text-rose-500 p-3 text-center gap-2">
+                                <FileCheck className="h-9 w-9" />
+                                <span className="text-[10px] font-bold uppercase tracking-wider">PDF Document</span>
+                              </div>
+                            ) : (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img
+                                src={url}
+                                alt={`Screenshot ${idx + 1}`}
+                                className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                              />
+                            )}
                             {!isParsingScreenshot && (
                               <button
                                 type="button"

@@ -27,6 +27,7 @@ import { formatInputIDR, formatDate, cleanNumericAmount } from "@/lib/utils";
 import {
   GEMINI_AUDIO_MODEL,
   GEMINI_VISION_MODEL,
+  DEFAULT_GEMINI_MODELS,
   generateWithFallback,
   getEffectiveGeminiKey,
   DEFAULT_GEMINI_API_KEY,
@@ -197,7 +198,8 @@ ATURAN DETAIL:
         contents.push({ text: prompt });
 
         const response = await generateWithFallback(ai, {
-          preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
+          preferredModels: DEFAULT_GEMINI_MODELS,
+          fastMode: true,
           contents,
           config: {
             responseMimeType: "application/json",
@@ -420,7 +422,9 @@ ATURAN DETAIL:
         "Dining, Beverage, Snacks, Transportasi, Daily Goods, Shopping, Utilities, Saving, Family, Beauty, Health, Education, entertain, paylater, Umum";
 
       const currentYear = new Date().getFullYear();
-      const cleanBase64 = input.image.base64.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
+      const cleanBase64 = input.image.base64
+        .replace(/^data:[^;]+(?:;[^;]+)*;base64,/i, "")
+        .replace(/\s+/g, "");
 
       const prompt = `Kamu adalah sistem AI Vision Keuangan paling canggih di Indonesia untuk aplikasi Fin.IQ.
 Tugasmu adalah menganalisis gambar finansial apa pun:
@@ -515,7 +519,9 @@ ATURAN EKSTRAKSI PENTING:
       let responseText = "";
       try {
         const response = await generateWithFallback(ai, {
-          preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
+          preferredModels: DEFAULT_GEMINI_MODELS,
+          fastMode: true,
+          timeoutMs: 30000,
           contents: [
             {
               inlineData: {
@@ -1060,7 +1066,8 @@ ATURAN EKSTRAKSI PENTING:
               try {
                 const ai = new GoogleGenAI({ apiKey: effectiveGeminiKey });
                 const response = await generateWithFallback(ai, {
-                  preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
+                  preferredModels: DEFAULT_GEMINI_MODELS,
+                  fastMode: true,
                   contents: `${systemPrompt}\n\n${userPrompt}`,
                 });
                 if (response.text) {
@@ -1174,7 +1181,8 @@ ATURAN:
 
         const ai = new GoogleGenAI({ apiKey });
         const response = await generateWithFallback(ai, {
-          preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
+          preferredModels: DEFAULT_GEMINI_MODELS,
+          fastMode: true,
           contents: prompt,
           config: { responseMimeType: "application/json" },
         });

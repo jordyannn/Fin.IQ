@@ -4,7 +4,7 @@ import { db, accounts, categories } from "@finiq/shared";
 import { eq } from "drizzle-orm";
 import { GoogleGenAI } from "@google/genai";
 import { requireAuth, AuthRequest } from "../middleware/auth";
-import { getEffectiveGeminiKey, generateWithFallback } from "../lib/gemini";
+import { getEffectiveGeminiKey, generateWithFallback, DEFAULT_GEMINI_MODELS } from "../lib/gemini";
 
 export const analyzeRoutes = Router();
 
@@ -58,7 +58,7 @@ ATURAN:
 
     const ai = new GoogleGenAI({ apiKey });
     const response = await generateWithFallback(ai, {
-      preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
+      preferredModels: DEFAULT_GEMINI_MODELS,
       contents: prompt,
       config: { responseMimeType: "application/json" },
     });
@@ -129,7 +129,7 @@ Kembalikan HANYA JSON:
     const ai = new GoogleGenAI({ apiKey });
 
     const response = await generateWithFallback(ai, {
-      preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
+      preferredModels: DEFAULT_GEMINI_MODELS,
       contents: [
         {
           inlineData: {

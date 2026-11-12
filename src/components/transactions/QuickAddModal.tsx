@@ -451,10 +451,13 @@ export function QuickAddModal() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    if (!file.type.startsWith("image/") && !isPdf) {
       alert({
-        title: isEn ? "Unsupported Image Format" : "Format Gambar Tidak Didukung",
-        description: isEn ? "Please select an image file (JPG, PNG, or WEBP)." : "Harap pilih file gambar (JPG, PNG, atau WEBP).",
+        title: isEn ? "Unsupported File Format" : "Format File Tidak Didukung",
+        description: isEn
+          ? "Please select an image file (JPG, PNG, WEBP) or PDF."
+          : "Harap pilih file gambar (JPG, PNG, WEBP) atau PDF.",
         variant: "warning",
       });
       return;
@@ -464,16 +467,33 @@ export function QuickAddModal() {
     setBillScanError(null);
 
     try {
-      const { base64, mimeType, previewUrl } = await compressImageToBase64(file);
-      setReceiptPreviewUrl(previewUrl);
+      if (isPdf) {
+        const b64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const res = (reader.result as string) || "";
+            resolve(res.includes(",") ? res.split(",")[1] : res);
+          };
+          reader.onerror = () => reject(new Error(isEn ? "Failed to read PDF." : "Gagal membaca file PDF."));
+          reader.readAsDataURL(file);
+        });
+        setReceiptPreviewUrl("pdf://preview");
+        parseBillMutation.mutate({
+          image: { base64: b64, mimeType: "application/pdf" },
+          clientTime: new Date().toISOString(),
+        });
+      } else {
+        const { base64, mimeType, previewUrl } = await compressImageToBase64(file);
+        setReceiptPreviewUrl(previewUrl);
 
-      parseBillMutation.mutate({
-        image: { base64, mimeType },
-        clientTime: new Date().toISOString(),
-      });
+        parseBillMutation.mutate({
+          image: { base64, mimeType },
+          clientTime: new Date().toISOString(),
+        });
+      }
     } catch (err: any) {
       setIsScanningBill(false);
-      setBillScanError(err.message || (isEn ? "Failed to process image." : "Gagal memproses gambar."));
+      setBillScanError(err.message || (isEn ? "Failed to process file." : "Gagal memproses berkas."));
     } finally {
       e.target.value = "";
     }
@@ -822,7 +842,7 @@ export function QuickAddModal() {
           <input
             ref={galleryInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,application/pdf,.pdf"
             className="hidden"
             onChange={handleBillFileChange}
           />
@@ -961,18 +981,24 @@ export function QuickAddModal() {
           <div className="mt-2.5 flex items-center justify-between gap-2.5 p-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-xs">
             <div className="flex items-center gap-2.5 min-w-0">
               <div
-                className="relative h-10 w-10 rounded-lg overflow-hidden border border-emerald-500/30 cursor-pointer group shrink-0"
-                onClick={() => setPreviewModalOpen(true)}
-                title={isEn ? "Zoom receipt" : "Perbesar struk"}
+                className="relative h-10 w-10 rounded-lg overflow-hidden border border-emerald-500/30 cursor-pointer group shrink-0 flex items-center justify-center bg-rose-500/10"
+                onClick={() => receiptPreviewUrl !== "pdf://preview" && setPreviewModalOpen(true)}
+                title={receiptPreviewUrl === "pdf://preview" ? "PDF Document" : (isEn ? "Zoom receipt" : "Perbesar struk")}
               >
-                <img
-                  src={receiptPreviewUrl}
-                  alt="Receipt Preview"
-                  className="h-full w-full object-cover group-hover:scale-105 transition-transform"
-                />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                  <Eye className="h-3 w-3 text-white" />
-                </div>
+                {receiptPreviewUrl === "pdf://preview" ? (
+                  <Receipt className="h-5 w-5 text-rose-500" />
+                ) : (
+                  <>
+                    <img
+                      src={receiptPreviewUrl}
+                      alt="Receipt Preview"
+                      className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <Eye className="h-3 w-3 text-white" />
+                    </div>
+                  </>
+                )}
               </div>
               <div className="min-w-0 flex flex-col">
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -1001,16 +1027,18 @@ export function QuickAddModal() {
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setPreviewModalOpen(true)}
-                className="h-7 text-[11px] px-2 text-muted-foreground hover:text-foreground"
-              >
-                <Eye className="h-3 w-3 mr-1" />
-                {isEn ? "View" : "Lihat"}
-              </Button>
+              {receiptPreviewUrl !== "pdf://preview" && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPreviewModalOpen(true)}
+                  className="h-7 text-[11px] px-2 text-muted-foreground hover:text-foreground"
+                >
+                  <Eye className="h-3 w-3 mr-1" />
+                  {isEn ? "View" : "Lihat"}
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="ghost"

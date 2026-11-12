@@ -4,7 +4,7 @@ import { users, userProfiles, accounts, transactions } from "../../db/schema";
 import { eq, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { hashPassword, verifyPassword } from "../../auth";
-import { generateWithFallback, DEFAULT_GEMINI_API_KEY } from "../../gemini";
+import { generateWithFallback, DEFAULT_GEMINI_API_KEY, DEFAULT_GEMINI_MODELS } from "../../gemini";
 import { DEFAULT_OPENROUTER_API_KEY } from "../../openrouter";
 import { invalidateAuthUser } from "@/lib/redis";
 
@@ -231,7 +231,8 @@ export const userRouter = router({
           const { GoogleGenAI } = await import("@google/genai");
           const ai = new GoogleGenAI({ apiKey: trimmedKey });
           await generateWithFallback(ai, {
-            preferredModels: ["gemini-3-flash-preview", "gemini-3.8-flash"],
+            preferredModels: DEFAULT_GEMINI_MODELS,
+            fastMode: true,
             contents: "ping",
           });
         } catch (err: any) {

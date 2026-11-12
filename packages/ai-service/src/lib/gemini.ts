@@ -41,6 +41,13 @@ export async function getGeminiInstance(userId: string) {
   return { ai, apiKey, model: GEMINI_MODEL };
 }
 
+export const DEFAULT_GEMINI_MODELS = [
+  "gemini-3-flash-preview",
+  "gemini-3.5-flash-lite",
+  "gemini-3.5-flash",
+  "gemini-3.6-flash",
+];
+
 /**
  * Eksekusi generateContent dengan auto-fallback antar model Gemini yang tersedia
  */
@@ -50,20 +57,28 @@ export async function generateWithFallback(
     preferredModels?: string[];
     contents: any;
     config?: any;
+    timeoutMs?: number;
   }
 ) {
   const models = options.preferredModels && options.preferredModels.length > 0
-    ? options.preferredModels
-    : ["gemini-3-flash-preview", "gemini-3.8-flash"];
+    ? options.preferredModels.filter((m) => m !== "gemini-3.8-flash")
+    : DEFAULT_GEMINI_MODELS;
+  const finalModels = models.length > 0 ? models : DEFAULT_GEMINI_MODELS;
+  const timeoutMs = options.timeoutMs ?? 28000;
 
   let lastError: any = null;
-  for (const model of models) {
+  for (const model of finalModels) {
     try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: options.contents,
-        config: options.config,
-      });
+      const response = await Promise.race([
+        ai.models.generateContent({
+          model,
+          contents: options.contents,
+          config: options.config,
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms on model ${model}`)), timeoutMs)
+        ),
+      ]);
       return response;
     } catch (err: any) {
       console.warn(`[Gemini Fallback] Model ${model} gagal (${err?.message || "Error"}), mencoba model berikutnya...`);
