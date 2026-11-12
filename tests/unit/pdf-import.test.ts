@@ -12,6 +12,9 @@ import {
 import {
   generateWithFallback,
   isFatalGeminiError,
+  ensureGeminiReachable,
+  isGeminiMarkedUnreachable,
+  resetGeminiReachabilityCache,
 } from "../../src/server/gemini";
 import {
   generateOpenRouterCompletion,
@@ -236,6 +239,7 @@ describe("Gemini Fatal Bailout & OpenRouter PDF Fallback (k3s/Server)", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    resetGeminiReachabilityCache();
     process.env = { ...origEnv };
   });
 
@@ -397,5 +401,48 @@ describe("Gemini Fatal Bailout & OpenRouter PDF Fallback (k3s/Server)", () => {
     expect(result.transactions[0].note).toBe("Kopi Kenangan");
     expect(result.transactions[0].amount).toBe(25000);
     expect(result.modelUsed).toContain("PDF Parser");
+    expect(isGeminiMarkedUnreachable().unreachable).toBe(true);
+  });
+
+  it("harus meng-cache status Gemini unreachable agar tidak probe ulang dan membatasi totalTimeoutMs OpenRouter", async () => {
+    const headFetchMock = vi.fn().mockRejectedValue(new Error("TimeoutError: The operation timed out"));
+    vi.stubGlobal("fetch", headFetchMock);
+
+    const firstProbe = await ensureGeminiReachable(500);
+    expect(firstProbe.reachable).toBe(false);
+    expect(isGeminiMarkedUnreachable().unreachable).toBe(true);
+    expect(headFetchMock).toHaveBeenCalledTimes(1);
+
+    // Panggilan berikutnya harus langsung return dari cache (0 network call)
+    const secondProbe = await ensureGeminiReachable(500);
+    expect(secondProbe.reachable).toBe(false);
+    expect(headFetchMock).toHaveBeenCalledTimes(1);
+
+    // Uji totalTimeoutMs pada generateOpenRouterCompletion menghentikan loop saat budget habis
+    let attempt = 0;
+    const slowFetchMock = vi.fn().mockImplementation(async () => {
+      attempt++;
+      await new Promise((r) => setTimeout(r, 1400));
+      return new Response(JSON.stringify({ error: { message: "rate limited" } }), { status: 429 });
+    });
+    vi.stubGlobal("fetch", slowFetchMock);
+
+    await expect(
+      generateOpenRouterCompletion({
+        apiKey: "sk-or-v1-test",
+        candidateModels: [
+          "baidu/ernie-5.5-flash-preview:free",
+          "nvidia/nemotron-3.5-super-vl:free",
+          "nvidia/nemotron-3.5-lightning:free",
+          "dots-studio/dots-3-note-preview:free",
+        ],
+        systemPrompt: "sys",
+        userPrompt: "usr",
+        timeoutMs: 2600,
+        totalTimeoutMs: 2600,
+      })
+    ).rejects.toThrow();
+    // Hanya sempat mencoba <= 2 model sebelum deadline 2600ms habis (tidak lanjut ke 4 model)
+    expect(attempt).toBeLessThanOrEqual(2);
   });
 });

@@ -246,6 +246,11 @@ jobs:
             if [ "$OR_LEN" -eq 0 ] && [ "$GEM_LEN" -eq 0 ]; then
               echo "::warning::OPENROUTER_API_KEY dan GEMINI_API_KEY di finiq-secrets keduanya kosong — fitur AI PDF/Receipt tidak akan bekerja tanpa key profil user!"
             fi
+            if command -v nginx >/dev/null 2>&1; then
+              if ! grep -rnq "proxy_read_timeout" /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null; then
+                echo "::warning::Nginx host belum memiliki proxy_read_timeout (default 60s). Salin proxy_read_timeout 300s dari k8s/nginx.conf ke config Nginx server untuk menghindari 504!"
+              fi
+            fi
 
             echo "=== 4. Apply Manifests (Atomic Rolling Update) ==="
             kubectl apply -R -f k8s/

@@ -95,6 +95,75 @@ function buildModelConfig(model: string, baseConfig: any, fastMode?: boolean): a
 const FATAL_GEMINI_ERROR_RE =
   /API_KEY_INVALID|API key not valid|PERMISSION_DENIED|FAILED_PRECONDITION|location is not supported|Timeout after|fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|UND_ERR_CONNECT_TIMEOUT/i;
 
+const UNREACHABLE_GEMINI_ERROR_RE =
+  /FAILED_PRECONDITION|location is not supported|Timeout after|fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|UND_ERR_CONNECT_TIMEOUT/i;
+
+interface GeminiReachabilityState {
+  reachable: boolean;
+  checkedAt: number;
+  until: number;
+  reason?: string;
+}
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __finiq_gemini_reachability__: GeminiReachabilityState | undefined;
+}
+
+const GEMINI_UNREACHABLE_TTL_MS = 10 * 60 * 1000;
+const GEMINI_REACHABLE_TTL_MS = 5 * 60 * 1000;
+
+export function markGeminiUnreachable(reason: string, ttlMs = GEMINI_UNREACHABLE_TTL_MS): void {
+  const now = Date.now();
+  globalThis.__finiq_gemini_reachability__ = {
+    reachable: false,
+    checkedAt: now,
+    until: now + ttlMs,
+    reason,
+  };
+}
+
+export function isGeminiMarkedUnreachable(): { unreachable: boolean; reason?: string } {
+  const state = globalThis.__finiq_gemini_reachability__;
+  if (!state || Date.now() >= state.until) return { unreachable: false };
+  return state.reachable ? { unreachable: false } : { unreachable: true, reason: state.reason };
+}
+
+export function resetGeminiReachabilityCache(): void {
+  globalThis.__finiq_gemini_reachability__ = undefined;
+}
+
+/**
+ * Probe cepat konektivitas ke endpoint Gemini agar server yang diblokir tidak menunggu 20-60 detik setiap request.
+ */
+export async function ensureGeminiReachable(
+  probeTimeoutMs = 3000
+): Promise<{ reachable: boolean; reason?: string }> {
+  const state = globalThis.__finiq_gemini_reachability__;
+  const now = Date.now();
+  if (state && now < state.until) {
+    return { reachable: state.reachable, reason: state.reason };
+  }
+
+  try {
+    await fetch("https://generativelanguage.googleapis.com/", {
+      method: "HEAD",
+      signal: AbortSignal.timeout(probeTimeoutMs),
+    });
+    globalThis.__finiq_gemini_reachability__ = {
+      reachable: true,
+      checkedAt: now,
+      until: now + GEMINI_REACHABLE_TTL_MS,
+    };
+    return { reachable: true };
+  } catch (err: any) {
+    const reason = err?.message || "Koneksi ke Gemini API timeout/terblokir";
+    markGeminiUnreachable(reason);
+    console.warn(`[Gemini Reachability] Endpoint Gemini tidak dapat dijangkau (${reason}), bypass selama 10 menit.`);
+    return { reachable: false, reason };
+  }
+}
+
 /**
  * Menentukan apakah error Gemini bersifat fatal/jaringan sehingga tidak perlu retry model lain.
  */
@@ -186,6 +255,10 @@ export async function generateWithFallback(
 
       // Jangan lanjut fallback jika error bersifat fatal (API key invalid, geo-blocked, atau koneksi/timeout jaringan)
       if (isFatalGeminiError(lastError || msg)) {
+        const errStr = String((lastError as any)?.message || msg || "");
+        if (UNREACHABLE_GEMINI_ERROR_RE.test(errStr)) {
+          markGeminiUnreachable(errStr);
+        }
         break;
       }
     }

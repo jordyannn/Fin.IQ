@@ -166,6 +166,9 @@ server {
     server_name fin-iq.my.id www.fin-iq.my.id;
 
     client_max_body_size 50M;
+    proxy_connect_timeout 60s;
+    proxy_send_timeout 300s;
+    proxy_read_timeout 300s;
 
     location / {
         proxy_pass http://127.0.0.1:3000;

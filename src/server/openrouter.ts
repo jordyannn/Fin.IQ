@@ -391,6 +391,7 @@ export async function generateOpenRouterCompletion(options: {
   plugins?: Array<{ id: string; [key: string]: unknown }>;
   apiKey?: string;
   timeoutMs?: number;
+  totalTimeoutMs?: number;
   validateResponse?: (text: string) => boolean;
 }): Promise<{ text: string; modelUsed: string }> {
   const activeKey = options.apiKey?.trim() || getOpenRouterApiKeyFromEnv();
@@ -425,10 +426,18 @@ export async function generateOpenRouterCompletion(options: {
   ).filter((val, idx, arr) => arr.indexOf(val) === idx);
 
   const timeoutMs = options.timeoutMs ?? 20000;
+  const totalBudgetMs = options.totalTimeoutMs ?? Math.max(timeoutMs, 32000);
+  const deadlineAt = Date.now() + totalBudgetMs;
   const userMessageContent = options.userContent ?? options.userPrompt ?? "";
   let lastError: Error | null = null;
 
   for (const model of candidateModels) {
+    const remainingMs = deadlineAt - Date.now();
+    if (remainingMs < 2500) {
+      lastError = lastError || new Error(`Batas waktu total OpenRouter (${totalBudgetMs}ms) tercapai.`);
+      break;
+    }
+
     try {
       const requestBody: Record<string, unknown> = {
         model,
@@ -445,9 +454,10 @@ export async function generateOpenRouterCompletion(options: {
         requestBody.plugins = options.plugins;
       }
 
+      const attemptTimeoutMs = Math.min(timeoutMs, remainingMs);
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: AbortSignal.timeout(attemptTimeoutMs),
         headers: {
           Authorization: `Bearer ${activeKey}`,
           "Content-Type": "application/json",

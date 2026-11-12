@@ -36,6 +36,7 @@ import {
   generateWithFallback,
   getEffectiveGeminiKey,
   DEFAULT_GEMINI_API_KEY,
+  ensureGeminiReachable,
 } from "../../gemini";
 import {
   OPENROUTER_FREE_MODELS,
@@ -522,17 +523,26 @@ ATURAN EKSTRAKSI PENTING:
 `;
 
       const isPdf = (input.image.mimeType || "").toLowerCase() === "application/pdf";
+      const startMs = Date.now();
+      const HARD_DEADLINE_MS = 44000;
+      const remainingMs = () => Math.max(0, HARD_DEADLINE_MS - (Date.now() - startMs));
       let responseText = "";
       let geminiErr: any = null;
       let openRouterErr: any = null;
 
       try {
         const apiKey = await getEffectiveGeminiKey(ctx);
+        const reachability = await ensureGeminiReachable(3000);
+        if (!reachability.reachable) {
+          throw new Error(
+            reachability.reason || "Endpoint Gemini tidak dapat dijangkau dari server"
+          );
+        }
         const ai = new GoogleGenAI({ apiKey });
         const response = await generateWithFallback(ai, {
           preferredModels: DEFAULT_GEMINI_MODELS,
           fastMode: true,
-          timeoutMs: 22000,
+          timeoutMs: 18000,
           contents: [
             {
               inlineData: {
@@ -554,17 +564,19 @@ ATURAN EKSTRAKSI PENTING:
         console.warn("[parseBillReceipt] Gemini Vision/PDF gagal, mencoba OpenRouter:", err?.message || err);
       }
 
-      if (!responseText.trim()) {
+      if (!responseText.trim() && remainingMs() >= 5000) {
         const openRouterKey = await getEffectiveOpenRouterKey(ctx);
         if (openRouterKey) {
           if (isPdf) {
             try {
               const rawText = extractTextFromPdfBuffer(Buffer.from(cleanBase64, "base64"));
-              if (isReadablePdfText(rawText)) {
+              if (isReadablePdfText(rawText) && remainingMs() >= 5000) {
+                const budget = Math.min(28000, remainingMs());
                 const orTextRes = await generateOpenRouterCompletion({
                   apiKey: openRouterKey,
                   candidateModels: OPENROUTER_EXTRACTION_MODELS,
-                  timeoutMs: 30000,
+                  timeoutMs: Math.min(18000, budget),
+                  totalTimeoutMs: budget,
                   temperature: 0.1,
                   systemPrompt: prompt,
                   userPrompt: `Berikut adalah teks struk/mutasi PDF:\n\n${rawText.slice(0, 20000)}\n\nKembalikan HANYA 1 objek JSON valid sesuai format.`,
@@ -576,12 +588,14 @@ ATURAN EKSTRAKSI PENTING:
               openRouterErr = err;
             }
 
-            if (!responseText.trim()) {
+            if (!responseText.trim() && remainingMs() >= 5000) {
               try {
+                const budget = Math.min(30000, remainingMs());
                 const orPdfRes = await generateOpenRouterCompletion({
                   apiKey: openRouterKey,
-                  candidateModels: OPENROUTER_EXTRACTION_MODELS.slice(0, 4),
-                  timeoutMs: 35000,
+                  candidateModels: OPENROUTER_EXTRACTION_MODELS.slice(0, 3),
+                  timeoutMs: Math.min(18000, budget),
+                  totalTimeoutMs: budget,
                   temperature: 0.1,
                   systemPrompt: prompt,
                   plugins: [{ id: "file-parser", pdf: { engine: "pdf-text" } }],
@@ -608,10 +622,12 @@ ATURAN EKSTRAKSI PENTING:
             }
           } else {
             try {
+              const budget = Math.min(28000, remainingMs());
               const orImgRes = await generateOpenRouterCompletion({
                 apiKey: openRouterKey,
                 candidateModels: OPENROUTER_VISION_MODELS,
-                timeoutMs: 35000,
+                timeoutMs: Math.min(18000, budget),
+                totalTimeoutMs: budget,
                 temperature: 0.1,
                 systemPrompt: prompt,
                 userContent: [

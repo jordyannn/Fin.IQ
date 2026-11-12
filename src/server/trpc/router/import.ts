@@ -9,6 +9,8 @@ import {
   generateWithFallback,
   DEFAULT_GEMINI_MODELS,
   isFatalGeminiError,
+  ensureGeminiReachable,
+  isGeminiMarkedUnreachable,
 } from "../../gemini";
 import { cleanNumericAmount } from "@/lib/utils";
 import zlib from "zlib";
@@ -1138,38 +1140,44 @@ ATURAN EKSTRAKSI PENTING:
         let geminiImgErr: any = geminiSetupError;
 
         if (geminiClient && !geminiSetupError) {
-          try {
-            const response = await generateWithFallback(geminiClient, {
-              preferredModels: DEFAULT_GEMINI_MODELS,
-              fastMode: true,
-              timeoutMs: 22000,
-              contents: [
-                {
-                  inlineData: {
-                    data: cleanBase64,
-                    mimeType: img.mimeType || "image/jpeg",
+          const reachability = await ensureGeminiReachable(3000);
+          if (!reachability.reachable) {
+            geminiImgErr = new Error(reachability.reason || "Endpoint Gemini tidak dapat dijangkau dari server");
+            geminiSetupError = geminiImgErr;
+          } else {
+            try {
+              const response = await generateWithFallback(geminiClient, {
+                preferredModels: DEFAULT_GEMINI_MODELS,
+                fastMode: true,
+                timeoutMs: 18000,
+                contents: [
+                  {
+                    inlineData: {
+                      data: cleanBase64,
+                      mimeType: img.mimeType || "image/jpeg",
+                    },
                   },
+                  {
+                    text: prompt,
+                  },
+                ],
+                config: {
+                  responseMimeType: "application/json",
+                  responseSchema: SCREENSHOT_TX_SCHEMA,
+                  maxOutputTokens: 32768,
                 },
-                {
-                  text: prompt,
-                },
-              ],
-              config: {
-                responseMimeType: "application/json",
-                responseSchema: SCREENSHOT_TX_SCHEMA,
-                maxOutputTokens: 32768,
-              },
-            });
-            rawText = response.text || "[]";
-          } catch (genErr: any) {
-            geminiImgErr = genErr;
-            if (isFatalGeminiError(genErr)) {
-              geminiSetupError = genErr;
+              });
+              rawText = response.text || "[]";
+            } catch (genErr: any) {
+              geminiImgErr = genErr;
+              if (isFatalGeminiError(genErr)) {
+                geminiSetupError = genErr;
+              }
+              console.warn(
+                `[parseScreenshot] Gemini gagal memproses gambar ${i + 1}:`,
+                genErr?.message || genErr
+              );
             }
-            console.warn(
-              `[parseScreenshot] Gemini gagal memproses gambar ${i + 1}:`,
-              genErr?.message || genErr
-            );
           }
         }
 
@@ -1180,7 +1188,8 @@ ATURAN EKSTRAKSI PENTING:
               const orVisionRes = await generateOpenRouterCompletion({
                 apiKey: openRouterKey,
                 candidateModels: OPENROUTER_VISION_MODELS,
-                timeoutMs: 35000,
+                timeoutMs: 18000,
+                totalTimeoutMs: 28000,
                 temperature: 0.1,
                 systemPrompt: prompt,
                 userContent: [
@@ -1439,6 +1448,12 @@ Kembalikan HANYA 1 objek JSON valid sesuai skema berikut:
   ]
 }`;
 
+      // Batas keras total waktu request (< 46 detik) agar server proxy/Nginx (default 60s) tidak memutus koneksi dengan HTTP 504
+      const requestStartMs = Date.now();
+      const HARD_DEADLINE_MS = 46000;
+      const remainingBudgetMs = (reserveMs = 0) =>
+        Math.max(0, HARD_DEADLINE_MS - (Date.now() - requestStartMs) - reserveMs);
+
       let extractedTransactions: any[] = [];
       let extractedBank: string | null = null;
       let extractedSummary: DocumentSummaryInfo | null = null;
@@ -1452,12 +1467,23 @@ Kembalikan HANYA 1 objek JSON valid sesuai skema berikut:
       if (isPdf && cleanBase64) {
         try {
           const apiKey = await getEffectiveGeminiKey(ctx);
-          const ai = new GoogleGenAI({ apiKey });
+          const reachability = await ensureGeminiReachable(3000);
+          if (!reachability.reachable) {
+            throw new Error(
+              reachability.reason || "Endpoint Gemini tidak dapat dijangkau dari server"
+            );
+          }
 
+          const geminiBudgetMs = Math.min(18000, remainingBudgetMs(24000));
+          if (geminiBudgetMs < 6000) {
+            throw new Error("Sisa waktu tidak cukup untuk mencoba Gemini, dialihkan ke OpenRouter.");
+          }
+
+          const ai = new GoogleGenAI({ apiKey });
           const geminiRes = await generateWithFallback(ai, {
             preferredModels: DEFAULT_GEMINI_MODELS,
             fastMode: true,
-            timeoutMs: 25000,
+            timeoutMs: geminiBudgetMs,
             contents: [
               {
                 inlineData: {
@@ -1519,10 +1545,15 @@ Kembalikan HANYA 1 objek JSON valid sesuai skema berikut:
       };
 
       // 2. Fallback / Pemrosesan Berbasis Teks (untuk CSV/Excel/TXT atau PDF yang teksnya terekstrak lokal)
-      if (extractedTransactions.length === 0 && extractedDocText && extractedDocText.trim().length > 10) {
-        // Pecah teks panjang menjadi beberapa potongan baris agar tidak melebihi context limit model gratis
+      if (
+        extractedTransactions.length === 0 &&
+        extractedDocText &&
+        extractedDocText.trim().length > 10 &&
+        remainingBudgetMs() >= 5000
+      ) {
+        // Pecah teks panjang menjadi potongan 40.000 karakter & jalankan paralel agar selesai jauh di bawah batas timeout proxy
         const chunkTexts: string[] = [];
-        const maxChunkChars = 20000;
+        const maxChunkChars = 40000;
         if (extractedDocText.length <= maxChunkChars) {
           chunkTexts.push(extractedDocText);
         } else {
@@ -1539,13 +1570,15 @@ Kembalikan HANYA 1 objek JSON valid sesuai skema berikut:
           if (currentChunk) chunkTexts.push(currentChunk);
         }
 
-        // A. Coba OpenRouter dengan teks bersih
-        try {
-          for (const chunk of chunkTexts.slice(0, 6)) {
-            const openRouterRes = await generateOpenRouterCompletion({
+        // A. Coba OpenRouter dengan teks bersih (paralel max 3 chunk, dibatasi totalTimeoutMs)
+        const chunkBudgetMs = Math.min(34000, remainingBudgetMs());
+        const chunkResults = await Promise.allSettled(
+          chunkTexts.slice(0, 3).map((chunk) =>
+            generateOpenRouterCompletion({
               apiKey: openRouterKey,
               candidateModels: OPENROUTER_EXTRACTION_MODELS,
-              timeoutMs: 35000,
+              timeoutMs: Math.min(20000, chunkBudgetMs),
+              totalTimeoutMs: chunkBudgetMs,
               systemPrompt: promptInstructions,
               userPrompt: `Berikut adalah teks dokumen mutasi keuangan dari file "${input.fileName}" yang harus dikonversi ke format JSON Fin.IQ:\n\n=== ISI DOKUMEN ===\n${chunk}\n\nIngat: HANYA kembalikan 1 objek JSON valid dengan key "detectedBank", "summaryInfo", dan "transactions" (hanya baris transaksi nyata; jangan masukkan Total Pemasukan, Total Pengeluaran, Saldo Awal, atau Saldo Akhir ke dalam "transactions").`,
               temperature: 0.1,
@@ -1553,71 +1586,98 @@ Kembalikan HANYA 1 objek JSON valid sesuai skema berikut:
                 const check = extractTransactionsFromAiPayload(text);
                 return check.transactions.length > 0;
               },
-            });
+            })
+          )
+        );
 
-            const parsedOr = extractTransactionsFromAiPayload(openRouterRes.text);
-            mergeParsedResult(parsedOr, openRouterRes.modelUsed);
+        for (const res of chunkResults) {
+          if (res.status === "fulfilled") {
+            const parsedOr = extractTransactionsFromAiPayload(res.value.text);
+            mergeParsedResult(parsedOr, res.value.modelUsed);
+          } else if (!openRouterError) {
+            openRouterError = res.reason;
+            console.warn(
+              "[convertAnyDocument] OpenRouter text fallback error:",
+              res.reason?.message || res.reason
+            );
           }
-        } catch (openRouterErr: any) {
-          openRouterError = openRouterErr;
-          console.warn("[convertAnyDocument] OpenRouter text fallback error:", openRouterErr?.message);
         }
       }
 
       // 2B. Fallback PDF Native OpenRouter (file-parser plugin pdf-text)
       // Menangani e-statement PDF modern (/ObjStm, XObject, CIDFont) ketika Gemini gagal/terblokir dan ekstraktor lokal kosong
       if (isPdf && cleanBase64 && !isEncryptedPdf && extractedTransactions.length === 0) {
-        try {
-          const openRouterPdfRes = await generateOpenRouterCompletion({
-            apiKey: openRouterKey,
-            candidateModels: OPENROUTER_EXTRACTION_MODELS.slice(0, 4),
-            timeoutMs: 40000,
-            temperature: 0.1,
-            systemPrompt: promptInstructions,
-            plugins: [{ id: "file-parser", pdf: { engine: "pdf-text" } }],
-            userContent: [
-              {
-                type: "text",
-                text: `Berikut adalah dokumen PDF mutasi keuangan dari file "${input.fileName}" yang harus dikonversi ke format JSON Fin.IQ.\n\nIngat: HANYA kembalikan 1 objek JSON valid dengan key "detectedBank", "summaryInfo", dan "transactions" (hanya baris transaksi nyata; jangan masukkan Total Pemasukan, Total Pengeluaran, Saldo Awal, atau Saldo Akhir ke dalam "transactions").`,
-              },
-              {
-                type: "file",
-                file: {
-                  filename: input.fileName || "document.pdf",
-                  file_data: `data:application/pdf;base64,${cleanBase64}`,
+        const pdfOrBudgetMs = Math.min(34000, remainingBudgetMs());
+        if (cleanBase64.length > 14_000_000) {
+          openRouterError = new Error(
+            "Ukuran PDF melebihi 10MB untuk fallback teks OpenRouter saat Gemini tidak aktif."
+          );
+        } else if (pdfOrBudgetMs < 5000) {
+          openRouterError =
+            openRouterError ||
+            new Error("Batas waktu pemrosesan tercapai sebelum fallback OpenRouter PDF sempat berjalan.");
+        } else {
+          try {
+            const openRouterPdfRes = await generateOpenRouterCompletion({
+              apiKey: openRouterKey,
+              candidateModels: OPENROUTER_EXTRACTION_MODELS.slice(0, 3),
+              timeoutMs: Math.min(18000, pdfOrBudgetMs),
+              totalTimeoutMs: pdfOrBudgetMs,
+              temperature: 0.1,
+              systemPrompt: promptInstructions,
+              plugins: [{ id: "file-parser", pdf: { engine: "pdf-text" } }],
+              userContent: [
+                {
+                  type: "text",
+                  text: `Berikut adalah dokumen PDF mutasi keuangan dari file "${input.fileName}" yang harus dikonversi ke format JSON Fin.IQ.\n\nIngat: HANYA kembalikan 1 objek JSON valid dengan key "detectedBank", "summaryInfo", dan "transactions" (hanya baris transaksi nyata; jangan masukkan Total Pemasukan, Total Pengeluaran, Saldo Awal, atau Saldo Akhir ke dalam "transactions").`,
                 },
+                {
+                  type: "file",
+                  file: {
+                    filename: input.fileName || "document.pdf",
+                    file_data: `data:application/pdf;base64,${cleanBase64}`,
+                  },
+                },
+              ],
+              validateResponse: (text) => {
+                const check = extractTransactionsFromAiPayload(text);
+                return check.transactions.length > 0;
               },
-            ],
-            validateResponse: (text) => {
-              const check = extractTransactionsFromAiPayload(text);
-              return check.transactions.length > 0;
-            },
-          });
+            });
 
-          const parsedPdfOr = extractTransactionsFromAiPayload(openRouterPdfRes.text);
-          mergeParsedResult(parsedPdfOr, `${openRouterPdfRes.modelUsed} (PDF Parser)`);
-          openRouterError = null;
-        } catch (openRouterPdfErr: any) {
-          openRouterError = openRouterPdfErr;
-          console.warn("[convertAnyDocument] OpenRouter PDF file-parser error:", openRouterPdfErr?.message);
+            const parsedPdfOr = extractTransactionsFromAiPayload(openRouterPdfRes.text);
+            mergeParsedResult(parsedPdfOr, `${openRouterPdfRes.modelUsed} (PDF Parser)`);
+            openRouterError = null;
+          } catch (openRouterPdfErr: any) {
+            openRouterError = openRouterPdfErr;
+            console.warn("[convertAnyDocument] OpenRouter PDF file-parser error:", openRouterPdfErr?.message);
+          }
         }
       }
 
-      // 2C. Jika OpenRouter belum berhasil dan ada teks terbaca, coba Gemini Text (hanya jika Gemini tidak error fatal)
+      // 2C. Jika OpenRouter belum berhasil dan ada teks terbaca, coba Gemini Text (hanya jika Gemini masih terjangkau & tidak error fatal)
       if (
         extractedTransactions.length === 0 &&
         extractedDocText &&
         extractedDocText.trim().length > 10 &&
-        !(geminiError && isFatalGeminiError(geminiError))
+        !isGeminiMarkedUnreachable().unreachable &&
+        !(geminiError && isFatalGeminiError(geminiError)) &&
+        remainingBudgetMs() >= 7000
       ) {
         try {
           const apiKey = await getEffectiveGeminiKey(ctx);
+          const reachability = await ensureGeminiReachable(3000);
+          if (!reachability.reachable) {
+            throw new Error(
+              reachability.reason || "Endpoint Gemini tidak dapat dijangkau dari server"
+            );
+          }
           const ai = new GoogleGenAI({ apiKey });
 
           const geminiRes = await generateWithFallback(ai, {
             preferredModels: DEFAULT_GEMINI_MODELS,
             fastMode: true,
-            timeoutMs: 25000,
+            timeoutMs: Math.min(18000, remainingBudgetMs()),
             contents: [
               {
                 text: `${promptInstructions}\n\n=== ISI DOKUMEN (${input.fileName}) ===\n${extractedDocText.slice(0, 60000)}`,
