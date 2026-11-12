@@ -20,7 +20,7 @@ export const DEFAULT_GEMINI_API_KEY =
   process.env.GEMINI?.trim() ||
   "";
 
-function decryptSecretIfNeeded(cipherText: string): string {
+export function decryptSecretIfNeeded(cipherText: string): string {
   if (!cipherText || !cipherText.startsWith("enc:v1:")) return cipherText;
   try {
     const parts = cipherText.split(":");
@@ -90,6 +90,26 @@ function buildModelConfig(model: string, baseConfig: any, fastMode?: boolean): a
     config.thinkingConfig = { thinkingLevel: ThinkingLevel.MINIMAL };
   }
   return Object.keys(config).length > 0 ? config : undefined;
+}
+
+const FATAL_GEMINI_ERROR_RE =
+  /API_KEY_INVALID|API key not valid|PERMISSION_DENIED|FAILED_PRECONDITION|location is not supported|Timeout after|fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|UND_ERR_CONNECT_TIMEOUT/i;
+
+/**
+ * Menentukan apakah error Gemini bersifat fatal/jaringan sehingga tidak perlu retry model lain.
+ */
+export function isFatalGeminiError(err: unknown): boolean {
+  if (err instanceof TRPCError) {
+    return (
+      err.code === "PRECONDITION_FAILED" ||
+      err.code === "BAD_REQUEST" ||
+      err.code === "UNAUTHORIZED" ||
+      err.code === "FORBIDDEN"
+    );
+  }
+  const msg =
+    typeof err === "string" ? err : String((err as { message?: unknown })?.message || err || "");
+  return FATAL_GEMINI_ERROR_RE.test(msg);
 }
 
 /**
@@ -164,12 +184,8 @@ export async function generateWithFallback(
         `[Gemini Fallback] Model ${model} gagal (${lastError?.message || msg}), mencoba model berikutnya...`
       );
 
-      // Jangan lanjut fallback jika API Key tidak valid
-      if (
-        /API_KEY_INVALID|API key not valid|PERMISSION_DENIED/i.test(
-          String(lastError?.message || "")
-        )
-      ) {
+      // Jangan lanjut fallback jika error bersifat fatal (API key invalid, geo-blocked, atau koneksi/timeout jaringan)
+      if (isFatalGeminiError(lastError || msg)) {
         break;
       }
     }

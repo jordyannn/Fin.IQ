@@ -69,7 +69,8 @@ export const OPENROUTER_FREE_MODELS: FreeModelInfo[] = [
 export const DEFAULT_MODEL_ID = "google/gemma-4-26b-a4b-it:free";
 
 import { and, eq, gte, count, sql } from "drizzle-orm";
-import { aiChatMessages, aiPromptHistory } from "./db/schema";
+import { aiChatMessages, aiPromptHistory, userProfiles } from "./db/schema";
+import { decryptSecretIfNeeded } from "./gemini";
 
 // ============================================================================
 // 1. FAIR-SHARE PROMPT QUOTA SYSTEM (Database-Backed + GlobalIn-Memory Cache)
@@ -318,48 +319,132 @@ export function checkFinancialGuardrail(query: string): {
 // 3. OPENROUTER COMPLETION ENGINE WITH MULTI-MODEL FALLBACK
 // ============================================================================
 
+export type OpenRouterContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } }
+  | { type: "file"; file: { filename: string; file_data: string } };
+
+export const OPENROUTER_EXTRACTION_MODELS = [
+  "baidu/ernie-5.5-flash-preview:free",
+  "nvidia/nemotron-3.5-super-vl:free",
+  "nvidia/nemotron-3.5-lightning:free",
+  "dots-studio/dots-3-note-preview:free",
+  "recursive/flint-v1.0:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "google/gemma-4-31b-it:free",
+];
+
+export const OPENROUTER_VISION_MODELS = [
+  "nvidia/nemotron-3.5-super-vl:free",
+  "dots-studio/dots-3-note-preview:free",
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "google/gemma-4-31b-it:free",
+];
+
+export function getOpenRouterApiKeyFromEnv(): string {
+  return (
+    process.env.OPENROUTER_API_KEY?.trim() ||
+    process.env.OPENROUTER?.trim() ||
+    DEFAULT_OPENROUTER_API_KEY ||
+    ""
+  );
+}
+
+/**
+ * Mengambil OpenRouter API Key aktif: memprioritaskan key pribadi berawalan `sk-or-`
+ * di profil user, lalu env OPENROUTER_API_KEY / OPENROUTER di runtime server.
+ */
+export async function getEffectiveOpenRouterKey(ctx?: {
+  db: any;
+  userId: string;
+}): Promise<string> {
+  if (ctx?.db && ctx?.userId) {
+    try {
+      const profileRecords = await ctx.db
+        .select({ geminiApiKey: userProfiles.geminiApiKey })
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, ctx.userId))
+        .limit(1);
+
+      const rawProfileKey = profileRecords[0]?.geminiApiKey?.trim() || "";
+      const profileKey = decryptSecretIfNeeded(rawProfileKey);
+      if (profileKey && profileKey.startsWith("sk-or-")) {
+        return profileKey;
+      }
+    } catch {
+      // Abaikan error DB saat lookup key opsional, lanjut ke env fallback
+    }
+  }
+
+  return getOpenRouterApiKeyFromEnv();
+}
+
 export async function generateOpenRouterCompletion(options: {
   model?: string;
+  candidateModels?: string[];
   systemPrompt: string;
-  userPrompt: string;
+  userPrompt?: string;
+  userContent?: string | OpenRouterContentPart[];
   temperature?: number;
+  maxTokens?: number;
+  plugins?: Array<{ id: string; [key: string]: unknown }>;
   apiKey?: string;
   timeoutMs?: number;
   validateResponse?: (text: string) => boolean;
 }): Promise<{ text: string; modelUsed: string }> {
-  const activeKey =
-    options.apiKey?.trim() ||
-    DEFAULT_OPENROUTER_API_KEY ||
-    process.env.OPENROUTER_API_KEY?.trim() ||
-    "";
+  const activeKey = options.apiKey?.trim() || getOpenRouterApiKeyFromEnv();
 
   if (!activeKey) {
     throw new Error(
-      "Kunci API OpenRouter belum dikonfigurasi. Silakan tambahkan OPENROUTER_API_KEY di .env.local atau masukkan API Key di menu Pengaturan & Profil."
+      "Kunci API OpenRouter belum dikonfigurasi. Silakan tambahkan OPENROUTER_API_KEY di environment server atau masukkan API Key OpenRouter (sk-or-...) di menu Pengaturan & Profil."
     );
   }
 
-  const targetModel =
-    options.model && OPENROUTER_FREE_MODELS.some((m) => m.id === options.model)
-      ? options.model
-      : DEFAULT_MODEL_ID;
+  const baseCandidates =
+    options.candidateModels && options.candidateModels.length > 0
+      ? options.candidateModels
+      : [
+          ...(options.model && OPENROUTER_FREE_MODELS.some((m) => m.id === options.model)
+            ? [options.model]
+            : []),
+          "baidu/ernie-5.5-flash-preview:free",
+          "recursive/flint-v1.0:free",
+          "nvidia/nemotron-3.5-super-vl:free",
+          "nvidia/nemotron-3.5-lightning:free",
+          "dots-studio/dots-3-note-preview:free",
+          "google/gemma-4-26b-a4b-it:free",
+          "google/gemma-4-31b-it:free",
+          "liquid/lfm-2.5-2.6b:free",
+        ];
 
-  // Daftar urutan fallback model free-tier aktif jika model utama rate-limit (429) atau memberi respons kosong
-  const candidateModels = [
-    targetModel,
-    "recursive/flint-v1.0:free",
-    "liquid/lfm-2.5-2.6b:free",
-    "google/gemma-4-31b-it:free",
-    "google/gemma-4-26b-a4b-it:free",
-    "nvidia/nemotron-3.5-lightning:free",
-    "dots-studio/dots-3-note-preview:free",
-  ].filter((val, idx, arr) => arr.indexOf(val) === idx);
+  const candidateModels = (
+    options.model && !options.candidateModels?.includes(options.model) && OPENROUTER_FREE_MODELS.some((m) => m.id === options.model)
+      ? [options.model, ...baseCandidates]
+      : baseCandidates
+  ).filter((val, idx, arr) => arr.indexOf(val) === idx);
 
-  const timeoutMs = options.timeoutMs ?? 12000;
+  const timeoutMs = options.timeoutMs ?? 20000;
+  const userMessageContent = options.userContent ?? options.userPrompt ?? "";
   let lastError: Error | null = null;
 
   for (const model of candidateModels) {
     try {
+      const requestBody: Record<string, unknown> = {
+        model,
+        messages: [
+          { role: "system", content: options.systemPrompt },
+          { role: "user", content: userMessageContent },
+        ],
+        temperature: options.temperature ?? 0.3,
+      };
+      if (typeof options.maxTokens === "number") {
+        requestBody.max_tokens = options.maxTokens;
+      }
+      if (options.plugins && options.plugins.length > 0) {
+        requestBody.plugins = options.plugins;
+      }
+
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         signal: AbortSignal.timeout(timeoutMs),
@@ -369,14 +454,7 @@ export async function generateOpenRouterCompletion(options: {
           "HTTP-Referer": "https://finiq.app",
           "X-Title": "Fin.IQ Financial Advisor",
         },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: options.systemPrompt },
-            { role: "user", content: options.userPrompt },
-          ],
-          temperature: options.temperature ?? 0.3,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (response.status === 401) {
@@ -403,16 +481,22 @@ export async function generateOpenRouterCompletion(options: {
       }
 
       const data = await response.json();
-      const content = data.choices?.[0]?.message?.content;
-      if (typeof content === "string" && content.trim()) {
-        const trimmed = content.trim();
-        if (options.validateResponse && !options.validateResponse(trimmed)) {
+      const rawContent = data.choices?.[0]?.message?.content;
+      if (typeof rawContent === "string" && rawContent.trim()) {
+        const cleaned = rawContent
+          .replace(/<think>[\s\S]*?<\/think>/gi, "")
+          .trim();
+        if (!cleaned) {
+          lastError = new Error(`Respon model ${model} kosong setelah reasoning.`);
+          continue;
+        }
+        if (options.validateResponse && !options.validateResponse(cleaned)) {
           console.warn(`[OpenRouter Fallback] Model ${model} mengembalikan format/isi tidak lengkap, mencoba model berikutnya...`);
           lastError = new Error(`Respon model ${model} tidak memuat data yang diharapkan.`);
           continue;
         }
         return {
-          text: trimmed,
+          text: cleaned,
           modelUsed: model,
         };
       } else {

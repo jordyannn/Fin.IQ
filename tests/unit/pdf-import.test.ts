@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import zlib from "zlib";
 import {
+  importRouter,
   extractTextFromPdfBuffer,
   isReadablePdfText,
   extractTransactionsFromAiPayload,
@@ -8,6 +9,14 @@ import {
   fuzzyMatchAccount,
   parseHappenedAt,
 } from "../../src/server/trpc/router/import";
+import {
+  generateWithFallback,
+  isFatalGeminiError,
+} from "../../src/server/gemini";
+import {
+  generateOpenRouterCompletion,
+  getEffectiveOpenRouterKey,
+} from "../../src/server/openrouter";
 
 function buildTestPdf(objects: string[]): Buffer {
   let pdf = "%PDF-1.4\n";
@@ -218,5 +227,175 @@ endcmap`,
     expect(parsed.summaryInfo?.totalIncome).toBe(2506790);
     expect(parsed.summaryInfo?.totalExpense).toBe(2395748);
     expect(parsed.transactions).toHaveLength(1);
+  });
+});
+
+describe("Gemini Fatal Bailout & OpenRouter PDF Fallback (k3s/Server)", () => {
+  const origEnv = { ...process.env };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    process.env = { ...origEnv };
+  });
+
+  it("harus langsung menghentikan retry model Gemini jika terkena geo-block atau network timeout", async () => {
+    expect(isFatalGeminiError(new Error("FAILED_PRECONDITION: User location is not supported"))).toBe(true);
+    expect(isFatalGeminiError(new Error("Timeout after 25000ms on model gemini-3-flash-preview"))).toBe(true);
+    expect(isFatalGeminiError(new Error("fetch failed: ECONNREFUSED"))).toBe(true);
+    expect(isFatalGeminiError(new Error("429 RESOURCE_EXHAUSTED"))).toBe(false);
+
+    const generateContent = vi
+      .fn()
+      .mockRejectedValue(new Error("FAILED_PRECONDITION: User location is not supported"));
+    const fakeAi = { models: { generateContent } } as any;
+
+    await expect(
+      generateWithFallback(fakeAi, {
+        preferredModels: ["gemini-3-flash-preview", "gemini-3.5-flash", "gemini-3.6-flash"],
+        contents: [{ text: "hello" }],
+      })
+    ).rejects.toThrow(/User location is not supported/);
+
+    // Tidak boleh buang waktu mencoba 3 model berikutnya
+    expect(generateContent).toHaveBeenCalledTimes(1);
+  });
+
+  it("harus mendukung personal sk-or- key di profil dan membersihkan blok <think> + mendukung plugins file-parser", async () => {
+    const fakeDb = {
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [{ geminiApiKey: "sk-or-v1-personal-user-key" }],
+          }),
+        }),
+      }),
+    };
+    const resolvedKey = await getEffectiveOpenRouterKey({ db: fakeDb, userId: "u1" });
+    expect(resolvedKey).toBe("sk-or-v1-personal-user-key");
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: '<think>reasoning trace</think>\n```json\n{"transactions":[{"note":"Kopi","amount":25000}]}\n```',
+            },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await generateOpenRouterCompletion({
+      apiKey: resolvedKey,
+      candidateModels: ["baidu/ernie-5.5-flash-preview:free"],
+      systemPrompt: "Extract JSON",
+      plugins: [{ id: "file-parser", pdf: { engine: "pdf-text" } }],
+      userContent: [
+        { type: "text", text: "Extract" },
+        { type: "file", file: { filename: "mutasi.pdf", file_data: "data:application/pdf;base64,JVBERi0=" } },
+      ],
+    });
+
+    expect(res.modelUsed).toBe("baidu/ernie-5.5-flash-preview:free");
+    expect(res.text).not.toContain("<think>");
+    expect(res.text).toContain('"Kopi"');
+
+    const sentBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(sentBody.plugins).toEqual([{ id: "file-parser", pdf: { engine: "pdf-text" } }]);
+    expect(sentBody.messages[1].content[1].type).toBe("file");
+  });
+
+  it("harus fallback ke OpenRouter PDF file-parser ketika Gemini diblokir/tanpa key dan teks PDF lokal kosong", async () => {
+    process.env.GEMINI_API_KEY = "";
+    process.env.GEMINI = "";
+    process.env.OPENROUTER_API_KEY = "";
+    process.env.OPENROUTER = "sk-or-v1-server-env-key";
+
+    // Buat PDF valid dengan stream kosong (tidak ada teks terbaca oleh extractTextFromPdfBuffer)
+    const emptyTextPdf = buildTestPdf([
+      "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n",
+      "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n",
+      "3 0 obj << /Type /Page /Parent 2 0 R /Contents 4 0 R >> endobj\n",
+      "4 0 obj << /Length 2 >>\nstream\n  \nendstream\nendobj\n",
+    ]);
+    expect(extractTextFromPdfBuffer(emptyTextPdf)).toBe("");
+
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
+      if (String(url).includes("generativelanguage.googleapis.com")) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: 400,
+              message: "User location is not supported for the API use.",
+              status: "FAILED_PRECONDITION",
+            },
+          }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      const body = JSON.parse(init.body);
+      expect(body.plugins).toEqual([{ id: "file-parser", pdf: { engine: "pdf-text" } }]);
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  detectedBank: "BCA",
+                  summaryInfo: { totalIncome: 0, totalExpense: 25000, initialBalance: 100000, endingBalance: 75000 },
+                  transactions: [
+                    {
+                      txType: "expense",
+                      amount: 25000,
+                      happenedAt: "2026-11-10T12:00:00",
+                      categoryName: "Dining",
+                      accountName: "BCA",
+                      toAccountName: null,
+                      note: "Kopi Kenangan",
+                    },
+                  ],
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    // Mock DB: simpan key Gemini (seolah-olah server punya GEMINI_API_KEY) supaya jalur Gemini terpicu & kena FAILED_PRECONDITION
+    const mockCtx: any = {
+      userId: "user-k3s-1",
+      db: {
+        select: () => ({
+          from: () => ({
+            where: () =>
+              Object.assign(
+                Promise.resolve([{ id: "acc-1", name: "BCA", group: "Bank", kind: "expense" }]),
+                {
+                  limit: async () => [{ geminiApiKey: "AIzaSyFakeServerGeoBlockedKey" }],
+                }
+              ),
+          }),
+        }),
+      },
+    };
+
+    const caller = importRouter.createCaller(mockCtx);
+    const result = await caller.convertAnyDocument({
+      fileName: "mutasi-bca.pdf",
+      mimeType: "application/pdf",
+      fileBase64: emptyTextPdf.toString("base64"),
+    });
+
+    expect(result.transactions).toHaveLength(1);
+    expect(result.transactions[0].note).toBe("Kopi Kenangan");
+    expect(result.transactions[0].amount).toBe(25000);
+    expect(result.modelUsed).toContain("PDF Parser");
   });
 });

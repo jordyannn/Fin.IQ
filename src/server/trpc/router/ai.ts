@@ -22,7 +22,12 @@ import {
   parseMultipleItemsAndAmounts,
   deduplicateTranscript,
 } from "@/lib/nlp-parser";
-import { fuzzyMatchAccount, fuzzyMatchCategory } from "./import";
+import {
+  fuzzyMatchAccount,
+  fuzzyMatchCategory,
+  extractTextFromPdfBuffer,
+  isReadablePdfText,
+} from "./import";
 import { formatInputIDR, formatDate, cleanNumericAmount } from "@/lib/utils";
 import {
   GEMINI_AUDIO_MODEL,
@@ -34,11 +39,14 @@ import {
 } from "../../gemini";
 import {
   OPENROUTER_FREE_MODELS,
+  OPENROUTER_EXTRACTION_MODELS,
+  OPENROUTER_VISION_MODELS,
   DEFAULT_MODEL_ID,
   getAiQuota,
   consumeAiQuota,
   checkFinancialGuardrail,
   generateOpenRouterCompletion,
+  getEffectiveOpenRouterKey,
   GUARDRAIL_REFUSAL_MESSAGE,
 } from "../../openrouter";
 
@@ -404,8 +412,6 @@ ATURAN DETAIL:
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const apiKey = await getEffectiveGeminiKey(ctx);
-
       const userAccounts = await ctx.db
         .select({ id: accounts.id, name: accounts.name, group: accounts.group })
         .from(accounts)
@@ -515,13 +521,18 @@ ATURAN EKSTRAKSI PENTING:
    { "amount": 0, "merchantName": "", "note": "Tidak terdeteksi dokumen transaksi yang valid", "items": [], "transactions": [] }
 `;
 
-      const ai = new GoogleGenAI({ apiKey });
+      const isPdf = (input.image.mimeType || "").toLowerCase() === "application/pdf";
       let responseText = "";
+      let geminiErr: any = null;
+      let openRouterErr: any = null;
+
       try {
+        const apiKey = await getEffectiveGeminiKey(ctx);
+        const ai = new GoogleGenAI({ apiKey });
         const response = await generateWithFallback(ai, {
           preferredModels: DEFAULT_GEMINI_MODELS,
           fastMode: true,
-          timeoutMs: 30000,
+          timeoutMs: 22000,
           contents: [
             {
               inlineData: {
@@ -537,29 +548,121 @@ ATURAN EKSTRAKSI PENTING:
             responseMimeType: "application/json",
           },
         });
-        responseText = response.text || "{}";
-      } catch (genErr: any) {
-        console.error("Gemini Vision OCR Error:", genErr);
+        responseText = response.text || "";
+      } catch (err: any) {
+        geminiErr = err;
+        console.warn("[parseBillReceipt] Gemini Vision/PDF gagal, mencoba OpenRouter:", err?.message || err);
+      }
+
+      if (!responseText.trim()) {
+        const openRouterKey = await getEffectiveOpenRouterKey(ctx);
+        if (openRouterKey) {
+          if (isPdf) {
+            try {
+              const rawText = extractTextFromPdfBuffer(Buffer.from(cleanBase64, "base64"));
+              if (isReadablePdfText(rawText)) {
+                const orTextRes = await generateOpenRouterCompletion({
+                  apiKey: openRouterKey,
+                  candidateModels: OPENROUTER_EXTRACTION_MODELS,
+                  timeoutMs: 30000,
+                  temperature: 0.1,
+                  systemPrompt: prompt,
+                  userPrompt: `Berikut adalah teks struk/mutasi PDF:\n\n${rawText.slice(0, 20000)}\n\nKembalikan HANYA 1 objek JSON valid sesuai format.`,
+                  validateResponse: (txt) => /\{[\s\S]*\}/.test(txt),
+                });
+                responseText = orTextRes.text;
+              }
+            } catch (err: any) {
+              openRouterErr = err;
+            }
+
+            if (!responseText.trim()) {
+              try {
+                const orPdfRes = await generateOpenRouterCompletion({
+                  apiKey: openRouterKey,
+                  candidateModels: OPENROUTER_EXTRACTION_MODELS.slice(0, 4),
+                  timeoutMs: 35000,
+                  temperature: 0.1,
+                  systemPrompt: prompt,
+                  plugins: [{ id: "file-parser", pdf: { engine: "pdf-text" } }],
+                  userContent: [
+                    {
+                      type: "text",
+                      text: "Ekstrak struk/bukti/mutasi PDF ini ke dalam 1 objek JSON valid sesuai format.",
+                    },
+                    {
+                      type: "file",
+                      file: {
+                        filename: "receipt.pdf",
+                        file_data: `data:application/pdf;base64,${cleanBase64}`,
+                      },
+                    },
+                  ],
+                  validateResponse: (txt) => /\{[\s\S]*\}/.test(txt),
+                });
+                responseText = orPdfRes.text;
+                openRouterErr = null;
+              } catch (err: any) {
+                openRouterErr = err;
+              }
+            }
+          } else {
+            try {
+              const orImgRes = await generateOpenRouterCompletion({
+                apiKey: openRouterKey,
+                candidateModels: OPENROUTER_VISION_MODELS,
+                timeoutMs: 35000,
+                temperature: 0.1,
+                systemPrompt: prompt,
+                userContent: [
+                  {
+                    type: "text",
+                    text: "Baca gambar struk/bukti/mutasi ini dan kembalikan HANYA 1 objek JSON valid sesuai format.",
+                  },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: `data:${input.image.mimeType || "image/jpeg"};base64,${cleanBase64}`,
+                    },
+                  },
+                ],
+                validateResponse: (txt) => /\{[\s\S]*\}/.test(txt),
+              });
+              responseText = orImgRes.text;
+            } catch (err: any) {
+              openRouterErr = err;
+            }
+          }
+        } else {
+          openRouterErr = new Error("OPENROUTER_API_KEY belum dikonfigurasi");
+        }
+      }
+
+      if (!responseText.trim()) {
+        const gemMsg = geminiErr?.message || String(geminiErr || "");
+        const orMsg = openRouterErr?.message || String(openRouterErr || "");
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: `Gagal membaca gambar dengan Gemini AI: ${genErr.message || "Unknown error"}`,
+          message: `Gagal membaca dokumen/gambar dengan AI (Gemini: ${gemMsg.slice(0, 100)} | OpenRouter: ${orMsg.slice(0, 100)})`,
         });
       }
 
-      const jsonStr = responseText
+      const cleanFence = responseText
         .replace(/^```json\s*/i, "")
         .replace(/^```\s*/i, "")
         .replace(/\s*```$/i, "")
         .trim();
+      const jsonMatch = cleanFence.match(/\{[\s\S]*\}/);
+      const jsonStr = jsonMatch ? jsonMatch[0] : cleanFence;
 
       let parsed: any = {};
       try {
         parsed = JSON.parse(jsonStr);
       } catch (jsonErr) {
-        console.error("Failed to parse Gemini OCR output:", responseText);
+        console.error("Failed to parse AI OCR output:", responseText);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Format respon Gemini AI tidak valid.",
+          message: "Format respon AI tidak valid.",
         });
       }
 

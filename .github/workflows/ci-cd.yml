@@ -240,6 +240,12 @@ jobs:
               kubectl -n finiq patch secret finiq-secrets --type=merge -p "{\"stringData\":{\"GEMINI_API_KEY\":\"$GEMINI\",\"GEMINI\":\"$GEMINI\"}}" || \
               kubectl -n finiq create secret generic finiq-secrets --from-literal=GEMINI_API_KEY="$GEMINI" --from-literal=GEMINI="$GEMINI" --dry-run=client -o yaml | kubectl apply -f -
             fi
+            OR_LEN=$(kubectl -n finiq get secret finiq-secrets -o jsonpath='{.data.OPENROUTER_API_KEY}' 2>/dev/null | wc -c || echo 0)
+            GEM_LEN=$(kubectl -n finiq get secret finiq-secrets -o jsonpath='{.data.GEMINI_API_KEY}' 2>/dev/null | wc -c || echo 0)
+            echo "Status finiq-secrets -> OPENROUTER_API_KEY: $([ "$OR_LEN" -gt 0 ] && echo 'SET' || echo 'EMPTY'), GEMINI_API_KEY: $([ "$GEM_LEN" -gt 0 ] && echo 'SET' || echo 'EMPTY')"
+            if [ "$OR_LEN" -eq 0 ] && [ "$GEM_LEN" -eq 0 ]; then
+              echo "::warning::OPENROUTER_API_KEY dan GEMINI_API_KEY di finiq-secrets keduanya kosong — fitur AI PDF/Receipt tidak akan bekerja tanpa key profil user!"
+            fi
 
             echo "=== 4. Apply Manifests (Atomic Rolling Update) ==="
             kubectl apply -R -f k8s/
