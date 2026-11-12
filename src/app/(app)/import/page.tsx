@@ -58,6 +58,7 @@ import {
   TransactionPreviewTable,
   PreviewColumnId,
 } from "@/components/import/TransactionPreviewTable";
+import { ImportCategoryPicker } from "@/components/import/ImportCategoryPicker";
 
 interface FieldMapping {
   tx_type: string | null;
@@ -2150,18 +2151,19 @@ export default function ImportPage() {
                 <label className="font-semibold text-foreground">
                   {isEn ? "Fallback Category" : "Kategori Cadangan (Fallback)"}
                 </label>
-                <select
-                  value={fallbackCategoryId}
-                  onChange={(e) => setFallbackCategoryId(e.target.value)}
-                  className="mt-1 flex h-9 w-full rounded-md border border-border bg-card pl-3 pr-8 py-1.5 shadow-2xs text-xs font-medium text-foreground transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                >
-                  <option value="">{isEn ? "Automatic (General / NLP Detection)" : "Otomatis (Umum / Deteksi NLP)"}</option>
-                  {categoriesData?.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.kind === "income" ? (isEn ? "Income" : "Pemasukan") : (isEn ? "Expense" : "Pengeluaran")})
-                    </option>
-                  ))}
-                </select>
+                <div className="mt-1">
+                  <ImportCategoryPicker
+                    categories={categoriesData || []}
+                    value={fallbackCategoryId}
+                    onChange={setFallbackCategoryId}
+                    valueMode="id"
+                    txType="mixed"
+                    allowCreate={false}
+                    allowEmptyOptionLabel={
+                      isEn ? "Automatic (General / NLP Detection)" : "Otomatis (Umum / Deteksi NLP)"
+                    }
+                  />
+                </div>
                 <span className="text-[10px] text-muted-foreground mt-0.5 block">
                   {isEn ? "Used if a transaction has no category and NLP detection fails." : "Digunakan jika transaksi tidak memiliki kategori dan gagal dideteksi NLP."}
                 </span>

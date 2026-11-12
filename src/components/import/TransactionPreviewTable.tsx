@@ -30,6 +30,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useTranslation } from "@/i18n";
 import {
+  ImportCategoryPicker,
+  ImportCategoryOption,
+  resolveDefaultCategoryForType,
+} from "@/components/import/ImportCategoryPicker";
+import {
   formatCurrency,
   formatDate,
   formatDateTime,
@@ -165,7 +170,7 @@ interface TransactionPreviewTableProps<T extends ImportPreviewTxItem = ImportPre
   onDeleteRow?: (id: string) => void;
   onAddRow?: () => void;
   accounts?: Array<{ id: string; name: string; group?: string }>;
-  categories?: Array<{ id: string; name: string; kind?: string }>;
+  categories?: ImportCategoryOption[];
   isNlpAvailable?: boolean;
   onRerunNlp?: () => void;
   defaultAccountName?: string;
@@ -291,6 +296,19 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [bulkCategory, setBulkCategory] = useState("");
   const [bulkAccount, setBulkAccount] = useState("");
+
+  const selectedRowsTxType = useMemo<"expense" | "income" | "mixed">(() => {
+    const selectedTypes = new Set<string>();
+    for (const item of items) {
+      if (selectedRowIds.has(item.id) && (item.txType === "expense" || item.txType === "income")) {
+        selectedTypes.add(item.txType);
+      }
+    }
+    if (selectedTypes.size === 1) {
+      return selectedTypes.has("income") ? "income" : "expense";
+    }
+    return "mixed";
+  }, [items, selectedRowIds]);
 
   const handleToggleSelectRow = (id: string) => {
     setSelectedRowIds((prev) => {
@@ -442,7 +460,9 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
     setNewTxType("expense");
     setNewHappenedAt(now.toISOString().slice(0, 16));
     setNewAmount("50.000");
-    setNewCategoryName(defaultCategoryName || categories[0]?.name || (isEn ? "General" : "Umum"));
+    setNewCategoryName(
+      resolveDefaultCategoryForType(categories, "expense", defaultCategoryName || "")
+    );
     setNewAccountName(defaultAccountName || accounts[0]?.name || (isEn ? "Cash" : "Kas Tunai"));
     setNewToAccountName("");
     setNewNote("");
@@ -912,48 +932,16 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
             <div className="flex flex-wrap items-center gap-2">
               {/* Bulk Category Assign */}
               <div className="flex items-center gap-1.5">
-                <select
-                  value={bulkCategory}
-                  onChange={(e) => {
-                    if (e.target.value === "__NEW_CATEGORY__") {
-                      const newCat = prompt(
-                        isEn
-                          ? "Enter new category name for bulk assign:"
-                          : "Masukkan nama kategori baru untuk massal:"
-                      );
-                      if (newCat && newCat.trim()) {
-                        setBulkCategory(newCat.trim());
-                      }
-                    } else {
-                      setBulkCategory(e.target.value);
-                    }
-                  }}
-                  className="h-7.5 rounded-md border border-border bg-card pl-2 pr-7 text-xs w-36 text-foreground shadow-2xs transition-all hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                >
-                  <option value="">{isEn ? "-- Select Category --" : "-- Pilih Kategori --"}</option>
-                  {bulkCategory &&
-                    !categories.some((c) => c.name.toLowerCase() === bulkCategory.toLowerCase()) &&
-                    !STANDARD_CATEGORIES.some((s) => s.toLowerCase() === bulkCategory.toLowerCase()) && (
-                      <option value={bulkCategory}>+ {bulkCategory} ({isEn ? "New" : "Baru"})</option>
-                    )}
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.name}>
-                      {c.name}
-                    </option>
-                  ))}
-                  <optgroup label={isEn ? "Standard" : "Standar"}>
-                    {STANDARD_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label={isEn ? "Custom" : "Kustom"}>
-                    <option value="__NEW_CATEGORY__">
-                      {isEn ? "+ Create New Category..." : "+ Buat Kategori Baru..."}
-                    </option>
-                  </optgroup>
-                </select>
+                <div className="w-44">
+                  <ImportCategoryPicker
+                    categories={categories}
+                    value={bulkCategory}
+                    onChange={setBulkCategory}
+                    txType={selectedRowsTxType}
+                    compact
+                    allowEmptyOptionLabel={isEn ? "-- Select Category --" : "-- Pilih Kategori --"}
+                  />
+                </div>
                 <Button
                   type="button"
                   variant="secondary"
@@ -1300,11 +1288,18 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                         <td className="px-2 py-1.5">
                           <select
                             value={tx.txType}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              const nextType = e.target.value as "expense" | "income" | "transfer";
+                              const nextCat = resolveDefaultCategoryForType(
+                                categories,
+                                nextType,
+                                tx.categoryName
+                              );
                               handleCellUpdate(tx.id, {
-                                txType: e.target.value as any,
-                              })
-                            }
+                                txType: nextType,
+                                categoryName: nextCat,
+                              });
+                            }}
                             className={`h-7.5 rounded-md border border-input px-1.5 text-[11px] font-bold focus:outline-none w-full ${
                               tx.txType === "expense"
                                 ? "bg-rose-500/10 text-rose-600 border-rose-200 dark:border-rose-900"
@@ -1354,69 +1349,19 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                       {visibleColumns.includes("categoryName") && (
                         <td className="px-2 py-1.5">
                           <div className="flex flex-col gap-0.5 w-full">
-                            <select
+                            <ImportCategoryPicker
+                              categories={categories}
                               value={tx.categoryName}
-                              onChange={(e) => {
-                                if (e.target.value === "__NEW_CATEGORY__") {
-                                  const newCat = prompt(
-                                    isEn ? "Enter new category name:" : "Masukkan nama kategori baru:"
-                                  );
-                                  if (newCat && newCat.trim()) {
-                                    handleCellUpdate(tx.id, {
-                                      categoryName: newCat.trim(),
-                                      isNlpDetected: false,
-                                    });
-                                  }
-                                } else {
-                                  handleCellUpdate(tx.id, {
-                                    categoryName: e.target.value,
-                                    isNlpDetected: false,
-                                  });
-                                }
+                              onChange={(newCat) => {
+                                handleCellUpdate(tx.id, {
+                                  categoryName: newCat,
+                                  isNlpDetected: false,
+                                });
                               }}
-                              className="h-7.5 rounded-md border border-input bg-background px-1.5 text-xs font-medium focus:outline-none w-full shadow-2xs cursor-pointer hover:border-primary/60 transition-colors truncate"
-                            >
-                              <option value="">{isEn ? "-- Select Category --" : "-- Pilih Kategori --"}</option>
-                              {tx.categoryName &&
-                                !categories?.some(
-                                  (c) =>
-                                    c.name.toLowerCase() ===
-                                    tx.categoryName.toLowerCase()
-                                ) &&
-                                !STANDARD_CATEGORIES.some(
-                                  (s) =>
-                                    s.toLowerCase() ===
-                                    tx.categoryName.toLowerCase()
-                                ) && (
-                                  <option value={tx.categoryName}>
-                                    {tx.categoryName}{" "}
-                                    {tx.isNlpDetected
-                                      ? (isEn ? "✨ (NLP Predicted)" : "✨ (Prediksi NLP)")
-                                      : (isEn ? "(New Category)" : "(Kategori Baru)")}
-                                  </option>
-                                )}
-                              {categories && categories.length > 0 && (
-                                <optgroup label={isEn ? "My Categories" : "Kategori Saya"}>
-                                  {categories.map((c) => (
-                                    <option key={c.id} value={c.name}>
-                                      {c.name}
-                                    </option>
-                                  ))}
-                                </optgroup>
-                              )}
-                              <optgroup label={isEn ? "Standard Categories" : "Kategori Standar"}>
-                                {STANDARD_CATEGORIES.map((cat) => (
-                                  <option key={cat} value={cat}>
-                                    {cat}
-                                  </option>
-                                ))}
-                              </optgroup>
-                              <optgroup label={isEn ? "Custom" : "Kustom"}>
-                                <option value="__NEW_CATEGORY__">
-                                  {isEn ? "+ Create New Category..." : "+ Buat Kategori Baru..."}
-                                </option>
-                              </optgroup>
-                            </select>
+                              txType={tx.txType}
+                              compact
+                              isNlpDetected={tx.isNlpDetected}
+                            />
 
                             {tx.isNlpDetected && (
                               <span className="inline-flex items-center gap-1 text-[8.5px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1 py-0.2 rounded w-fit">
@@ -1653,7 +1598,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => setNewTxType("expense")}
+                    onClick={() => {
+                      setNewTxType("expense");
+                      setNewCategoryName((prev) =>
+                        resolveDefaultCategoryForType(categories, "expense", prev)
+                      );
+                    }}
                     className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                       newTxType === "expense"
                         ? "bg-rose-500 text-white border-rose-500 shadow-xs"
@@ -1665,7 +1615,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   </button>
                   <button
                     type="button"
-                    onClick={() => setNewTxType("income")}
+                    onClick={() => {
+                      setNewTxType("income");
+                      setNewCategoryName((prev) =>
+                        resolveDefaultCategoryForType(categories, "income", prev)
+                      );
+                    }}
                     className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                       newTxType === "income"
                         ? "bg-emerald-500 text-white border-emerald-500 shadow-xs"
@@ -1677,7 +1632,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   </button>
                   <button
                     type="button"
-                    onClick={() => setNewTxType("transfer")}
+                    onClick={() => {
+                      setNewTxType("transfer");
+                      setNewCategoryName((prev) =>
+                        resolveDefaultCategoryForType(categories, "transfer", prev)
+                      );
+                    }}
                     className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                       newTxType === "transfer"
                         ? "bg-sky-500 text-white border-sky-500 shadow-xs"
@@ -1758,47 +1718,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   <label className="font-semibold text-foreground mb-1 block">
                     {isEn ? "Transaction Category" : "Kategori Transaksi"}
                   </label>
-                  <select
+                  <ImportCategoryPicker
+                    categories={categories}
                     value={newCategoryName}
-                    onChange={(e) => {
-                      if (e.target.value === "__NEW_CATEGORY__") {
-                        const newCat = prompt(
-                          isEn ? "Enter new category name:" : "Masukkan nama kategori baru:"
-                        );
-                        if (newCat && newCat.trim()) {
-                          setNewCategoryName(newCat.trim());
-                        }
-                      } else {
-                        setNewCategoryName(e.target.value);
-                      }
-                    }}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-2xs text-xs focus:outline-none font-medium"
-                  >
-                    {newCategoryName &&
-                      !categories.some((c) => c.name.toLowerCase() === newCategoryName.toLowerCase()) &&
-                      !STANDARD_CATEGORIES.some((s) => s.toLowerCase() === newCategoryName.toLowerCase()) && (
-                        <option value={newCategoryName}>+ {newCategoryName} ({isEn ? "New" : "Baru"})</option>
-                      )}
-                    <optgroup label={isEn ? "My Categories" : "Kategori Saya"}>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.name}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label={isEn ? "Standard" : "Standar"}>
-                      {STANDARD_CATEGORIES.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label={isEn ? "Custom" : "Kustom"}>
-                      <option value="__NEW_CATEGORY__">
-                        {isEn ? "+ Create New Category..." : "+ Buat Kategori Baru..."}
-                      </option>
-                    </optgroup>
-                  </select>
+                    onChange={setNewCategoryName}
+                    txType={newTxType}
+                  />
                 </div>
 
                 <div>
@@ -1948,7 +1873,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => setEditTxType("expense")}
+                    onClick={() => {
+                      setEditTxType("expense");
+                      setEditCategoryName((prev) =>
+                        resolveDefaultCategoryForType(categories, "expense", prev)
+                      );
+                    }}
                     className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                       editTxType === "expense"
                         ? "bg-rose-500 text-white border-rose-500 shadow-xs"
@@ -1960,7 +1890,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   </button>
                   <button
                     type="button"
-                    onClick={() => setEditTxType("income")}
+                    onClick={() => {
+                      setEditTxType("income");
+                      setEditCategoryName((prev) =>
+                        resolveDefaultCategoryForType(categories, "income", prev)
+                      );
+                    }}
                     className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                       editTxType === "income"
                         ? "bg-emerald-500 text-white border-emerald-500 shadow-xs"
@@ -1972,7 +1907,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   </button>
                   <button
                     type="button"
-                    onClick={() => setEditTxType("transfer")}
+                    onClick={() => {
+                      setEditTxType("transfer");
+                      setEditCategoryName((prev) =>
+                        resolveDefaultCategoryForType(categories, "transfer", prev)
+                      );
+                    }}
                     className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                       editTxType === "transfer"
                         ? "bg-sky-500 text-white border-sky-500 shadow-xs"
@@ -2048,47 +1988,12 @@ export function TransactionPreviewTable<T extends ImportPreviewTxItem = ImportPr
                   <label className="font-semibold text-foreground mb-1 block">
                     {isEn ? "Transaction Category" : "Kategori Transaksi"}
                   </label>
-                  <select
+                  <ImportCategoryPicker
+                    categories={categories}
                     value={editCategoryName}
-                    onChange={(e) => {
-                      if (e.target.value === "__NEW_CATEGORY__") {
-                        const newCat = prompt(
-                          isEn ? "Enter new category name:" : "Masukkan nama kategori baru:"
-                        );
-                        if (newCat && newCat.trim()) {
-                          setEditCategoryName(newCat.trim());
-                        }
-                      } else {
-                        setEditCategoryName(e.target.value);
-                      }
-                    }}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 shadow-2xs text-xs focus:outline-none font-medium"
-                  >
-                    {editCategoryName &&
-                      !categories.some((c) => c.name.toLowerCase() === editCategoryName.toLowerCase()) &&
-                      !STANDARD_CATEGORIES.some((s) => s.toLowerCase() === editCategoryName.toLowerCase()) && (
-                        <option value={editCategoryName}>+ {editCategoryName} ({isEn ? "New" : "Baru"})</option>
-                      )}
-                    <optgroup label={isEn ? "My Categories" : "Kategori Saya"}>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.name}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label={isEn ? "Standard Categories" : "Kategori Standar"}>
-                      {STANDARD_CATEGORIES.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label={isEn ? "Custom" : "Kustom"}>
-                      <option value="__NEW_CATEGORY__">
-                        {isEn ? "+ Create New Category..." : "+ Buat Kategori Baru..."}
-                      </option>
-                    </optgroup>
-                  </select>
+                    onChange={setEditCategoryName}
+                    txType={editTxType}
+                  />
                 </div>
 
                 <div>
