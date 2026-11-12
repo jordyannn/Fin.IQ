@@ -14,11 +14,20 @@ import {
   ShieldAlert,
   PiggyBank,
   Coffee,
+  Cpu,
 } from "lucide-react";
 import { useMascotStore } from "@/store/mascot.store";
 import { trpc } from "@/lib/trpc/client";
 import { AIMessageRenderer } from "./AIMessageRenderer";
 import { mascotSound } from "@/lib/mascot-sound";
+import {
+  FALLBACK_FREE_MODELS,
+  DEFAULT_CLIENT_MODEL_ID,
+  AI_MODEL_EVENT,
+  readStoredAiModelId,
+  writeStoredAiModelId,
+  resolveActiveModelInfo,
+} from "@/lib/ai-models";
 
 interface QuickPrompt {
   id: string;
@@ -66,6 +75,37 @@ export function AIAdvisorDrawer() {
 
   const [inputMessage, setInputMessage] = useState("");
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>(undefined);
+  const [selectedModelId, setSelectedModelId] = useState<string>(
+    () => readStoredAiModelId() || DEFAULT_CLIENT_MODEL_ID
+  );
+
+  const { data: aiConfig } = trpc.ai.getAiConfig.useQuery(undefined, {
+    enabled: isAIDrawerOpen,
+    staleTime: 1000 * 60,
+  });
+
+  const availableModels =
+    aiConfig?.availableModels && aiConfig.availableModels.length > 0
+      ? aiConfig.availableModels
+      : FALLBACK_FREE_MODELS;
+
+  const activeModel = resolveActiveModelInfo(selectedModelId, availableModels);
+
+  useEffect(() => {
+    const onModelChange = (e: Event) => {
+      const next = (e as CustomEvent<string>).detail;
+      if (typeof next === "string" && next.trim()) {
+        setSelectedModelId(next.trim());
+      }
+    };
+    window.addEventListener(AI_MODEL_EVENT, onModelChange);
+    return () => window.removeEventListener(AI_MODEL_EVENT, onModelChange);
+  }, []);
+
+  const handleModelChange = (nextModelId: string) => {
+    setSelectedModelId(nextModelId);
+    writeStoredAiModelId(nextModelId);
+  };
   const [messages, setMessages] = useState<DrawerMessage[]>([
     {
       id: "welcome-1",
@@ -184,9 +224,11 @@ export function AIAdvisorDrawer() {
 
     askAssistantMutation.mutate({
       question: text,
+      model: selectedModelId,
       sessionId: activeSessionId,
       lang: "id",
       clientTime: new Date().toISOString(),
+      tzOffsetMinutes: -new Date().getTimezoneOffset(),
     });
   };
 
@@ -351,12 +393,29 @@ export function AIAdvisorDrawer() {
             </button>
           </form>
 
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-2 px-1">
-            <span>Dihitung murni dari data riil buku kasmu, no halu!</span>
+          <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground mt-2 px-0.5">
+            <div className="flex items-center gap-1 min-w-0 flex-1">
+              <Cpu className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <select
+                aria-label="Pilih Model OpenRouter"
+                value={activeModel.id}
+                onChange={(e) => handleModelChange(e.target.value)}
+                className="bg-muted/50 border border-border/70 rounded px-1.5 py-0.5 text-[10px] font-mono text-foreground truncate max-w-[195px] cursor-pointer focus:outline-none focus:border-primary"
+              >
+                {availableModels.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+                {!availableModels.some((m) => m.id === activeModel.id) && (
+                  <option value={activeModel.id}>{activeModel.name}</option>
+                )}
+              </select>
+            </div>
             <Link
               href="/ai"
               onClick={() => setAIDrawerOpen(false)}
-              className="text-primary hover:underline font-semibold flex items-center gap-0.5"
+              className="text-primary hover:underline font-semibold flex items-center gap-0.5 shrink-0"
             >
               <Sparkles className="h-2.5 w-2.5" />
               <span>Buka Layar Penuh</span>

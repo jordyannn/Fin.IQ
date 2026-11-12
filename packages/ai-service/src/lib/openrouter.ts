@@ -30,11 +30,32 @@ export const OPENROUTER_FREE_MODELS: FreeModelInfo[] = [
     description: "Model parameter besar Google dengan kapabilitas analitis komprehensif.",
   },
   {
+    id: "nvidia/nemotron-3-ultra-550b-a55b:free",
+    name: "NVIDIA Nemotron 3 Ultra 550B",
+    provider: "NVIDIA",
+    tag: "Flagship 1M Ctx",
+    description: "Model flagship 550B MoE dengan akurasi kalkulasi dan pemahaman telemetri tinggi.",
+  },
+  {
     id: "nvidia/nemotron-3.5-lightning:free",
     name: "NVIDIA Nemotron 3.5 Lightning",
     provider: "NVIDIA",
     tag: "Deep Reasoning",
     description: "Penalaran finansial mendalam untuk evaluasi target tabungan dan alokasi dana.",
+  },
+  {
+    id: "nvidia/nemotron-3.5-super-vl:free",
+    name: "NVIDIA Nemotron 3.5 Super VL",
+    provider: "NVIDIA",
+    tag: "Multimodal 1M",
+    description: "Model kontekstual besar NVIDIA untuk sintesis riwayat transaksi panjang.",
+  },
+  {
+    id: "baidu/ernie-5.5-flash-preview:free",
+    name: "Baidu ERNIE 5.5 Flash",
+    provider: "Baidu",
+    tag: "Flash 1M Ctx",
+    description: "Model respons cepat dengan jendela konteks 1M token untuk analisis kas menyeluruh.",
   },
   {
     id: "dots-studio/dots-3-note-preview:free",
@@ -49,13 +70,6 @@ export const OPENROUTER_FREE_MODELS: FreeModelInfo[] = [
     provider: "Recursive",
     tag: "Ultra Cepat",
     description: "Latensi minimal untuk analisis ringkas dan perbandingan pos pengeluaran.",
-  },
-  {
-    id: "liquid/lfm-2.5-2.6b:free",
-    name: "LiquidAI LFM 2.5",
-    provider: "LiquidAI",
-    tag: "Ringan & Cepat",
-    description: "Model efisien untuk evaluasi cepat data transaksi.",
   },
 ];
 
@@ -253,72 +267,93 @@ export async function generateOpenRouterCompletion(options: {
   userPrompt: string;
   temperature?: number;
 }): Promise<{ text: string; modelUsed: string }> {
-  const targetModel =
-    options.model && OPENROUTER_FREE_MODELS.some((m) => m.id === options.model)
-      ? options.model
-      : DEFAULT_MODEL_ID;
+  const targetModel = options.model?.trim() || DEFAULT_MODEL_ID;
 
   const candidateModels = [
     targetModel,
     "google/gemma-4-26b-a4b-it:free",
     "google/gemma-4-31b-it:free",
     "nvidia/nemotron-3.5-lightning:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "baidu/ernie-5.5-flash-preview:free",
     "dots-studio/dots-3-note-preview:free",
     "recursive/flint-v1.0:free",
   ]
-    .filter((val, idx, arr) => arr.indexOf(val) === idx)
-    .slice(0, 3);
+    .filter((val, idx, arr) => Boolean(val) && arr.indexOf(val) === idx)
+    .slice(0, 4);
 
   let lastError: Error | null = null;
 
   for (const model of candidateModels) {
-    try {
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        signal: AbortSignal.timeout(12000),
-        headers: {
-          Authorization: `Bearer ${DEFAULT_OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://finiq.app",
-          "X-Title": "Fin.IQ Financial Advisor",
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: options.systemPrompt },
-            { role: "user", content: options.userPrompt },
-          ],
-          temperature: options.temperature ?? 0.3,
-        }),
-      });
+    let mergeSystem = false;
+    for (let pass = 0; pass < 2; pass++) {
+      try {
+        const messages = mergeSystem
+          ? [
+              {
+                role: "user",
+                content: `[INSTRUKSI SISTEM]\n${options.systemPrompt}\n\n[DATA & PERTANYAAN]\n${options.userPrompt}`,
+              },
+            ]
+          : [
+              { role: "system", content: options.systemPrompt },
+              { role: "user", content: options.userPrompt },
+            ];
 
-      if (response.status === 429) {
-        console.warn(`[OpenRouter Fallback] Model ${model} rate-limited (429), mencoba model cadangan...`);
-        lastError = new Error(`Model ${model} sedang sibuk (rate-limited upstream).`);
-        continue;
-      }
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          signal: AbortSignal.timeout(18000),
+          headers: {
+            Authorization: `Bearer ${DEFAULT_OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://finiq.app",
+            "X-Title": "Fin.IQ Financial Advisor",
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            temperature: options.temperature ?? 0.15,
+          }),
+        });
 
-      if (!response.ok) {
-        const errJson: any = await response.json().catch(() => ({}));
-        const errMsg = errJson?.error?.message || `HTTP ${response.status}`;
-        console.warn(`[OpenRouter Fallback] Model ${model} error: ${errMsg}`);
-        lastError = new Error(errMsg);
-        continue;
-      }
+        if (response.status === 429) {
+          console.warn(`[OpenRouter Fallback] Model ${model} rate-limited (429), mencoba model cadangan...`);
+          lastError = new Error(`Model ${model} sedang sibuk (rate-limited upstream).`);
+          break;
+        }
 
-      const data: any = await response.json();
-      const content = data.choices?.[0]?.message?.content;
-      if (typeof content === "string" && content.trim()) {
-        return {
-          text: content.trim(),
-          modelUsed: model,
-        };
-      } else {
-        lastError = new Error(`Respon model ${model} kosong.`);
+        if (!response.ok) {
+          const errJson: any = await response.json().catch(() => ({}));
+          const errMsg = errJson?.error?.message || `HTTP ${response.status}`;
+          if (
+            !mergeSystem &&
+            response.status === 400 &&
+            /developer instruction|system role|system message|does not support system/i.test(errMsg)
+          ) {
+            mergeSystem = true;
+            continue;
+          }
+          console.warn(`[OpenRouter Fallback] Model ${model} error: ${errMsg}`);
+          lastError = new Error(errMsg);
+          break;
+        }
+
+        const data: any = await response.json();
+        const content = data.choices?.[0]?.message?.content;
+        if (typeof content === "string" && content.trim()) {
+          return {
+            text: content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim(),
+            modelUsed: model,
+          };
+        } else {
+          lastError = new Error(`Respon model ${model} kosong.`);
+          break;
+        }
+      } catch (fetchErr: any) {
+        console.warn(`[OpenRouter Fallback] Gagal memanggil ${model}:`, fetchErr?.message || fetchErr);
+        lastError = fetchErr;
+        break;
       }
-    } catch (fetchErr: any) {
-      console.warn(`[OpenRouter Fallback] Gagal memanggil ${model}:`, fetchErr?.message || fetchErr);
-      lastError = fetchErr;
     }
   }
 

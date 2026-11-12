@@ -27,6 +27,14 @@ import {
 } from "lucide-react";
 import { AIMessageRenderer } from "@/components/ai/AIMessageRenderer";
 import { useTranslation } from "@/i18n";
+import {
+  FALLBACK_FREE_MODELS,
+  DEFAULT_CLIENT_MODEL_ID,
+  AI_MODEL_EVENT,
+  readStoredAiModelId,
+  writeStoredAiModelId,
+  resolveActiveModelInfo,
+} from "@/lib/ai-models";
 
 const SUGGESTIONS_ID = [
   {
@@ -82,51 +90,6 @@ const SUGGESTIONS_EN = [
   },
 ];
 
-const FALLBACK_FREE_MODELS = [
-  {
-    id: "google/gemma-4-26b-a4b-it:free",
-    name: "Google Gemma 4 26B",
-    provider: "Google",
-    tag: "Rekomendasi / Responsif",
-    description: "Model cepat, stabil, dan sangat natural dalam memahami konteks keuangan Indonesia.",
-  },
-  {
-    id: "google/gemma-4-31b-it:free",
-    name: "Google Gemma 4 31B",
-    provider: "Google",
-    tag: "Komprehensif",
-    description: "Model parameter besar Google dengan kapabilitas analitis komprehensif.",
-  },
-  {
-    id: "nvidia/nemotron-3.5-lightning:free",
-    name: "NVIDIA Nemotron 3.5 Lightning",
-    provider: "NVIDIA",
-    tag: "Deep Reasoning",
-    description: "Penalaran finansial mendalam untuk evaluasi target tabungan dan alokasi dana.",
-  },
-  {
-    id: "dots-studio/dots-3-note-preview:free",
-    name: "Dots Studio 3 Note",
-    provider: "Dots Studio",
-    tag: "Analitis",
-    description: "Sintesis data transaksi terstruktur dengan fokus laporan ringkas & objektif.",
-  },
-  {
-    id: "recursive/flint-v1.0:free",
-    name: "Recursive Flint v1.0",
-    provider: "Recursive",
-    tag: "Ultra Cepat",
-    description: "Latensi minimal untuk analisis ringkas dan perbandingan pos pengeluaran.",
-  },
-  {
-    id: "liquid/lfm-2.5-2.6b:free",
-    name: "LiquidAI LFM 2.5",
-    provider: "LiquidAI",
-    tag: "Ringan & Cepat",
-    description: "Model efisien untuk evaluasi cepat data transaksi.",
-  },
-];
-
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -145,7 +108,7 @@ function AIAdvisorPageContent() {
   const suggestions = isEn ? SUGGESTIONS_EN : SUGGESTIONS_ID;
 
   // 1. Ambil Konfigurasi Model Free-Tier & Status Kuota
-  const { data: aiConfig, refetch: refetchAiConfig } = trpc.ai.getAiConfig.useQuery(undefined, {
+  const { data: aiConfig } = trpc.ai.getAiConfig.useQuery(undefined, {
     staleTime: 1000 * 10,
   });
 
@@ -167,16 +130,46 @@ function AIAdvisorPageContent() {
       ? aiConfig.availableModels
       : FALLBACK_FREE_MODELS;
 
-  const [selectedModelId, setSelectedModelId] = useState<string>("google/gemma-4-26b-a4b-it:free");
+  const [selectedModelId, setSelectedModelId] = useState<string>(
+    () => readStoredAiModelId() || DEFAULT_CLIENT_MODEL_ID
+  );
+  const [customModelInput, setCustomModelInput] = useState("");
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const hasInitializedModelRef = useRef(false);
 
-  // Sync default model jika aiConfig termuat
+  // Sync default model HANYA sekali jika belum ada pilihan tersimpan di localStorage
   useEffect(() => {
+    if (hasInitializedModelRef.current) return;
     if (aiConfig?.defaultModel) {
-      setSelectedModelId(aiConfig.defaultModel);
+      hasInitializedModelRef.current = true;
+      const stored = readStoredAiModelId();
+      if (!stored) {
+        setSelectedModelId(aiConfig.defaultModel);
+      }
     }
-  }, [aiConfig]);
+  }, [aiConfig?.defaultModel]);
+
+  // Sinkronkan pilihan model apabila diubah dari drawer Bang Peci atau tab lain
+  useEffect(() => {
+    const handleModelSync = (e: Event) => {
+      const next = (e as CustomEvent<string>).detail;
+      if (typeof next === "string" && next.trim()) {
+        setSelectedModelId(next.trim());
+      }
+    };
+    window.addEventListener(AI_MODEL_EVENT, handleModelSync);
+    return () => window.removeEventListener(AI_MODEL_EVENT, handleModelSync);
+  }, []);
+
+  const handleSelectModel = (modelId: string) => {
+    const cleaned = modelId.trim();
+    if (!cleaned) return;
+    hasInitializedModelRef.current = true;
+    setSelectedModelId(cleaned);
+    writeStoredAiModelId(cleaned);
+    setIsModelDropdownOpen(false);
+  };
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -189,14 +182,7 @@ function AIAdvisorPageContent() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const activeModel =
-    availableModels.find((m) => m.id === selectedModelId) ||
-    availableModels[0] || {
-      id: "google/gemma-4-26b-a4b-it:free",
-      name: "Google Gemma 4 26B",
-      tag: "Default / Responsif",
-      description: "Model cepat dan stabil untuk analisis keuangan.",
-    };
+  const activeModel = resolveActiveModelInfo(selectedModelId, availableModels);
 
   const quota = localQuota || aiConfig?.quota || { limit: 20, used: 0, remaining: 20, resetHours: 0 };
 
@@ -383,6 +369,7 @@ Silakan pilih topik di bawah atau ketik pertanyaan langsung untuk menganalisis a
       sessionId: activeSessionId || undefined,
       lang: locale,
       clientTime: new Date().toISOString(),
+      tzOffsetMinutes: -new Date().getTimezoneOffset(),
     });
   };
 
@@ -779,7 +766,7 @@ Tanya apa aja ke Bang Peci seputar duitmu: evaluasi belanja, bedah pos boncos, a
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <span className="text-[9px] uppercase px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-semibold">
-                    Free
+                    {selectedModelId.endsWith(":free") ? "Free" : "Custom"}
                   </span>
                   <ChevronDown
                     className={`h-3 w-3 text-muted-foreground opacity-70 transition-transform duration-150 ${
@@ -794,10 +781,10 @@ Tanya apa aja ke Bang Peci seputar duitmu: evaluasi belanja, bedah pos boncos, a
                 <div className="absolute left-0 bottom-full mb-2 w-[calc(100vw-2.5rem)] max-w-xs sm:w-80 rounded-xl border border-border/80 bg-popover p-1.5 shadow-2xl shadow-black/20 z-50 animate-in fade-in zoom-in-95 duration-100 origin-bottom-left">
                   <div className="px-2 py-1.5 border-b border-border/60 mb-1 flex items-center justify-between">
                     <span className="text-[10px] font-mono uppercase text-muted-foreground font-semibold">
-                      {isEn ? "AI Model Selection (Free Tier)" : "Pilihan Model AI (Free Tier)"}
+                      {isEn ? "OpenRouter Model Selection" : "Pilihan Model OpenRouter"}
                     </span>
                     <span className="text-[9px] font-mono text-emerald-600 dark:text-emerald-400">
-                      OpenRouter Demo
+                      OpenRouter
                     </span>
                   </div>
 
@@ -808,10 +795,7 @@ Tanya apa aja ke Bang Peci seputar duitmu: evaluasi belanja, bedah pos boncos, a
                         <button
                           key={m.id}
                           type="button"
-                          onClick={() => {
-                            setSelectedModelId(m.id);
-                            setIsModelDropdownOpen(false);
-                          }}
+                          onClick={() => handleSelectModel(m.id)}
                           className={`w-full text-left p-2 rounded-lg transition-colors text-xs cursor-pointer flex items-start justify-between gap-2 min-h-[44px] ${
                             isSelected
                               ? "bg-zinc-100 dark:bg-zinc-800/90 text-foreground font-medium"
@@ -824,7 +808,7 @@ Tanya apa aja ke Bang Peci seputar duitmu: evaluasi belanja, bedah pos boncos, a
                                 {m.name}
                               </span>
                               {m.tag && (
-                                <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-muted text-muted-foreground">
+                                <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-muted text-muted-foreground shrink-0">
                                   {m.tag}
                                 </span>
                               )}
@@ -839,6 +823,42 @@ Tanya apa aja ke Bang Peci seputar duitmu: evaluasi belanja, bedah pos boncos, a
                         </button>
                       );
                     })}
+                  </div>
+
+                  {/* Custom OpenRouter Model ID Input */}
+                  <div className="mt-1.5 pt-1.5 border-t border-border/60 px-1 pb-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={customModelInput}
+                        onChange={(e) => setCustomModelInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && customModelInput.trim()) {
+                            e.preventDefault();
+                            handleSelectModel(customModelInput);
+                            setCustomModelInput("");
+                          }
+                        }}
+                        placeholder={
+                          isEn
+                            ? "Custom OpenRouter ID (e.g. openai/gpt-4o-mini)"
+                            : "ID model OpenRouter kustom (mis. openai/gpt-4o-mini)"
+                        }
+                        className="flex-1 h-7 px-2 text-[10px] font-mono rounded-md bg-background border border-border/80 text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary"
+                      />
+                      <button
+                        type="button"
+                        disabled={!customModelInput.trim()}
+                        onClick={() => {
+                          if (!customModelInput.trim()) return;
+                          handleSelectModel(customModelInput);
+                          setCustomModelInput("");
+                        }}
+                        className="h-7 px-2 rounded-md bg-primary text-white text-[10px] font-semibold disabled:opacity-40 cursor-pointer shrink-0"
+                      >
+                        {isEn ? "Use" : "Pakai"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

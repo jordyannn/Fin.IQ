@@ -37,12 +37,14 @@ import {
   getEffectiveGeminiKey,
   DEFAULT_GEMINI_API_KEY,
   ensureGeminiReachable,
+  decryptSecretIfNeeded,
 } from "../../gemini";
 import {
   OPENROUTER_FREE_MODELS,
   OPENROUTER_EXTRACTION_MODELS,
   OPENROUTER_VISION_MODELS,
   DEFAULT_MODEL_ID,
+  getAvailableOpenRouterModels,
   getAiQuota,
   consumeAiQuota,
   checkFinancialGuardrail,
@@ -917,11 +919,16 @@ ATURAN EKSTRAKSI PENTING:
     }),
 
   getAiConfig: protectedProcedure.query(async ({ ctx }) => {
-    const quota = await getAiQuota(ctx.db, ctx.userId);
+    const [quota, availableModels, openRouterKey] = await Promise.all([
+      getAiQuota(ctx.db, ctx.userId),
+      getAvailableOpenRouterModels(),
+      getEffectiveOpenRouterKey({ db: ctx.db, userId: ctx.userId }),
+    ]);
     return {
-      provider: "OpenRouter (Free Tier)",
+      provider: "OpenRouter",
       defaultModel: DEFAULT_MODEL_ID,
-      availableModels: OPENROUTER_FREE_MODELS,
+      availableModels,
+      hasOpenRouterKey: Boolean(openRouterKey),
       quota,
     };
   }),
@@ -1060,13 +1067,44 @@ ATURAN EKSTRAKSI PENTING:
         sessionId: z.string().optional(),
         lang: z.enum(["id", "en"]).optional().default("id"),
         clientTime: z.string().optional(),
+        tzOffsetMinutes: z.number().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       // Kelola Session ID
       let activeSessionId = input.sessionId;
-      const modelId = input.model || DEFAULT_MODEL_ID;
+      const modelId = input.model?.trim() || DEFAULT_MODEL_ID;
       const isEnglish = input.lang === "en";
+
+      let priorSessionHistory: Array<{ role: "user" | "assistant"; content: string }> = [];
+      if (activeSessionId) {
+        try {
+          const prevRows = await ctx.db
+            .select({
+              role: aiChatMessages.role,
+              content: aiChatMessages.content,
+            })
+            .from(aiChatMessages)
+            .where(
+              and(
+                eq(aiChatMessages.sessionId, activeSessionId),
+                eq(aiChatMessages.userId, ctx.userId)
+              )
+            )
+            .orderBy(desc(aiChatMessages.createdAt))
+            .limit(6);
+
+          priorSessionHistory = prevRows
+            .reverse()
+            .filter((r) => r.role === "user" || r.role === "assistant")
+            .map((r) => ({
+              role: r.role as "user" | "assistant",
+              content: r.content.slice(0, 1500),
+            }));
+        } catch (histErr) {
+          console.warn("[Session History Load Warning]", histErr);
+        }
+      }
 
       if (!activeSessionId) {
         activeSessionId = crypto.randomUUID();
@@ -1152,7 +1190,8 @@ ATURAN EKSTRAKSI PENTING:
       const telemetry = await buildUserFinancialTelemetry(
         ctx.db,
         ctx.userId,
-        input.clientTime
+        input.clientTime,
+        input.tzOffsetMinutes
       );
 
       const systemPrompt = isEnglish
@@ -1160,35 +1199,43 @@ ATURAN EKSTRAKSI PENTING:
         : telemetry.systemPromptId;
       const userPrompt = telemetry.getUserPrompt(input.question, isEnglish);
 
-      // Cek apakah user memiliki API key personal (OpenRouter / Gemini)
+      // Ambil API Key aktif (dekripsi enc:v1:... bila disimpan terenkripsi di profil user)
+      const effectiveOpenRouterKey = await getEffectiveOpenRouterKey({
+        db: ctx.db,
+        userId: ctx.userId,
+      });
       const userProfile = await ctx.db.query.userProfiles.findFirst({
         where: eq(userProfiles.userId, ctx.userId),
       });
-      const userSavedKey = userProfile?.geminiApiKey?.trim();
-      const userOpenRouterKey = userSavedKey?.startsWith("sk-or-") ? userSavedKey : undefined;
+      const decryptedSavedKey = decryptSecretIfNeeded(userProfile?.geminiApiKey?.trim() || "");
       const userGeminiKey =
-        userSavedKey && !userSavedKey.startsWith("sk-or-")
-          ? userSavedKey
+        decryptedSavedKey && !decryptedSavedKey.startsWith("sk-or-")
+          ? decryptedSavedKey
           : undefined;
 
       let answerText = "";
       let modelUsedName = "";
+      let openRouterErrorNote = "";
 
-      // 1. Coba Cloud AI (OpenRouter dengan fallback Gemini) dengan batas waktu maksimum 24 detik
-      // Menjamin respon tidak pernah melewati batas timeout Nginx/K8s proxy (Zero-Gateway-Timeout)
+      // 1. Coba Cloud AI (OpenRouter dengan model pilihan user terlebih dahulu)
       try {
         const cloudAiTask = (async () => {
           try {
             const result = await generateOpenRouterCompletion({
-              model: input.model,
+              model: modelId,
               systemPrompt,
               userPrompt,
-              temperature: 0.2,
-              apiKey: userOpenRouterKey,
+              history: priorSessionHistory,
+              temperature: 0.15,
+              timeoutMs: 18000,
+              totalTimeoutMs: 38000,
+              apiKey: effectiveOpenRouterKey || undefined,
             });
             return { text: result.text, modelUsed: result.modelUsed };
           } catch (openRouterErr: any) {
-            console.warn("[askFinancialAssistant] OpenRouter error:", openRouterErr?.message);
+            const errMsg = openRouterErr?.message || "OpenRouter tidak merespon";
+            openRouterErrorNote = errMsg;
+            console.warn("[askFinancialAssistant] OpenRouter error:", errMsg);
 
             const systemGeminiKey =
               process.env.GEMINI_API_KEY?.trim() ||
@@ -1216,7 +1263,12 @@ ATURAN EKSTRAKSI PENTING:
         })();
 
         const timeoutTask = new Promise<null>((resolve) =>
-          setTimeout(() => resolve(null), 24000)
+          setTimeout(() => {
+            if (!openRouterErrorNote) {
+              openRouterErrorNote = "Batas waktu koneksi OpenRouter (42s) terlewati.";
+            }
+            resolve(null);
+          }, 42000)
         );
 
         const cloudRes = await Promise.race([cloudAiTask, timeoutTask]);
@@ -1225,13 +1277,18 @@ ATURAN EKSTRAKSI PENTING:
           modelUsedName = cloudRes.modelUsed;
         }
       } catch (err: any) {
-        console.warn("[askFinancialAssistant] Cloud AI attempt error:", err?.message || err);
+        openRouterErrorNote = err?.message || "Gangguan koneksi ke penyedia AI";
+        console.warn("[askFinancialAssistant] Cloud AI attempt error:", openRouterErrorNote);
       }
 
       // 3. Fallback Cerdas: Bang Peci Local Financial Telemetry Advisor (Zero-Crash Guarantee)
-      // Setiap akun di Fin-IQ dijamin selalu mendapatkan analisa finansial komprehensif
       if (!answerText) {
-        answerText = generateTelemetryFinancialAnswer(telemetry, input.question, isEnglish);
+        answerText = generateTelemetryFinancialAnswer(
+          telemetry,
+          input.question,
+          isEnglish,
+          openRouterErrorNote
+        );
         modelUsedName = "Bang Peci Telemetry Advisor (Offline Mode)";
       }
 
@@ -1247,7 +1304,7 @@ ATURAN EKSTRAKSI PENTING:
         });
         await ctx.db
           .update(aiChatSessions)
-          .set({ updatedAt: new Date() })
+          .set({ updatedAt: new Date(), modelUsed: modelUsedName })
           .where(eq(aiChatSessions.id, activeSessionId));
         await ctx.db.insert(aiPromptHistory).values({
           userId: ctx.userId,

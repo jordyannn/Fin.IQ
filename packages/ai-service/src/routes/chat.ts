@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { z } from "zod";
 import crypto from "crypto";
-import { eq, desc, and, gte, lte, asc } from "drizzle-orm";
+import { eq, desc, and, gte, gt, lte, asc } from "drizzle-orm";
 import { GoogleGenAI } from "@google/genai";
 import {
   db,
@@ -285,8 +285,11 @@ chatRoutes.post("/", requireAuth, async (req, res: Response) => {
     ? new Date(input.clientTime)
     : new Date();
 
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
+  const wibOffsetMs = 7 * 60 * 60 * 1000;
+  const localRef = new Date(now.getTime() + wibOffsetMs);
+  const currentYear = localRef.getUTCFullYear();
+  const currentMonth = localRef.getUTCMonth();
+  const currentDayNum = localRef.getUTCDate();
   const currentMonthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
 
   const monthNamesId = [
@@ -295,19 +298,23 @@ chatRoutes.post("/", requireAuth, async (req, res: Response) => {
   ];
   const currentMonthNameId = monthNamesId[currentMonth];
 
-  const startOfThisMonth = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
-  const endOfThisMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
-  const daysInMonth = endOfThisMonth.getDate();
-  const currentDay = Math.min(now.getDate(), daysInMonth);
+  const toUtc = (y: number, m: number, d: number, h: number, min: number, s: number, ms: number) =>
+    new Date(Date.UTC(y, m, d, h, min, s, ms) - wibOffsetMs);
+
+  const startOfThisMonth = toUtc(currentYear, currentMonth, 1, 0, 0, 0, 0);
+  const endOfToday = toUtc(currentYear, currentMonth, currentDayNum, 23, 59, 59, 999);
+  const daysInMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0)).getUTCDate();
+  const currentDay = Math.min(currentDayNum, daysInMonth);
   const daysRemaining = Math.max(0, daysInMonth - currentDay);
 
-  const startOfLastMonth = new Date(currentYear, currentMonth - 1, 1, 0, 0, 0, 0);
-  const endOfLastMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999);
-  const lastMonthIdx = (currentMonth - 1 + 12) % 12;
-  const lastMonthYear = startOfLastMonth.getFullYear();
+  const startOfLastMonth = toUtc(currentYear, currentMonth - 1, 1, 0, 0, 0, 0);
+  const endOfLastMonth = toUtc(currentYear, currentMonth, 0, 23, 59, 59, 999);
+  const lastMonthRef = new Date(Date.UTC(currentYear, currentMonth - 1, 1));
+  const lastMonthIdx = lastMonthRef.getUTCMonth();
+  const lastMonthYear = lastMonthRef.getUTCFullYear();
   const lastMonthNameId = monthNamesId[lastMonthIdx];
 
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = toUtc(currentYear, currentMonth, currentDayNum - 29, 0, 0, 0, 0);
 
   // Profil
   const userRec = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
@@ -340,7 +347,7 @@ chatRoutes.post("/", requireAuth, async (req, res: Response) => {
       and(
         eq(transactions.userId, userId),
         gte(transactions.happenedAt, startOfThisMonth),
-        lte(transactions.happenedAt, now)
+        lte(transactions.happenedAt, endOfToday)
       )
     );
 
@@ -427,7 +434,7 @@ chatRoutes.post("/", requireAuth, async (req, res: Response) => {
       and(
         eq(transactions.userId, userId),
         gte(transactions.happenedAt, thirtyDaysAgo),
-        lte(transactions.happenedAt, now)
+        lte(transactions.happenedAt, endOfToday)
       )
     );
 
@@ -484,7 +491,7 @@ chatRoutes.post("/", requireAuth, async (req, res: Response) => {
     .from(transactions)
     .leftJoin(accounts, eq(transactions.accountId, accounts.id))
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
-    .where(and(eq(transactions.userId, userId), lte(transactions.happenedAt, now)))
+    .where(and(eq(transactions.userId, userId), lte(transactions.happenedAt, endOfToday)))
     .orderBy(desc(transactions.happenedAt))
     .limit(25);
 
@@ -497,7 +504,7 @@ chatRoutes.post("/", requireAuth, async (req, res: Response) => {
         .join("\n")
     : "Belum ada transaksi.";
 
-  // Mutasi Terjadwal / Masa Depan (happenedAt > now)
+  // Mutasi Terjadwal / Masa Depan (happenedAt > endOfToday)
   const upcomingTx = await db
     .select({
       txType: transactions.txType,
@@ -510,7 +517,7 @@ chatRoutes.post("/", requireAuth, async (req, res: Response) => {
     .from(transactions)
     .leftJoin(accounts, eq(transactions.accountId, accounts.id))
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
-    .where(and(eq(transactions.userId, userId), gte(transactions.happenedAt, now)))
+    .where(and(eq(transactions.userId, userId), gt(transactions.happenedAt, endOfToday)))
     .orderBy(asc(transactions.happenedAt))
     .limit(10);
 
