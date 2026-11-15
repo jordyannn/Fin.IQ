@@ -6,17 +6,23 @@
  * 2. AI Service (Port 5000)
  */
 
-const CORE_API_URL =
-  process.env.CORE_API_URL ||
-  (typeof window === "undefined"
-    ? "http://127.0.0.1:4000"
-    : "/api/v1");
+function sanitizeBaseUrl(val?: string | null, fallbackServer = "", fallbackClient = ""): string {
+  if (val) {
+    const trimmed = val.trim();
+    if (
+      trimmed &&
+      trimmed.toLowerCase() !== "x" &&
+      !trimmed.startsWith("...") &&
+      (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("/"))
+    ) {
+      return trimmed;
+    }
+  }
+  return typeof window === "undefined" ? fallbackServer : fallbackClient;
+}
 
-const AI_SERVICE_URL =
-  process.env.AI_SERVICE_URL ||
-  (typeof window === "undefined"
-    ? "http://127.0.0.1:5000"
-    : "/api/ai");
+const CORE_API_URL = sanitizeBaseUrl(process.env.CORE_API_URL, "http://127.0.0.1:4000", "/api/v1");
+const AI_SERVICE_URL = sanitizeBaseUrl(process.env.AI_SERVICE_URL, "http://127.0.0.1:5000", "/api/ai");
 
 export interface ApiClientOptions {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";

@@ -15,9 +15,24 @@ export const DEFAULT_GEMINI_MODELS = [
   "gemini-3.6-flash",
 ];
 
+function sanitizeApiKey(key?: string | null): string {
+  if (!key) return "";
+  const k = key.trim();
+  if (k === "" || k.toLowerCase() === "x" || k.startsWith("...") || k === "placeholder" || k.length < 8) {
+    return "";
+  }
+  return k;
+}
+
+function isUsableSecret(val?: string | null): boolean {
+  if (!val) return false;
+  const s = val.trim();
+  return s.length >= 16 && s.toLowerCase() !== "x" && !s.startsWith("...") && s !== "placeholder";
+}
+
 export const DEFAULT_GEMINI_API_KEY =
-  process.env.GEMINI_API_KEY?.trim() ||
-  process.env.GEMINI?.trim() ||
+  sanitizeApiKey(process.env.GEMINI_API_KEY) ||
+  sanitizeApiKey(process.env.GEMINI) ||
   "";
 
 export function decryptSecretIfNeeded(cipherText: string): string {
@@ -27,9 +42,9 @@ export function decryptSecretIfNeeded(cipherText: string): string {
     if (parts.length !== 5) return "";
     const [, , ivHex, tagHex, dataHex] = parts;
     const secret =
-      process.env.ENCRYPTION_KEY ||
-      process.env.JWT_SECRET ||
-      process.env.NEXTAUTH_SECRET ||
+      (isUsableSecret(process.env.ENCRYPTION_KEY) && process.env.ENCRYPTION_KEY!.trim()) ||
+      (isUsableSecret(process.env.JWT_SECRET) && process.env.JWT_SECRET!.trim()) ||
+      (isUsableSecret(process.env.NEXTAUTH_SECRET) && process.env.NEXTAUTH_SECRET!.trim()) ||
       "finiq-secret-key-32-chars-minimum-token-super-safe";
     const key = crypto.createHash("sha256").update(secret).digest();
     const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"));

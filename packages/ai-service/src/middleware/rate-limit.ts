@@ -11,6 +11,11 @@ export function ipRateLimiter(options: {
   const action = options.action ?? "ai-service";
 
   return async (req: Request, res: Response, next: NextFunction) => {
+    // Selalu loloskan health check probe Kubernetes agar tidak pernah terkena 429 / restart loop
+    if (req.path === "/health" || req.path === "/healthz" || req.url === "/health" || req.url === "/healthz") {
+      return next();
+    }
+
     const forwarded = req.headers["x-forwarded-for"];
     const realIp = req.headers["x-real-ip"];
     let clientIp = "";

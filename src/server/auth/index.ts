@@ -40,8 +40,19 @@ export interface SessionPayload {
   exp?: number;
 }
 
-const DEFAULT_SECRET = "finiq-secret-key-32-chars-minimum-token-super-safe";
-const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || DEFAULT_SECRET;
+export const DEFAULT_SECRET = "finiq-secret-key-32-chars-minimum-token-super-safe";
+
+function isUsableSecret(val?: string | null): boolean {
+  if (!val) return false;
+  const s = val.trim();
+  return s.length >= 16 && s.toLowerCase() !== "x" && !s.startsWith("...") && s !== "placeholder";
+}
+
+const JWT_SECRET = isUsableSecret(process.env.JWT_SECRET)
+  ? process.env.JWT_SECRET!.trim()
+  : isUsableSecret(process.env.NEXTAUTH_SECRET)
+  ? process.env.NEXTAUTH_SECRET!.trim()
+  : DEFAULT_SECRET;
 const JWT_EXPIRES_IN = "30d";
 
 /**
@@ -73,7 +84,9 @@ export function verifySessionToken(token: string): SessionPayload | null {
     if (parts.length === 2) {
       const [dataB64, signature] = parts;
       if (dataB64 && signature) {
-        const secret = process.env.NEXTAUTH_SECRET || DEFAULT_SECRET;
+        const secret = isUsableSecret(process.env.NEXTAUTH_SECRET)
+          ? process.env.NEXTAUTH_SECRET!.trim()
+          : DEFAULT_SECRET;
         const payloadStr = Buffer.from(dataB64, "base64url").toString("utf8");
         const expectedSig = crypto.createHmac("sha256", secret).update(payloadStr).digest("base64url");
         if (signature === expectedSig) {

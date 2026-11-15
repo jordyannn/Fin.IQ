@@ -47,8 +47,20 @@ function deleteFromMemory(key: string) {
 let redisInstance: Redis | null = null;
 let isRedisAvailable = false;
 
+function sanitizeRedisUrl(url?: string | null): string | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+  if (trimmed === "" || trimmed.toLowerCase() === "x" || trimmed.startsWith("...") || trimmed === "placeholder") {
+    return null;
+  }
+  if (!trimmed.startsWith("redis://") && !trimmed.startsWith("rediss://")) {
+    return null;
+  }
+  return trimmed;
+}
+
 export function getRedisClient(): Redis | null {
-  const redisUrl = process.env.REDIS_URL;
+  const redisUrl = sanitizeRedisUrl(process.env.REDIS_URL);
   if (!redisUrl) {
     return null;
   }

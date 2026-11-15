@@ -32,6 +32,11 @@ export function ipRateLimiter(options: {
       res.setHeader("X-RateLimit-Limit", maxRequests);
       res.setHeader("X-RateLimit-Remaining", result.remaining);
 
+      // Jangan pernah blokir probe health check k3s dengan 429
+      if (req.path === "/health" || req.path === "/healthz" || req.url === "/health" || req.url === "/healthz") {
+        return next();
+      }
+
       if (!result.allowed) {
         res.setHeader("Retry-After", result.retryAfterSeconds);
         return res.status(429).json({

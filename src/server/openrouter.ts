@@ -8,9 +8,18 @@
  * 4. Fair-share Prompt Quota Limiter per user (e.g. 20 prompts per 24 hours).
  */
 
+function sanitizeApiKey(key?: string | null): string {
+  if (!key) return "";
+  const k = key.trim();
+  if (k === "" || k.toLowerCase() === "x" || k.startsWith("...") || k === "placeholder" || k.length < 8) {
+    return "";
+  }
+  return k;
+}
+
 export const DEFAULT_OPENROUTER_API_KEY =
-  process.env.OPENROUTER_API_KEY?.trim() ||
-  process.env.OPENROUTER?.trim() ||
+  sanitizeApiKey(process.env.OPENROUTER_API_KEY) ||
+  sanitizeApiKey(process.env.OPENROUTER) ||
   "";
 
 export interface FreeModelInfo {

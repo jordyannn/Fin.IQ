@@ -162,7 +162,7 @@ jobs:
               -o ServerAliveInterval=60 \
               -o ServerAliveCountMax=3 \
               -p "$SERVER_PORT" \
-              "${{ secrets.SERVER_USERNAME || 'ubuntu' }}@${{ secrets.SERVER_HOST }}" \
+              "${{ secrets.SERVER_USERNAME || 'ubuntu' }}@${{ secrets.SERVER_HOST || '43.163.5.111' }}" \
               "sudo k3s ctr -n k8s.io images import -"
 
       # Verifikasi image di containerd, template manifest, apply & rollout
@@ -172,7 +172,7 @@ jobs:
           OPENROUTER: ${{ secrets.OPENROUTER || secrets.OPENROUTER_API_KEY }}
           GEMINI: ${{ secrets.GEMINI || secrets.GEMINI_API_KEY }}
         with:
-          host: ${{ secrets.SERVER_HOST }}
+          host: ${{ secrets.SERVER_HOST || '43.163.5.111' }}
           username: ${{ secrets.SERVER_USERNAME || 'ubuntu' }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
@@ -246,9 +246,17 @@ jobs:
             if [ "$OR_LEN" -eq 0 ] && [ "$GEM_LEN" -eq 0 ]; then
               echo "::warning::OPENROUTER_API_KEY dan GEMINI_API_KEY di finiq-secrets keduanya kosong — fitur AI PDF/Receipt tidak akan bekerja tanpa key profil user!"
             fi
+
+            # Hapus key placeholder invalid jika pernah ter-inject di cluster secret
+            kubectl -n finiq get secret finiq-secrets -o jsonpath='{.data.NEXT_PUBLIC_SERVER_REFERENCE_ID}' >/dev/null 2>&1 && \
+              kubectl -n finiq patch secret finiq-secrets --type=json -p='[{"op":"remove","path":"/data/NEXT_PUBLIC_SERVER_REFERENCE_ID"}]' 2>/dev/null || true
+
             if command -v nginx >/dev/null 2>&1; then
-              if ! grep -rnq "proxy_read_timeout" /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null; then
-                echo "::warning::Nginx host belum memiliki proxy_read_timeout (default 60s). Salin proxy_read_timeout 300s dari k8s/nginx.conf ke config Nginx server untuk menghindari 504!"
+              if [ -d /etc/nginx/sites-available ]; then
+                echo "Sync k8s/nginx.conf ke /etc/nginx/sites-available/fin-iq..."
+                sudo cp k8s/nginx.conf /etc/nginx/sites-available/fin-iq
+                [ -f /etc/nginx/sites-enabled/fin-iq ] || sudo ln -sf /etc/nginx/sites-available/fin-iq /etc/nginx/sites-enabled/fin-iq
+                sudo nginx -t && sudo systemctl reload nginx || echo "::warning::Nginx test/reload gagal, periksa sertifikat SSL di host!"
               fi
             fi
 

@@ -6,9 +6,18 @@ export const GEMINI_MODEL = "gemini-3-flash-preview";
 export const GEMINI_AUDIO_MODEL = "gemini-3-flash-preview";
 export const GEMINI_VISION_MODEL = "gemini-3-flash-preview";
 
+function sanitizeApiKey(key?: string | null): string {
+  if (!key) return "";
+  const k = key.trim();
+  if (k === "" || k.toLowerCase() === "x" || k.startsWith("...") || k === "placeholder" || k.length < 8) {
+    return "";
+  }
+  return k;
+}
+
 export const DEFAULT_GEMINI_API_KEY =
-  process.env.GEMINI_API_KEY?.trim() ||
-  process.env.GEMINI?.trim() ||
+  sanitizeApiKey(process.env.GEMINI_API_KEY) ||
+  sanitizeApiKey(process.env.GEMINI) ||
   "";
 
 export async function getEffectiveGeminiKey(userId: string): Promise<string> {

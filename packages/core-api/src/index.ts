@@ -24,10 +24,20 @@ app.use(express.json({ limit: "15mb" }));
 // General IP Rate Limiting: 120 req/min
 app.use(ipRateLimiter({ maxRequests: 120, windowSeconds: 60, action: "core-api" }));
 
-// Health Check Endpoint
-app.get("/health", async (_req, res) => {
-  const redisHealth = await getRedisHealth();
-  res.json({
+// Health Check Endpoint (rate-limit middleware sets rate headers but never blocks /health with 429)
+app.get(["/health", "/healthz"], async (_req, res) => {
+  let redisHealth: any = { status: "unknown" };
+  try {
+    // Timeout 400ms untuk check Redis agar tidak menghambat probe k3s
+    redisHealth = await Promise.race([
+      getRedisHealth(),
+      new Promise<{ status: string }>((resolve) => setTimeout(() => resolve({ status: "timeout" }), 400)),
+    ]);
+  } catch {
+    redisHealth = { status: "error" };
+  }
+
+  res.status(200).json({
     status: "ok",
     service: "core-api",
     timestamp: new Date().toISOString(),
