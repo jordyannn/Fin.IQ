@@ -360,6 +360,8 @@ export const milestones = mysqlTable(
     trackingDirection: varchar("tracking_direction", { length: 20 })
       .default("savings_goal")
       .notNull(), // 'savings_goal' | 'spending_limit'
+    customCurrentAmount: double("custom_current_amount"),
+    startDate: timestamp("start_date", { mode: "date" }),
     deadline: timestamp("deadline", { mode: "date" }).notNull(),
     isCompleted: boolean("is_completed").default(false).notNull(),
     completedAt: timestamp("completed_at", { mode: "date" }),

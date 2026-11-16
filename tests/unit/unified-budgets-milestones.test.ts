@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   createVerifiedMilestone,
+  updateVerifiedMilestone,
   upsertVerifiedBudget,
 } from "../../src/server/financial-actions";
 
@@ -8,6 +9,7 @@ function createMockDbExecutor() {
   const insertedBudgets: Record<string, unknown>[] = [];
   const updatedBudgets: Record<string, unknown>[] = [];
   const insertedMilestones: Record<string, unknown>[] = [];
+  const updatedMilestones: Record<string, unknown>[] = [];
 
   const db = {
     query: {
@@ -35,8 +37,23 @@ function createMockDbExecutor() {
           insertedBudgets.length > 0 ? insertedBudgets[0] : null,
       },
       milestones: {
-        findFirst: async () =>
-          insertedMilestones.length > 0 ? insertedMilestones[0] : null,
+        findFirst: async (args?: any) => {
+          if (insertedMilestones.length > 0) {
+            const found = insertedMilestones[0] as any;
+            return {
+              ...found,
+              id: found.id || "ms-1",
+              userId: "user-1",
+              trackingType: found.trackingType || "category",
+              trackingId: found.trackingId || "cat-expense-1",
+              trackingDirection: found.trackingDirection || "spending_limit",
+              deadline: found.deadline || new Date("2026-11-30"),
+              startDate: found.startDate || new Date("2026-11-01"),
+              createdAt: found.createdAt || new Date("2026-11-01"),
+            };
+          }
+          return null;
+        },
       },
       transactions: {
         findFirst: async () => null,
@@ -51,10 +68,14 @@ function createMockDbExecutor() {
         }
       },
     }),
-    update: () => ({
+    update: (tbl: any) => ({
       set: (patch: Record<string, unknown>) => ({
         where: async () => {
-          updatedBudgets.push(patch);
+          if ("targetAmount" in patch || "customCurrentAmount" in patch || "title" in patch) {
+            updatedMilestones.push(patch);
+          } else {
+            updatedBudgets.push(patch);
+          }
         },
       }),
     }),
@@ -62,7 +83,7 @@ function createMockDbExecutor() {
     select: () => ({}) as any,
   };
 
-  return { db: db as any, insertedBudgets, updatedBudgets, insertedMilestones };
+  return { db: db as any, insertedBudgets, updatedBudgets, insertedMilestones, updatedMilestones };
 }
 
 describe("Unified Budgets & Milestones Shared Actions", () => {
@@ -161,6 +182,46 @@ describe("Unified Budgets & Milestones Shared Actions", () => {
         deadline: "2026-11-13",
       })
     ).rejects.toThrow(/tanggal mulai/i);
+  });
+
+  it("supports updating milestone, customizing filled amount (customCurrentAmount), and moving dates", async () => {
+    const { db, insertedMilestones, updatedMilestones } = createMockDbExecutor();
+
+    const created = await createVerifiedMilestone(db, "user-1", {
+      title: "Buffer Pengeluaran 13-18 Nov",
+      targetAmount: 200_000,
+      trackingType: "category",
+      trackingId: "cat-expense-1",
+      trackingDirection: "spending_limit",
+      startDate: "2026-11-13",
+      deadline: "2026-11-18",
+      customCurrentAmount: 50_000,
+    });
+
+    expect(created).toBeTruthy();
+    expect(insertedMilestones[0]?.customCurrentAmount).toBe(50_000);
+
+    // Update milestone: move to next dates (19-30 Nov) and reset customCurrentAmount to 0
+    await updateVerifiedMilestone(db, "user-1", {
+      id: created.id,
+      title: "Buffer Pengeluaran 19-30 Nov",
+      startDate: "2026-11-19",
+      deadline: "2026-11-30",
+      targetAmount: 150_000,
+      customCurrentAmount: 0,
+    });
+
+    expect(updatedMilestones).toHaveLength(1);
+    expect(updatedMilestones[0]?.title).toBe("Buffer Pengeluaran 19-30 Nov");
+    expect(updatedMilestones[0]?.targetAmount).toBe(150_000);
+    expect(updatedMilestones[0]?.customCurrentAmount).toBe(0);
+
+    // Reset customCurrentAmount back to null (auto)
+    await updateVerifiedMilestone(db, "user-1", {
+      id: created.id,
+      customCurrentAmount: null,
+    });
+    expect(updatedMilestones[1]?.customCurrentAmount).toBeNull();
   });
 });
 

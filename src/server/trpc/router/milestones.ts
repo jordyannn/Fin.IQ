@@ -2,7 +2,10 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { milestones, accounts, categories, transactions } from "../../db/schema";
 import { eq, and, sql, gte, lte, desc } from "drizzle-orm";
-import { createVerifiedMilestone } from "../../financial-actions";
+import {
+  createVerifiedMilestone,
+  updateVerifiedMilestone,
+} from "../../financial-actions";
 
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
 
@@ -39,10 +42,10 @@ export const milestonesRouter = router({
 
     const result = await Promise.all(
       items.map(async (m) => {
-        let currentAmount = 0;
+        let computedAmount = 0;
         let trackingName = "";
 
-        const startDate = toStartOfWibDay(new Date(m.createdAt));
+        const startDate = toStartOfWibDay(new Date(m.startDate || m.createdAt));
         const endDate = toEndOfWibDay(new Date(m.deadline));
 
         if (m.trackingType === "account") {
@@ -71,7 +74,7 @@ export const milestonesRouter = router({
                     lte(transactions.happenedAt, endDate)
                   )
                 );
-              currentAmount = Number(agg?.total ?? 0);
+              computedAmount = Number(agg?.total ?? 0);
             } else {
               const acc = await ctx.db.query.accounts.findFirst({
                 where: and(eq(accounts.id, m.trackingId), eq(accounts.userId, ctx.userId)),
@@ -95,7 +98,7 @@ export const milestonesRouter = router({
                     lte(transactions.happenedAt, endDate)
                   )
                 );
-              currentAmount = Number(agg?.total ?? 0);
+              computedAmount = Number(agg?.total ?? 0);
             }
           } else {
             // Target Saldo / Tabungan (savings_goal)
@@ -112,12 +115,12 @@ export const milestonesRouter = router({
                     eq(accounts.isHidden, false)
                   )
                 );
-              currentAmount = Number(agg?.total ?? 0);
+              computedAmount = Number(agg?.total ?? 0);
             } else {
               const acc = await ctx.db.query.accounts.findFirst({
                 where: and(eq(accounts.id, m.trackingId), eq(accounts.userId, ctx.userId)),
               });
-              currentAmount = acc?.balance ?? 0;
+              computedAmount = acc?.balance ?? 0;
               trackingName = acc?.name ?? "Account";
             }
           }
@@ -145,8 +148,14 @@ export const milestonesRouter = router({
                 lte(transactions.happenedAt, endDate)
               )
             );
-          currentAmount = Number(agg?.total ?? 0);
+          computedAmount = Number(agg?.total ?? 0);
         }
+
+        const isCustomAmount =
+          m.customCurrentAmount !== null && m.customCurrentAmount !== undefined;
+        const currentAmount = isCustomAmount
+          ? Number(m.customCurrentAmount)
+          : computedAmount;
 
         const rawPercent = m.targetAmount > 0 ? (currentAmount / m.targetAmount) * 100 : 0;
         const percent = Math.min(Math.max(Math.round(rawPercent), 0), 100);
@@ -165,11 +174,17 @@ export const milestonesRouter = router({
             1
         );
 
+        const remainingAmount = Math.max(0, m.targetAmount - currentAmount);
+
         return {
           id: m.id,
           title: m.title,
           targetAmount: m.targetAmount,
           currentAmount,
+          computedAmount,
+          customCurrentAmount: m.customCurrentAmount,
+          isCustomAmount,
+          remainingAmount,
           percent,
           rawPercent: Math.round(rawPercent),
           trackingType: m.trackingType as "account" | "category",
@@ -179,7 +194,7 @@ export const milestonesRouter = router({
             | "savings_goal"
             | "spending_limit"
             | "income_goal",
-          startDate: m.createdAt,
+          startDate: m.startDate || m.createdAt,
           deadline: m.deadline,
           durationDays,
           hasStarted,
@@ -208,11 +223,91 @@ export const milestonesRouter = router({
           .default("savings_goal"),
         startDate: z.coerce.date().optional(),
         deadline: z.coerce.date(),
+        customCurrentAmount: z.number().min(0).nullable().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const created = await createVerifiedMilestone(ctx.db, ctx.userId, input);
       return { id: created.id };
+    }),
+
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        title: z.string().min(1, "Title is required").max(255).optional(),
+        targetAmount: z.number().positive("Target amount must be positive").optional(),
+        trackingType: z.enum(["account", "category"]).optional(),
+        trackingId: z.string().min(1, "Target ID is required").optional(),
+        trackingDirection: z
+          .enum(["savings_goal", "spending_limit", "income_goal"])
+          .optional(),
+        startDate: z.coerce.date().optional(),
+        deadline: z.coerce.date().optional(),
+        customCurrentAmount: z.number().min(0).nullable().optional(),
+        isCompleted: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const updated = await updateVerifiedMilestone(ctx.db, ctx.userId, input);
+      return { id: updated.id };
+    }),
+
+  rollover: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        action: z.enum(["update_current", "create_next"]),
+        nextTitle: z.string().min(1).max(255).optional(),
+        nextStartDate: z.coerce.date(),
+        nextDeadline: z.coerce.date(),
+        nextTargetAmount: z.number().positive(),
+        nextCustomCurrentAmount: z.number().min(0).nullable().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.query.milestones.findFirst({
+        where: and(eq(milestones.id, input.id), eq(milestones.userId, ctx.userId)),
+      });
+      if (!existing) {
+        throw new Error("Target keuangan tidak ditemukan.");
+      }
+
+      if (input.action === "update_current") {
+        const updated = await updateVerifiedMilestone(ctx.db, ctx.userId, {
+          id: existing.id,
+          title: input.nextTitle || existing.title,
+          startDate: input.nextStartDate,
+          deadline: input.nextDeadline,
+          targetAmount: input.nextTargetAmount,
+          customCurrentAmount:
+            input.nextCustomCurrentAmount !== undefined ? input.nextCustomCurrentAmount : 0,
+          isCompleted: false,
+        });
+        return { id: updated.id, action: "updated" };
+      } else {
+        await updateVerifiedMilestone(ctx.db, ctx.userId, {
+          id: existing.id,
+          isCompleted: true,
+        });
+
+        const created = await createVerifiedMilestone(ctx.db, ctx.userId, {
+          title: input.nextTitle || `${existing.title} (Lanjutan)`,
+          targetAmount: input.nextTargetAmount,
+          trackingType: existing.trackingType as "account" | "category",
+          trackingId: existing.trackingId,
+          trackingDirection: existing.trackingDirection as
+            | "savings_goal"
+            | "spending_limit"
+            | "income_goal",
+          startDate: input.nextStartDate,
+          deadline: input.nextDeadline,
+          customCurrentAmount:
+            input.nextCustomCurrentAmount !== undefined ? input.nextCustomCurrentAmount : 0,
+        });
+
+        return { id: created.id, action: "created_next" };
+      }
     }),
 
   toggleComplete: protectedProcedure

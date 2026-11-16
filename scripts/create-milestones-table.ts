@@ -27,6 +27,8 @@ async function main() {
       \`tracking_type\` varchar(20) NOT NULL,
       \`tracking_id\` varchar(36) NOT NULL,
       \`tracking_direction\` varchar(20) NOT NULL DEFAULT 'savings_goal',
+      \`custom_current_amount\` double NULL DEFAULT NULL,
+      \`start_date\` timestamp NULL DEFAULT NULL,
       \`deadline\` timestamp NOT NULL,
       \`is_completed\` tinyint(1) NOT NULL DEFAULT 0,
       \`completed_at\` timestamp NULL DEFAULT NULL,

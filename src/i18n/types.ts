@@ -412,6 +412,19 @@ export interface TranslationDictionary {
     allAccounts: string;
     allAccountsShort: string;
     overBudget: string;
+    editMilestone: string;
+    edit: string;
+    rollover: string;
+    rolloverTitle: string;
+    filledAmount: string;
+    filledAuto: string;
+    filledCustom: string;
+    resetToAuto: string;
+    customBadge: string;
+    remainingBuffer: string;
+    nextPeriod: string;
+    actionUpdateCurrent: string;
+    actionCreateNext: string;
   };
   quickActions: {
     addTransaction: string;

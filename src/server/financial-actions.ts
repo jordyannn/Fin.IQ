@@ -45,6 +45,20 @@ export interface VerifiedMilestoneInput {
   trackingDirection: "savings_goal" | "spending_limit" | "income_goal";
   startDate?: string | Date;
   deadline: string | Date;
+  customCurrentAmount?: number | null;
+}
+
+export interface UpdateVerifiedMilestoneInput {
+  id: string;
+  title?: string;
+  targetAmount?: number;
+  trackingType?: "account" | "category";
+  trackingId?: string;
+  trackingDirection?: "savings_goal" | "spending_limit" | "income_goal";
+  startDate?: string | Date;
+  deadline?: string | Date;
+  customCurrentAmount?: number | null;
+  isCompleted?: boolean;
 }
 
 async function resolveUserLedgerId(
@@ -367,7 +381,12 @@ export async function createVerifiedMilestone(
     trackingId: input.trackingId,
     trackingDirection: input.trackingDirection,
     deadline: safeDeadline,
+    startDate: safeStartDate,
     createdAt: safeStartDate,
+    customCurrentAmount:
+      typeof input.customCurrentAmount === "number" && input.customCurrentAmount >= 0
+        ? input.customCurrentAmount
+        : null,
     isCompleted: false,
   });
 
@@ -376,4 +395,148 @@ export async function createVerifiedMilestone(
   });
 
   return created ?? { id };
+}
+
+/**
+ * Updates an existing milestone/target, including manual customization of
+ * filled amount (customCurrentAmount) and moving dates/rollover.
+ */
+export async function updateVerifiedMilestone(
+  dbOrTx: DbExecutor,
+  userId: string,
+  input: UpdateVerifiedMilestoneInput
+) {
+  const existing = await dbOrTx.query.milestones.findFirst({
+    where: and(eq(milestones.id, input.id), eq(milestones.userId, userId)),
+  });
+
+  if (!existing) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Target keuangan tidak ditemukan.",
+    });
+  }
+
+  const patch: Partial<typeof milestones.$inferInsert> = {
+    updatedAt: new Date(),
+  };
+
+  if (input.title !== undefined) {
+    const title = input.title.trim();
+    if (!title) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Judul target keuangan tidak boleh kosong.",
+      });
+    }
+    patch.title = title;
+  }
+
+  if (input.targetAmount !== undefined) {
+    if (!Number.isFinite(input.targetAmount) || input.targetAmount <= 0) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Nominal target harus lebih dari 0.",
+      });
+    }
+    patch.targetAmount = input.targetAmount;
+  }
+
+  const trackingType = input.trackingType ?? (existing.trackingType as "account" | "category");
+  const trackingId = input.trackingId ?? existing.trackingId;
+
+  if (input.trackingType !== undefined || input.trackingId !== undefined) {
+    if (trackingType === "account") {
+      if (trackingId !== "all") {
+        const acc = await dbOrTx.query.accounts.findFirst({
+          where: and(eq(accounts.id, trackingId), eq(accounts.userId, userId)),
+        });
+        if (!acc) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Akun yang dipantau target tidak valid.",
+          });
+        }
+      }
+    } else {
+      const cat = await dbOrTx.query.categories.findFirst({
+        where: and(eq(categories.id, trackingId), eq(categories.userId, userId)),
+      });
+      if (!cat) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Kategori yang dipantau target tidak valid.",
+        });
+      }
+    }
+    patch.trackingType = trackingType;
+    patch.trackingId = trackingId;
+  }
+
+  if (input.trackingDirection !== undefined) {
+    patch.trackingDirection = input.trackingDirection;
+  }
+
+  let finalDeadline = existing.deadline;
+  if (input.deadline !== undefined) {
+    const parsedDeadline = new Date(input.deadline);
+    if (Number.isNaN(parsedDeadline.getTime())) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Tanggal akhir (deadline) tidak valid.",
+      });
+    }
+    finalDeadline = new Date(Math.floor(parsedDeadline.getTime() / 1000) * 1000);
+    patch.deadline = finalDeadline;
+  }
+
+  let finalStart = existing.startDate || existing.createdAt;
+  if (input.startDate !== undefined) {
+    const parsedStart = new Date(input.startDate);
+    if (Number.isNaN(parsedStart.getTime())) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Tanggal mulai target tidak valid.",
+      });
+    }
+    finalStart = new Date(Math.floor(parsedStart.getTime() / 1000) * 1000);
+    patch.startDate = finalStart;
+    patch.createdAt = finalStart;
+  }
+
+  if (finalStart.getTime() > finalDeadline.getTime() + 86_400_000) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Tanggal mulai target tidak boleh melewati tanggal akhir (deadline).",
+    });
+  }
+
+  if (input.customCurrentAmount !== undefined) {
+    if (input.customCurrentAmount === null) {
+      patch.customCurrentAmount = null;
+    } else if (Number.isFinite(input.customCurrentAmount) && input.customCurrentAmount >= 0) {
+      patch.customCurrentAmount = input.customCurrentAmount;
+    } else {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Nominal yang sudah terisi harus berupa angka 0 atau lebih.",
+      });
+    }
+  }
+
+  if (input.isCompleted !== undefined) {
+    patch.isCompleted = input.isCompleted;
+    patch.completedAt = input.isCompleted ? new Date() : null;
+  }
+
+  await dbOrTx
+    .update(milestones)
+    .set(patch)
+    .where(and(eq(milestones.id, input.id), eq(milestones.userId, userId)));
+
+  const updated = await dbOrTx.query.milestones.findFirst({
+    where: eq(milestones.id, input.id),
+  });
+
+  return updated ?? { id: input.id };
 }
