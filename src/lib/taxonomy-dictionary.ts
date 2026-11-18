@@ -1,5 +1,5 @@
 // Generated semantic taxonomy dictionary from Fin.IQ Indonesian NLP dataset
-// Source: C:\Users\BRAVO\Downloads\fin_iq_dataset_id\fin_iq_dataset
+// Source: dataset/fin_iq_dataset
 
 export interface TaxonomyEntry {
   parent: string;

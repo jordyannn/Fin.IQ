@@ -10,7 +10,7 @@ if (!process.env.DATABASE_URL) {
 
 const connectionUri =
   process.env.DATABASE_URL ||
-  "mysql://avnadmin:AVNS_CpIAQBJBbUy_hH9zbT8@finiq-1-jordanngz12-6510.c.aivencloud.com:12551/defaultdb";
+  "mysql://finiq_user:change_me@127.0.0.1:3306/defaultdb";
 
 const isLocalOrDocker =
   connectionUri.includes("finiq-db") ||

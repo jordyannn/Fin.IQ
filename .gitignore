@@ -12,7 +12,6 @@ dist/
 
 # Local databases
 *.db
-!finiq.db
 *.db-journal
 *.sqlite
 *.sqlite-journal
@@ -48,3 +47,8 @@ blob-report/
 playwright/.cache/
 tests/e2e/.auth/
 scratch/
+
+# Local showcase & portfolio staging folders (keep out of public GitHub repo)
+portfolio-showcase/
+linkedin-showcase/
+Proyek_Kelompok-CashflowManagement/

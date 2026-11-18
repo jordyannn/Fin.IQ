@@ -8,6 +8,9 @@ import { generateWithFallback, DEFAULT_GEMINI_API_KEY, DEFAULT_GEMINI_MODELS } f
 import { DEFAULT_OPENROUTER_API_KEY } from "../../openrouter";
 import { invalidateAuthUser } from "@/lib/redis";
 
+const isRevokedLegacyKey = (key: string) =>
+  key.length === 73 && key.endsWith("015a5d0f4");
+
 export const userRouter = router({
   getProfile: protectedProcedure.query(async ({ ctx }) => {
     // 1. Get user record
@@ -77,10 +80,7 @@ export const userRouter = router({
       process.env.GEMINI?.trim() ||
       DEFAULT_GEMINI_API_KEY ||
       "";
-    const activeAiKey =
-      rawKey === "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"
-        ? ""
-        : rawKey;
+    const activeAiKey = isRevokedLegacyKey(rawKey) ? "" : rawKey;
 
     return {
       id: user.id,
@@ -312,8 +312,7 @@ export const userRouter = router({
       process.env.GEMINI?.trim() ||
       DEFAULT_GEMINI_API_KEY;
     const activeEnvKey =
-      envOpenRouter &&
-      envOpenRouter !== "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"
+      envOpenRouter && !isRevokedLegacyKey(envOpenRouter)
         ? envOpenRouter
         : envGemini || null;
 

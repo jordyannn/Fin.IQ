@@ -1,228 +1,140 @@
-# Dokumentasi Konteks Deployment Fin.IQ
+# Fin.IQ Deployment & Infrastructure Runbook
 
-Dokumen ini mencatat seluruh arsitektur infrastruktur, data server cloud, konfigurasi jaringan VPC, dan panduan operasional deployment aplikasi **Fin.IQ** di **Tencent Cloud**.
+This document outlines the cloud infrastructure topology, VPC networking model, container orchestration (K3s), Nginx reverse proxy setup, and operational procedures for deploying **Fin.IQ**.
+
+> **Security Note:** All production IP addresses, cloud resource IDs, and credentials in this public runbook are intentionally replaced with placeholders (`<...>`). Inject real values exclusively via GitHub Actions Secrets, Kubernetes Secrets (`finiq-secrets`), or local `.env.local` files on the target host.
 
 ---
 
-## 1. Data Spesifikasi Server & Cloud Provider
+## 1. Compute & Cloud Infrastructure Profile
 
-| Parameter | Nilai Konfigurasi | Keterangan |
+| Parameter | Configuration | Description |
 | :--- | :--- | :--- |
-| **Cloud Provider** | Tencent Cloud | Layanan Cloud Hosting |
-| **Produk Instance** | Tencent Cloud Lighthouse (VPS) | Compute Instance |
-| **Nama Instance** | `Ubuntu-A5J1` | Hostname Server |
-| **Instance ID** | `lhins-fki22xfp` | ID Resource Tencent Cloud |
-| **Sistem Operasi** | Ubuntu Linux (LTS) | OS Server |
-| **Public IP (IPv4)** | `43.163.5.111` | Akses Publik / Internet |
-| **Region / Wilayah** | Guangzhou (Region ID: `rid=9`) | Lokasi Data Center |
-| **Availability Zone** | Guangzhou Zone 2 & Zone 3 | Zona Ketersediaan |
+| **Cloud Provider** | Tencent Cloud (or any Linux VPS) | Cloud Infrastructure |
+| **Compute Tier** | Lightweight VPS (~2 vCPU / ~2 GB RAM) | Single-Node K3s Host |
+| **Hostname** | `<VPS_HOSTNAME>` | Server Hostname |
+| **Instance ID** | `<CLOUD_INSTANCE_ID>` | Cloud Resource Identifier |
+| **Operating System** | Ubuntu Linux (LTS) | Host OS |
+| **Public IP (IPv4)** | `<VPS_PUBLIC_IP>` | Public Ingress Endpoint |
+| **Region** | Asia-Pacific (Multi-AZ VPC) | Data Center Region |
 
 ---
 
-## 2. Arsitektur Jaringan VPC & Subnet
+## 2. VPC & Network Architecture
 
-Aplikasi terhubung ke Virtual Private Cloud (VPC) dedicated:
+The production deployment uses a segmented Virtual Private Cloud (VPC) pattern:
 
-| Resource | Nama / ID | CIDR Block | Lokasi Zone | Keterangan |
-| :--- | :--- | :--- | :--- | :--- |
-| **VPC Utama** | `VPC-Finiq-Prod`<br>(`vpc-1lx11xvt`) | `10.0.0.0/16` | Guangzhou | Jaringan privat terisolasi Fin.IQ |
-| **Public Subnet** | `Public-Finiq-Subnet-Prod`<br>(`subnet-heim3244`) | `10.0.0.0/24` | Guangzhou Zone 2 | Subnet untuk Server Web & Akses Publik (253 IP) |
-| **Private Subnet** | `Private-Finiq-Subnet-Prod`<br>(`subnet-d1ft7d8a`) | `10.0.1.0/24` | Guangzhou Zone 3 | Subnet untuk Database / Internal Service (253 IP) |
-| **Route Table** | `rtb-mi8i78ue` | Default Route | - | Tabel rute gateway internet & lokal |
+| Resource | Name / Placeholder ID | CIDR Block | Role |
+| :--- | :--- | :--- | :--- |
+| **VPC** | `VPC-Finiq-Prod` (`<VPC_ID>`) | `10.0.0.0/16` | Isolated cloud network |
+| **Public Subnet** | `Public-Finiq-Subnet-Prod` (`<PUBLIC_SUBNET_ID>`) | `10.0.0.0/24` | Public ingress & Nginx TLS termination |
+| **Private Subnet** | `Private-Finiq-Subnet-Prod` (`<PRIVATE_SUBNET_ID>`) | `10.0.1.0/24` | Internal services / private backend tier |
+| **Route Table** | `<ROUTE_TABLE_ID>` | Default Route | Internet gateway & internal routing |
 
 ---
 
-## 3. Konfigurasi Firewall & Inbound Rules (Lighthouse)
+## 3. Firewall & Inbound Security Rules
 
-Aturan firewall (*Inbound Rules*) yang aktif pada instance `Ubuntu-A5J1`:
+Recommended firewall policy for production hardening:
 
-| Tipe / Layanan | Protokol | Port | Source | Status / Kebijakan | Fungsi |
+| Service | Protocol | Port | Recommended Source | Policy | Purpose |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Linux Login (SSH)** | TCP | `22` | `0.0.0.0/0` | **ALLOW** | Akses remote administrasi terminal server |
-| **Web HTTP** | TCP | `80` | `0.0.0.0/0` | **ALLOW** | Akses web browser (Nginx Reverse Proxy) |
-| **Web HTTPS** | TCP | `443` | `0.0.0.0/0` | **ALLOW** | Akses web aman berenkripsi SSL (Let's Encrypt) |
-| **Custom App Port** | TCP | `3000` | `0.0.0.0/0` | **ALLOW** | Port internal aplikasi Next.js (bisa untuk tes langsung) |
-| **Ping** | ICMP | `ALL` | `0.0.0.0/0` | **ALLOW** | Diagnostic latensi jaringan |
+| **Web HTTP** | TCP | `80` | `0.0.0.0/0` | **ALLOW** | ACME Certbot challenge & HTTP → HTTPS redirect |
+| **Web HTTPS** | TCP | `443` | `0.0.0.0/0` | **ALLOW** | Encrypted production traffic via Nginx (TLS 1.2/1.3) |
+| **SSH Admin** | TCP | `22` | `<ADMIN_IP>/32` or Bastion/VPN | **RESTRICTED** | Key-only remote administration (disable password auth) |
+| **Internal NodePorts** | TCP | `30040`, `30050`, `30080` | `127.0.0.1` only | **DENY PUBLIC** | Exposed strictly to local Nginx reverse proxy |
 
 ---
 
-## 4. Stack Aplikasi & Lingkungan Runtime
+## 4. Production Runtime Stack
 
-- **Aplikasi**: Fin.IQ (Personal Finance & Expense Engine)
-- **Framework**: Next.js 15 (App Router) + React 19 + TypeScript
-- **Styling**: Tailwind CSS + Radix UI + Hallmark Design System (`tokens.css`)
-- **Runtime**: Node.js 20 LTS
-- **Process Manager**: PM2 Cluster Mode (`ecosystem.config.js`)
-- **Web Server / Reverse Proxy**: Nginx
-- **Database ORM**: Drizzle ORM (MySQL dialect)
-- **AI Engine**: Google Gemini API (`@google/genai`)
-- **Direktori Server**: `/var/www/fin-iq`
-- **Git Repository**: `https://github.com/jordyannn/Fin.IQ.git` (Branch: `main`)
+- **Application**: Fin.IQ (AI-Powered Personal Finance & Cashflow Platform)
+- **Architecture**: 4-Service Microservices Monorepo (`frontend`, `core-api`, `ai-service`, `redis`)
+- **Orchestration**: K3s (Lightweight Kubernetes) with `HorizontalPodAutoscaler` (HPA) on `core-api` (1–3 replicas @ 70% CPU)
+- **Reverse Proxy & TLS**: Nginx + Let's Encrypt Certbot + IP Rate Limiting Zones (`60r/m` Core API, `30r/m` AI API)
+- **Primary Database**: Managed Cloud MySQL (Aiven MySQL over TLS) via Drizzle ORM
+- **Cache & Session Layer**: Redis 7 Alpine (`64MB`, `allkeys-lru`) for JWT session caching, instant logout revocation, and sliding-window rate limiting
+- **CI/CD**: GitHub Actions (`.github/workflows/ci-cd.yml`) → GHCR → SSH stream to K3s `containerd` → Atomic `kubectl apply` rolling updates (`maxUnavailable: 0`)
 
 ---
 
-## 5. Ringkasan File Environment Produksi (`.env.local`)
+## 5. Production Environment Variables (`.env.local` / K8s Secret)
 
-Lokasi file di server: `/var/www/fin-iq/.env.local`
-
-```env
-# Koneksi Database MySQL (Aiven / RDS / Cloud MySQL)
-DATABASE_URL="mysql://avnadmin:PASSWORD@HOST_MYSQL:PORT/defaultdb"
-
-# NextAuth Authentication
-NEXTAUTH_SECRET="koderandom32karakteruntukkeamanansession"
-NEXTAUTH_URL="http://43.163.5.111"
-
-# Google Gemini API
-GEMINI_API_KEY="AIzaSy..."
-
-# Konfigurasi Finansial Fin.IQ
-NEXT_PUBLIC_DEFAULT_CURRENCY="IDR"
-DEMO_USER_ID="default-user-uuid-1"
-NODE_ENV="production"
-PORT=3000
-```
-
----
-
-## 6. Prosedur Operasional Deployment & Maintenance
-
-### A. Membuka Terminal Server
-- **Opsi Web (Termudah)**: Buka dashboard Tencent Cloud Lighthouse, pada instance `Ubuntu-A5J1` klik tombol biru **`Log in`**.
-- **Opsi SSH Laptop**:
-  ```bash
-  ssh ubuntu@43.163.5.111
-  ```
-
----
-
-### B. Setup Awal Server (One-Time Setup)
-### B. Metode 1: Deploy Menggunakan Docker Compose (Direkomendasikan & Sangat Ringan)
-
-Fin.IQ menggunakan arsitektur container ringan yang terhubung langsung ke **Aiven Cloud MySQL** (total konsumsi RAM hanya **~120MB**).
+Never commit real secrets. Create the Kubernetes Secret (`finiq-secrets`) directly in the `finiq` namespace:
 
 ```bash
-# 1. Install Docker & Docker Compose di Ubuntu jika belum ada:
-sudo apt update && sudo apt install -y docker.io docker-compose-v2
-sudo systemctl enable --now docker
-sudo usermod -aG docker $USER
+kubectl -n finiq create secret generic finiq-secrets \
+  --from-literal=DATABASE_URL="mysql://<DB_USER>:<DB_PASSWORD>@<DB_HOST>:<DB_PORT>/defaultdb" \
+  --from-literal=NEXTAUTH_SECRET="<RANDOM_32_PLUS_CHAR_SECRET>" \
+  --from-literal=NEXTAUTH_URL="https://fin-iq.my.id" \
+  --from-literal=OPENROUTER_API_KEY="<OPENROUTER_API_KEY>" \
+  --from-literal=GEMINI_API_KEY="<GEMINI_API_KEY>" \
+  --from-literal=NEXT_PUBLIC_DEFAULT_CURRENCY="IDR" \
+  --from-literal=DEMO_USER_ID="default-user-uuid-1" \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
 
-# 2. Clone repository ke server:
-sudo mkdir -p /var/www
-cd /var/www
-sudo git clone https://github.com/jordyannn/Fin.IQ.git fin-iq
-sudo chown -R $USER:$USER /var/www/fin-iq
-cd /var/www/fin-iq
+### Required GitHub Actions Secrets (`.github/workflows/ci-cd.yml`)
 
-# 3. Jalankan Fin.IQ App dengan 1 perintah:
+| Secret Name | Purpose |
+| :--- | :--- |
+| `DATABASE_URL` | Managed MySQL connection string (SSL enabled) |
+| `NEXTAUTH_SECRET` | Session signing secret (minimum 32 random chars) |
+| `SERVER_HOST` | Production VPS IP or SSH hostname |
+| `SERVER_USERNAME` | SSH deploy user (e.g. `ubuntu`) |
+| `SERVER_SSH_KEY` | Dedicated Ed25519 private key for CI/CD deploy |
+| `SERVER_PORT` | Optional SSH port (defaults to `22`) |
+| `OPENROUTER_API_KEY` | OpenRouter API key synced to K3s `finiq-secrets` |
+| `GEMINI_API_KEY` | Google Gemini API key synced to K3s `finiq-secrets` |
+
+---
+
+## 6. Deployment Options
+
+### Option A: Automated K3s Microservices Deployment (Production Default)
+
+Every push to `main` triggers `.github/workflows/ci-cd.yml`:
+1. Builds 3 multi-stage Docker images (`frontend`, `core-api`, `ai-service`) using Docker Buildx with GitHub Actions layer caching (`type=gha`).
+2. Pushes immutable commit-SHA tags (`:<sha>`) and `:latest` to `ghcr.io`.
+3. Streams images over SSH into the VPS K3s `containerd` runtime (`k3s ctr -n k8s.io images import -`) and verifies image indexing before applying manifests.
+4. Templates the exact commit SHA into `k8s/*/deployment.yaml` and runs `kubectl apply -R -f k8s/`.
+5. Monitors `kubectl rollout status` across all deployments with automatic pod/log diagnostics on failure.
+
+### Option B: Local / Single-Host Docker Compose
+
+```bash
+cp .env.example .env.local
+# Fill in DATABASE_URL, NEXTAUTH_SECRET, and optional AI keys
 docker compose up -d --build
-
-# 4. Cek status container yang berjalan:
 docker compose ps
-docker compose logs -f finiq-app
 ```
-> Aplikasi langsung terhubung ke database cloud Aiven MySQL dengan SSL aman!
 
----
+### Option C: Nginx Reverse Proxy + Let's Encrypt SSL
 
-### C. Metode 2: Deploy Native Node.js 20 + PM2 (Alternatif Tanpa Docker)
+Use the version-controlled reverse proxy template in [`k8s/nginx.conf`](k8s/nginx.conf):
+
 ```bash
-# 1. Update sistem dan install Node 20, Git, Nginx, PM2
-sudo apt update && sudo apt upgrade -y
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs git nginx build-essential
-sudo npm install -g pm2
-
-# 2. Clone repository ke /var/www/fin-iq
-sudo mkdir -p /var/www
-cd /var/www
-sudo git clone https://github.com/jordyannn/Fin.IQ.git fin-iq
-sudo chown -R $USER:$USER /var/www/fin-iq
-cd /var/www/fin-iq
-
-# 3. Setup file .env.local
-nano .env.local
-# (Paste isian environment, simpan dengan Ctrl+O, Enter, Ctrl+X)
-
-# 4. Install dependensi, sinkronkan skema database, & build Next.js
-npm install
-npm run db:push
-npm run build
-
-# 5. Jalankan aplikasi dengan PM2
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup
-```
-
----
-
-### D. Konfigurasi Nginx (Reverse Proxy Port 80 -> 3000)
-File konfigurasi: `/etc/nginx/sites-available/fin-iq`
-
-```nginx
-server {
-    listen 80;
-    server_name fin-iq.my.id www.fin-iq.my.id;
-
-    client_max_body_size 50M;
-    proxy_connect_timeout 60s;
-    proxy_send_timeout 300s;
-    proxy_read_timeout 300s;
-
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
-Aktifkan site Nginx:
-```bash
-sudo ln -s /etc/nginx/sites-available/fin-iq /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-Pasang SSL Gratis (HTTPS) Certbot:
-```bash
+sudo cp k8s/nginx.conf /etc/nginx/sites-available/fin-iq
+sudo ln -sf /etc/nginx/sites-available/fin-iq /etc/nginx/sites-enabled/fin-iq
+sudo nginx -t && sudo systemctl reload nginx
 sudo certbot --nginx -d fin-iq.my.id -d www.fin-iq.my.id
 ```
 
 ---
 
-### E. Alur Pembaruan Kode (Deploy Update Rutin)
-Setiap kali Anda selesai melakukan *push* update kode baru dari laptop ke GitHub:
+## 7. Operational Verification & Diagnostics
 
-**Jika menggunakan Docker:**
 ```bash
-cd /var/www/fin-iq
-git pull origin main
-docker compose up -d --build
+# Check Kubernetes pods, services, and autoscaler
+kubectl -n finiq get pods -o wide
+kubectl -n finiq get svc
+kubectl -n finiq get hpa
+
+# Inspect live service logs
+kubectl -n finiq logs -l component=core-api --tail=100 -f
+kubectl -n finiq logs -l component=ai-service --tail=100 -f
+
+# Verify Nginx & TLS
+sudo systemctl status nginx
+sudo tail -f /var/log/nginx/error.log
 ```
-
-**Jika menggunakan PM2:**
-```bash
-cd /var/www/fin-iq
-git pull origin main
-npm install
-npm run build
-pm2 reload fin-iq
-```
-
----
-
-### F. Perintah Cek Status & Debugging
-- Cek container Docker: `docker compose ps`
-- Cek log Docker: `docker compose logs -f`
-- Cek PM2 (jika pakai PM2): `pm2 status`
-- Cek status web server Nginx: `sudo systemctl status nginx`
-- Cek log error Nginx: `sudo tail -f /var/log/nginx/error.log`
