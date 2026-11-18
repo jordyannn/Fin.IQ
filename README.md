@@ -85,11 +85,4 @@ Buka browser di [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## ☁️ Deployment ke Vercel
 
-1. Push repository Fin.IQ ini ke GitHub.
-2. Di Dashboard [Vercel](https://vercel.com):
-   - Klik **Add New Project** ➔ Import repository Fin.IQ.
-   - Hubungkan ke **Vercel Postgres (Neon)** dari tab *Storage*.
-   - Tambahkan Environment Variable: `NEXTAUTH_SECRET` dan `DATABASE_URL`.
-3. Klik **Deploy** — Aplikasi langsung live dalam hitungan detik!
