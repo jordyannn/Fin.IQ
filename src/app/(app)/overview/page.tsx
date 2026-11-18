@@ -50,6 +50,7 @@ import { CsvImportTutorialModal } from "@/components/import/CsvImportTutorialMod
 import { MascotRoamingStage } from "@/components/mascot/MascotRoamingStage";
 import { CatHouseBed } from "@/components/mascot/CatHouseBed";
 import { useMascotStore } from "@/store/mascot.store";
+import { useUIStore } from "@/store/ui.store";
 import { MonthYearPicker, MONTHS_ID, MONTHS_EN } from "@/components/ui/MonthYearPicker";
 import { QuickActionRow } from "@/components/overview/QuickActionRow";
 import { MilestoneTrackingCard } from "@/components/milestones/MilestoneTrackingCard";
@@ -77,6 +78,7 @@ const PIE_COLORS = [
 
 export default function OverviewPage() {
   const { isSleeping, setIsSleeping } = useMascotStore();
+  const { openQuickAdd } = useUIStore();
   const utils = trpc.useUtils();
   const { t, formatCurrency, formatDate, locale } = useTranslation();
   const isEn = locale === "en";
@@ -562,8 +564,8 @@ export default function OverviewPage() {
             </div>
           </div>
 
-          {/* Status Badge Arus Kas Periode */}
-          <div className="flex items-center gap-2">
+          {/* Status Badge Arus Kas Periode & CTA Tambah Transaksi */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
             <span
               className={`text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 self-start sm:self-center transition-all ${
                 summary.net > 0
@@ -590,6 +592,17 @@ export default function OverviewPage() {
                   : (isEn ? "Balanced Cash Flow" : "Arus Kas Seimbang")}
               </span>
             </span>
+
+            <Button
+              type="button"
+              onClick={openQuickAdd}
+              data-tour="overview-quick-add"
+              size="sm"
+              className="h-9 px-3.5 rounded-xl bg-primary hover:bg-emerald-600 text-white font-bold text-xs gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer"
+            >
+              <Plus className="h-4 w-4 stroke-[2.5px]" />
+              <span>{isEn ? "Add Transaction" : "Tambah Transaksi"}</span>
+            </Button>
           </div>
         </div>
 

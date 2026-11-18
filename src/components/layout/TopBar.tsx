@@ -3,7 +3,7 @@
 
 import React from "react";
 import { usePathname } from "next/navigation";
-import { Menu } from "lucide-react";
+import { Menu, Plus } from "lucide-react";
 import { GeometricIcon } from "@/components/ui/GeometricIcon";
 import { useUIStore } from "@/store/ui.store";
 import { useTranslation } from "@/i18n";
@@ -11,7 +11,7 @@ import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 
 export function TopBar() {
   const pathname = usePathname();
-  const { toggleCommandPalette, toggleSidebar } = useUIStore();
+  const { toggleCommandPalette, toggleSidebar, openQuickAdd } = useUIStore();
   const { t, locale } = useTranslation();
   const isEn = locale === "en";
 
@@ -90,6 +90,18 @@ export function TopBar() {
           <kbd className="ml-auto rounded-sm border border-border/80 bg-muted/60 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
             ⌘K
           </kbd>
+        </button>
+
+        {/* Desktop Quick Add Transaction Button */}
+        <button
+          type="button"
+          onClick={openQuickAdd}
+          data-tour="quick-add"
+          aria-label={t.topbar.quickAdd}
+          className="hidden lg:inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 h-9 text-xs font-bold text-white shadow-xs hover:bg-emerald-600 active:scale-95 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 whitespace-nowrap"
+        >
+          <Plus className="h-4 w-4 stroke-[2.5px]" />
+          <span>{isEn ? "Add Transaction" : t.topbar.quickAdd}</span>
         </button>
       </div>
     </header>
